@@ -347,8 +347,7 @@ const buildTree = (entries: DocumentFileEntry[]): FileItem[] => {
 
     const fileName = parts[parts.length - 1];
     if (fileName === '_folder.keep.txt') {
-      // Empty folders are represented by a hidden marker file in the backend.
-      // The folder node itself has already been created by the loop above.
+      // Empty-folder marker: the directory node was created by the loop above.
       continue;
     }
 
@@ -359,14 +358,6 @@ const buildTree = (entries: DocumentFileEntry[]): FileItem[] => {
     });
   }
 
-  // Make directory delete operations target their marker when they contain no
-  // visible files. This keeps the file-only persistence model transparent.
-  const markerByDir = new Map<string, string>();
-  for (const entry of entries) {
-    if (entry.rel_path.endsWith('/_folder.keep.txt')) {
-      markerByDir.set(entry.rel_path.slice(0, -'/_folder.keep.txt'.length), entry.rel_path);
-    }
-  }
   const sortRec = (items: FileItem[]) => {
     items.sort((a, b) => {
       if (a.isDir && !b.isDir) return -1;
@@ -374,12 +365,7 @@ const buildTree = (entries: DocumentFileEntry[]): FileItem[] => {
       return a.name.localeCompare(b.name);
     });
     for (const it of items) {
-      if (it.isDir) {
-        if (markerByDir.has(it.path) && !it.children?.length) {
-          it.path = markerByDir.get(it.path)!;
-        }
-        if (it.children) sortRec(it.children);
-      }
+      if (it.children) sortRec(it.children);
     }
   };
   sortRec(root.children!);
@@ -460,15 +446,26 @@ const createNewFile = async (parent: FileItem | null = null) => {
 };
 
 const createNewFolder = async (parent: FileItem | null = null) => {
-  const folderName = await dialog.showPrompt('Enter folder name:', '', 'New Folder');
+  const folderName = (await dialog.showPrompt('Enter folder name:', '', 'New Folder'))?.trim();
   if (!folderName) return;
+  if (
+    folderName.startsWith('.') ||
+    folderName.includes('/') ||
+    folderName.includes('\\') ||
+    folderName.includes('..') ||
+    folderName.includes('\0')
+  ) {
+    await dialog.showAlert('Folder names cannot contain path separators, "..", NUL bytes, or start with a dot.', 'Invalid Folder Name');
+    return;
+  }
 
-  const parentRel = parent?.path ?? null;
-  // The backend stores files (not empty directories), so anchor the new folder
-  // with a small text placeholder that remains portable through backups.
+  const parentRel = parent?.path ?? '';
+  const folderRel = parentRel ? `${parentRel}/${folderName}` : folderName;
   const placeholderName = '_folder.keep.txt';
   try {
-    await documentsStore.createFile(props.id, parentRel, placeholderName, '');
+    // The backend persists files, so create a marker inside the new folder.
+    // This makes the folder visible and portable even when it is empty.
+    await documentsStore.createFile(props.id, folderRel, placeholderName, '');
     await refreshFileTree();
   } catch (err: any) {
     await dialog.showAlert(err.toString(), 'Failed to create folder');
@@ -485,24 +482,28 @@ const deleteItem = async (item: FileItem) => {
 
   try {
     if (item.isDir) {
-      // Recursively delete children first, then the directory's marker.
+      // Recursively delete visible files and every directory marker.
       const collectPaths = (node: FileItem): string[] => {
         const out: string[] = [];
         const walk = (n: FileItem) => {
-          for (const c of n.children || []) walk(c);
-          if (!n.isDir && n.path && !n.path.endsWith('_folder.keep.txt')) {
+          for (const child of n.children || []) walk(child);
+          if (n.isDir) {
+            out.push(`${n.path}/_folder.keep.txt`);
+          } else if (n.path && !n.path.endsWith('_folder.keep.txt')) {
             out.push(n.path);
           }
         };
         walk(node);
         return out;
       };
-      const childPaths = collectPaths(item);
-      for (const p of childPaths) {
-        await documentsStore.deleteFile(props.id, p);
+      for (const path of collectPaths(item)) {
+        try {
+          await documentsStore.deleteFile(props.id, path);
+        } catch {
+          // A directory may not have a marker if it was created before the
+          // marker convention was introduced; continue deleting the rest.
+        }
       }
-      // Now delete the folder marker (which is what item.path holds).
-      await documentsStore.deleteFile(props.id, item.path);
     } else {
       await documentsStore.deleteFile(props.id, item.path);
     }

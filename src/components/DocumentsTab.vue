@@ -19,14 +19,12 @@ import {
   File,
   Hash,
   Check,
+  ArrowRight,
 } from '@lucide/vue';
 
 const router = useRouter();
 const documentsStore = useDocumentsStore();
 const dialog = useDialogStore();
-
-// Tooltip state
-const activeTooltip = ref<string | null>(null);
 
 // UI state
 const search = ref('');
@@ -180,23 +178,10 @@ const formatRelative = (s: string | null) => {
   <div class="documents-container">
     <header class="header">
       <div class="header-left">
-        <div class="btn-tooltip-wrapper" @mouseenter="activeTooltip = 'create';" @mouseleave="activeTooltip = null;">
-          <button class="btn-primary" @click="showCreateForm = true">
-            <Plus :size="18" />
-          </button>
-          <AnimatePresence>
-            <Motion
-              v-if="activeTooltip === 'create'"
-              :initial="{ opacity: 0, y: 5, scale: 0.9 }"
-              :animate="{ opacity: 1, y: 0, scale: 1 }"
-              :exit="{ opacity: 0, y: 5, scale: 0.9 }"
-              :transition="{ duration: 0.15 }"
-              class="flying-message tooltip-bottom-right"
-            >
-              New Document
-            </Motion>
-          </AnimatePresence>
-        </div>
+        <button class="btn-primary labeled" @click="showCreateForm = true">
+          <Plus :size="16" />
+          <span>New Document</span>
+        </button>
         <div class="header-meta">
           <h2>DOCUMENTS</h2>
           <span class="subtitle">Overleaf-style multi-file LaTeX workspaces, backed up with your data</span>
@@ -206,7 +191,7 @@ const formatRelative = (s: string | null) => {
       <div class="header-right">
         <div class="search-wrap">
           <Search :size="14" class="search-icon" />
-          <input v-model="search" class="native-input" placeholder="Search…" />
+          <input v-model="search" class="search-input" placeholder="Search…" />
         </div>
         <div class="sort-wrap">
           <CustomSelect
@@ -321,6 +306,15 @@ const formatRelative = (s: string | null) => {
               <File :size="11" />
               {{ doc.main_file }}
             </span>
+            <button
+              v-if="!isSelectionMode"
+              class="card-open-btn"
+              @click.stop="navigateToDoc(doc.id)"
+              :aria-label="`Open ${doc.title}`"
+            >
+              <span>Open</span>
+              <ArrowRight :size="14" />
+            </button>
           </footer>
         </Motion>
       </div>
@@ -353,27 +347,36 @@ const formatRelative = (s: string | null) => {
             </button>
           </div>
           <div class="modal-body">
-            <label class="field-label">Title</label>
-            <input
-              v-model="newTitle"
-              class="native-input"
-              placeholder="e.g. Research Paper"
-              autofocus
-              @keyup.enter="submitCreate"
-            />
-            <label class="field-label">Description (optional)</label>
-            <textarea
-              v-model="newDescription"
-              class="native-textarea"
-              placeholder="What is this document about?"
-              rows="3"
-            />
-            <label class="field-label">Tags (comma separated)</label>
-            <input
-              v-model="newTags"
-              class="native-input"
-              placeholder="e.g. thesis, draft"
-            />
+            <div class="field">
+              <label class="field-label" for="doc-title">Title</label>
+              <input
+                id="doc-title"
+                v-model="newTitle"
+                class="field-control"
+                placeholder="e.g. Research Paper"
+                autofocus
+                @keyup.enter="submitCreate"
+              />
+            </div>
+            <div class="field">
+              <label class="field-label" for="doc-desc">Description (optional)</label>
+              <textarea
+                id="doc-desc"
+                v-model="newDescription"
+                class="field-control"
+                placeholder="What is this document about?"
+                rows="3"
+              />
+            </div>
+            <div class="field">
+              <label class="field-label" for="doc-tags">Tags (comma separated)</label>
+              <input
+                id="doc-tags"
+                v-model="newTags"
+                class="field-control"
+                placeholder="e.g. thesis, draft"
+              />
+            </div>
             <div class="info-banner">
               <AlertCircle :size="14" />
               <div>
@@ -458,6 +461,14 @@ const formatRelative = (s: string | null) => {
   font-weight: 700;
   font-size: 0.85rem;
 }
+.btn-primary.labeled {
+  width: auto;
+  padding: 0 14px;
+  height: 38px;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 0.8rem;
+}
 
 .btn-ghost {
   background: var(--surface-soft);
@@ -519,12 +530,23 @@ const formatRelative = (s: string | null) => {
   position: absolute;
   left: 10px;
   color: var(--muted);
+  pointer-events: none;
 }
-.search-wrap .native-input {
+.search-input {
   padding-left: 30px;
   font-size: 0.8rem;
-  height: 34px;
-  width: 200px;
+  height: 38px;
+  width: 220px;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  color: var(--ink);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.search-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 .sort-wrap {
   width: 160px;
@@ -737,6 +759,25 @@ const formatRelative = (s: string | null) => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.card-open-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid transparent;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: 0.15s;
+}
+.card-open-btn:hover {
+  background: var(--accent);
+  color: white;
+}
 
 /* Modal */
 .modal-overlay {
@@ -790,36 +831,47 @@ const formatRelative = (s: string | null) => {
   background: var(--surface-soft);
 }
 .modal-body {
-  padding: 16px 20px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.field {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 .field-label {
-  font-size: 0.65rem;
-  font-weight: 800;
+  font-size: 0.7rem;
+  font-weight: 700;
   color: var(--muted);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-top: 8px;
+  letter-spacing: 0.06em;
 }
-.native-textarea {
+.field-control {
   width: 100%;
   padding: 10px 12px;
   background: var(--bg);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   color: var(--ink);
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   outline: none;
   font-family: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+textarea.field-control {
   resize: vertical;
+  min-height: 70px;
+  line-height: 1.5;
 }
-.native-textarea:focus {
+.field-control:focus {
   border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
-.native-input:focus {
-  border-color: var(--accent);
+.field-control::placeholder {
+  color: var(--muted);
+  opacity: 0.7;
 }
 .info-banner {
   display: flex;
@@ -829,7 +881,7 @@ const formatRelative = (s: string | null) => {
   background: rgba(58, 134, 255, 0.1);
   border: 1px solid rgba(58, 134, 255, 0.2);
   border-radius: var(--radius-md);
-  margin-top: 12px;
+  margin-top: 4px;
   font-size: 0.75rem;
   color: var(--ink);
   line-height: 1.4;
@@ -845,24 +897,32 @@ const formatRelative = (s: string | null) => {
   background: var(--surface-soft);
   border: 1px solid var(--line);
   color: var(--ink);
-  padding: 8px 16px;
+  padding: 10px 18px;
   border-radius: var(--radius-md);
   font-weight: 700;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   cursor: pointer;
+  transition: 0.15s;
+}
+.btn-cancel:hover {
+  border-color: var(--muted);
 }
 .btn-confirm {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   background: var(--accent);
   color: white;
   border: none;
-  padding: 8px 16px;
+  padding: 10px 18px;
   border-radius: var(--radius-md);
   font-weight: 700;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   cursor: pointer;
+  transition: filter 0.15s;
+}
+.btn-confirm:hover:not(:disabled) {
+  filter: brightness(1.1);
 }
 .btn-confirm:disabled {
   opacity: 0.5;
@@ -921,8 +981,8 @@ const formatRelative = (s: string | null) => {
   .grid {
     grid-template-columns: 1fr;
   }
-  .search-wrap .native-input {
-    width: 140px;
+  .search-input {
+    width: 150px;
   }
 }
 </style>
