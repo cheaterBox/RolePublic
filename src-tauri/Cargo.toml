@@ -1,7 +1,7 @@
 [package]
 name = "roletect"
-version = "0.1.1"
-description = "The LLM Orchestrated, Privacy First, Centralized Job Application Vault, Local First LATEX Engine & Professional Document Optimization Tool"
+version = "0.1.2"
+description = "The LLM Orchestrated, Privacy First, Centralized Job Application Vault, Local First LATEX Workspace & Professional Document Optimization Tool"
 authors = ["you"]
 edition = "2021"
 
