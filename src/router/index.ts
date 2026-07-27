@@ -85,6 +85,17 @@ const routes = [
     component: () => import('../components/InboxJobDetailView.vue'),
     props: true
   },
+  {
+    path: '/documents',
+    name: 'Documents',
+    component: () => import('../components/DocumentsTab.vue')
+  },
+  {
+    path: '/document/:id',
+    name: 'DocumentDetail',
+    component: () => import('../components/DocumentDetailView.vue'),
+    props: true
+  },
 ];
 
 export const router = createRouter({

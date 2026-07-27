@@ -1,6 +1,6 @@
 use crate::s3::{self, S3Config, BackupEntry};
 use crate::AppState;
-use tauri::State;
+use tauri::{AppHandle, State};
 use crate::commands::data::{export_all_data_core, import_data_core, AppDataExport};
 
 // Note: `check_data_dirty` is defined here because it naturally fits with cloud logic.
@@ -96,6 +96,7 @@ pub async fn list_s3_backups(
 
 #[tauri::command]
 pub async fn restore_from_s3(
+    app: AppHandle,
     state: State<'_, AppState>,
     access_key_id: String,
     secret_access_key: String,
@@ -104,16 +105,16 @@ pub async fn restore_from_s3(
 ) -> Result<(), String> {
     let config = get_s3_config(&state, access_key_id, secret_access_key).await;
     let client = s3::build_s3_client(&config).await?;
-    
+
     let json_str = s3::download_backup(&client, &config.bucket_name, &key).await?;
     let data: AppDataExport = serde_json::from_str(&json_str).map_err(|e| format!("Failed to parse backup JSON: {}", e))?;
-    
-    import_data_core(&state, data, mode)?;
-    
+
+    import_data_core(&state, &app, data, mode)?;
+
     // Reset dirty flag
     if let Ok(mut dirty) = state.data_dirty.lock() {
         *dirty = false;
     }
-    
+
     Ok(())
 }

@@ -1,6 +1,7 @@
 pub mod compiler;
 pub mod cover_letters;
 pub mod data;
+pub mod documents;
 pub mod downloads;
 pub mod inbox;
 pub mod jobs;

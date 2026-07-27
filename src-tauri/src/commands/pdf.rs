@@ -174,6 +174,10 @@ pub async fn compile_resume_to_pdf(app_handle: AppHandle, latex_code: String, fi
 
 #[command]
 pub async fn compile_workspace_to_pdf(app_handle: AppHandle, workspace_dir: String, main_file_name: String, filename: Option<String>) -> Result<Vec<u8>, String> {
+    compile_workspace_to_pdf_inner(app_handle, workspace_dir, main_file_name, filename).await
+}
+
+pub(crate) async fn compile_workspace_to_pdf_inner(app_handle: AppHandle, workspace_dir: String, main_file_name: String, filename: Option<String>) -> Result<Vec<u8>, String> {
     let docs_dir = app_handle.path().document_dir().map_err(|e| format!("Failed to get documents dir: {}", e))?;
     let roletect_dir = docs_dir.join("RoleTect");
     if !roletect_dir.exists() {

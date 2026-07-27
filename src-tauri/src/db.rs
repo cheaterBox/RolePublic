@@ -149,6 +149,36 @@ pub fn init_db(app: &AppHandle) -> Result<Connection> {
             status TEXT DEFAULT 'Pending', -- Pending, Processed
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
+
+        -- 9. Documents (Overleaf-style multi-file LaTeX workspaces)
+        CREATE TABLE IF NOT EXISTS documents (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            description TEXT NOT NULL DEFAULT '',
+            tags TEXT NOT NULL DEFAULT '',
+            starred INTEGER NOT NULL DEFAULT 0,
+            main_file TEXT,
+            last_compiled_at TEXT,
+            compile_status TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TRIGGER IF NOT EXISTS update_documents_modtime
+            AFTER UPDATE ON documents
+            BEGIN UPDATE documents SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id; END;
+        CREATE INDEX IF NOT EXISTS idx_documents_starred ON documents(starred) WHERE starred = 1;
+
+        -- 10. Document Files (text content only; binaries excluded from backup)
+        CREATE TABLE IF NOT EXISTS document_files (
+            doc_id TEXT NOT NULL,
+            rel_path TEXT NOT NULL,
+            content TEXT NOT NULL,
+            size_bytes INTEGER NOT NULL,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (doc_id, rel_path),
+            FOREIGN KEY (doc_id) REFERENCES documents(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_document_files_doc ON document_files(doc_id);
         "
     )?;
 

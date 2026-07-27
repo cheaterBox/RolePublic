@@ -30,6 +30,7 @@ const tabs = [
     { path: "/inbox", label: "Inbox", icon: Inbox },
     { path: "/resumes", label: "Resume Templates", icon: FileText },
     { path: "/cover-letters", label: "CL Templates", icon: Mail },
+    { path: "/documents", label: "Documents", icon: FileText },
     { path: "/compiler", label: "Compiler", icon: Cpu },
     { path: "/diagrams", label: "Diagrams", icon: Share2 },
     { path: "/settings", label: "Settings", icon: Settings },

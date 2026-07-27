@@ -1,4 +1,5 @@
 use crate::commands::cover_letters::CoverLetterDetail;
+use crate::commands::documents::{DocumentSummary, is_text_extension};
 use crate::commands::downloads::DownloadRecord;
 use crate::commands::inbox::InboxJob;
 use crate::commands::jobs::JobPayload;
@@ -6,7 +7,8 @@ use crate::commands::resumes::ResumeDetail;
 use crate::AppState;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
-use tauri::State;
+use std::path::PathBuf;
+use tauri::{AppHandle, Manager, State};
 
 /// Keys that are sensitive (secrets, credentials) or per-installation
 /// runtime values that must never be exported or overwritten by imports.
@@ -117,6 +119,15 @@ pub struct SettingExport {
     pub value: String,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct DocumentFileExport {
+    pub doc_id: String,
+    pub rel_path: String,
+    pub content: String,
+    pub size_bytes: i64,
+    pub updated_at: String,
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct AppDataExport {
     pub jobs: Vec<JobPayload>,
@@ -129,6 +140,10 @@ pub struct AppDataExport {
     pub app_settings: Vec<SettingExport>,
     pub inbox_jobs: Vec<InboxJob>,
     pub compiler_state: Option<String>,
+    #[serde(default)]
+    pub documents: Vec<DocumentSummary>,
+    #[serde(default)]
+    pub document_files: Vec<DocumentFileExport>,
     pub exported_at: String,
 }
 
@@ -360,6 +375,52 @@ pub fn export_all_data_core(state: &AppState) -> Result<AppDataExport, String> {
         .map_err(|e| e.to_string())?
         .flatten();
 
+    // 9. Fetch Documents (metadata)
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, title, description, tags, starred, main_file, last_compiled_at, compile_status, created_at, updated_at FROM documents ORDER BY updated_at DESC",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let documents = stmt
+        .query_map([], |row| {
+            Ok(DocumentSummary {
+                id: row.get(0)?,
+                title: row.get(1)?,
+                description: row.get(2)?,
+                tags: row.get(3)?,
+                starred: row.get::<_, i64>(4)? != 0,
+                main_file: row.get(5)?,
+                last_compiled_at: row.get(6)?,
+                compile_status: row.get(7)?,
+                created_at: row.get(8)?,
+                updated_at: row.get(9)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    // 10. Fetch Document Files (text only; binaries excluded).
+    let mut stmt = conn
+        .prepare("SELECT doc_id, rel_path, content, size_bytes, updated_at FROM document_files ORDER BY doc_id, rel_path")
+        .map_err(|e| e.to_string())?;
+
+    let document_files: Vec<DocumentFileExport> = stmt
+        .query_map([], |row| {
+            Ok(DocumentFileExport {
+                doc_id: row.get(0)?,
+                rel_path: row.get(1)?,
+                content: row.get(2)?,
+                size_bytes: row.get(3)?,
+                updated_at: row.get(4)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .filter(|f| is_text_extension(&f.rel_path))
+        .collect();
+
     Ok(AppDataExport {
         jobs,
         base_resumes,
@@ -371,6 +432,8 @@ pub fn export_all_data_core(state: &AppState) -> Result<AppDataExport, String> {
         app_settings,
         inbox_jobs,
         compiler_state,
+        documents,
+        document_files,
         exported_at: chrono::Local::now().to_rfc3339(),
     })
 }
@@ -380,7 +443,12 @@ pub async fn export_all_data(state: State<'_, AppState>) -> Result<AppDataExport
     export_all_data_core(&state)
 }
 
-pub fn import_data_core(state: &AppState, data: AppDataExport, mode: String) -> Result<(), String> {
+pub fn import_data_core(
+    state: &AppState,
+    app: &AppHandle,
+    data: AppDataExport,
+    mode: String,
+) -> Result<(), String> {
     let mut db_guard = state.db.lock().map_err(|e| format!("Mutex error: {}", e))?;
     let conn = db_guard.as_mut().ok_or("Database connection lost")?;
 
@@ -410,6 +478,8 @@ pub fn import_data_core(state: &AppState, data: AppDataExport, mode: String) -> 
         tx.execute("DELETE FROM inbox_jobs", [])
             .map_err(|e| e.to_string())?;
         tx.execute("DELETE FROM app_settings", [])
+            .map_err(|e| e.to_string())?;
+        tx.execute("DELETE FROM documents", [])
             .map_err(|e| e.to_string())?;
     }
 
@@ -634,7 +704,7 @@ pub fn import_data_core(state: &AppState, data: AppDataExport, mode: String) -> 
         tx.execute(
             "INSERT INTO inbox_jobs (id, url, raw_description, status, created_at)
              VALUES (?1, ?2, ?3, ?4, ?5)
-             ON CONFLICT(id) DO UPDATE SET 
+             ON CONFLICT(id) DO UPDATE SET
                 url=excluded.url,
                 raw_description=excluded.raw_description,
                 status=excluded.status",
@@ -649,23 +719,163 @@ pub fn import_data_core(state: &AppState, data: AppDataExport, mode: String) -> 
         .map_err(|e| e.to_string())?;
     }
 
+    // 9. Import Documents (metadata)
+    for doc in &data.documents {
+        tx.execute(
+            "INSERT INTO documents (id, title, description, tags, starred, main_file, last_compiled_at, compile_status, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+             ON CONFLICT(id) DO UPDATE SET
+                title=excluded.title,
+                description=excluded.description,
+                tags=excluded.tags,
+                starred=excluded.starred,
+                main_file=excluded.main_file,
+                last_compiled_at=excluded.last_compiled_at,
+                compile_status=excluded.compile_status,
+                updated_at=excluded.updated_at",
+            rusqlite::params![
+                &doc.id,
+                &doc.title,
+                &doc.description,
+                &doc.tags,
+                doc.starred as i64,
+                &doc.main_file,
+                &doc.last_compiled_at,
+                &doc.compile_status,
+                &doc.created_at,
+                &doc.updated_at,
+            ],
+        )
+        .map_err(|e| format!("Failed to import document {}: {}", doc.id, e))?;
+    }
+
+    // 10. Import Document Files (text only). Use INSERT OR IGNORE so files that
+    // already exist locally (because disk was preserved) are not overwritten.
+    for file in &data.document_files {
+        if !is_text_extension(&file.rel_path) {
+            continue;
+        }
+        // Validate the rel_path defensively (in case of malicious backup).
+        if normalize_rel_path_check(&file.rel_path).is_err() {
+            eprintln!(
+                "Skipping suspicious document file path during import: {}",
+                file.rel_path
+            );
+            continue;
+        }
+        tx.execute(
+            "INSERT INTO document_files (doc_id, rel_path, content, size_bytes, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5)
+             ON CONFLICT(doc_id, rel_path) DO NOTHING",
+            rusqlite::params![
+                &file.doc_id,
+                &file.rel_path,
+                &file.content,
+                file.size_bytes,
+                &file.updated_at,
+            ],
+        )
+        .map_err(|e| format!("Failed to import document file {}: {}", file.rel_path, e))?;
+    }
+
     // Restore sensitive settings that were snapshotted before the import.
     // This runs inside the transaction so it's atomic.
     restore_sensitive_settings(&tx, &sensitive_snapshot);
 
     tx.commit().map_err(|e| e.to_string())?;
-    
+
+    // After commit, recreate on-disk text files for imported documents. This is
+    // best-effort: failures are logged but do not abort the import.
+    if let Err(e) = restore_document_filesystem(app, &data.document_files) {
+        eprintln!("Document filesystem restore partial failure: {}", e);
+    }
+
     state.mark_dirty();
     Ok(())
 }
 
 #[tauri::command]
 pub async fn import_data(
+    app: AppHandle,
     state: State<'_, AppState>,
     data: AppDataExport,
     mode: String,
 ) -> Result<(), String> {
-    import_data_core(&state, data, mode)
+    import_data_core(&state, &app, data, mode)
+}
+
+/// Lightweight path validation used during import so a malicious backup can't
+/// smuggle `..` or absolute paths into the file system.
+fn normalize_rel_path_check(rel_path: &str) -> Result<String, String> {
+    use std::path::Path;
+    if rel_path.is_empty() {
+        return Err("Empty path".to_string());
+    }
+    if rel_path.contains('\0') {
+        return Err("Null byte in path".to_string());
+    }
+    let normalized = rel_path.replace('\\', "/");
+    let p = Path::new(&normalized);
+    if p.is_absolute() {
+        return Err("Absolute path not allowed".to_string());
+    }
+    for component in p.components() {
+        let s = component.as_os_str().to_string_lossy();
+        if s == ".." {
+            return Err("Path traversal detected".to_string());
+        }
+    }
+    Ok(normalized)
+}
+
+/// Write the embedded text files for imported documents to disk, mirroring the
+/// on-disk layout the app expects. Skips binary assets. Failures are logged.
+fn restore_document_filesystem(
+    app: &AppHandle,
+    files: &[DocumentFileExport],
+) -> Result<(), String> {
+    let root: PathBuf = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to resolve app data dir: {}", e))?
+        .join("documents");
+
+    for file in files {
+        if !is_text_extension(&file.rel_path) {
+            continue;
+        }
+        let normalized = match normalize_rel_path_check(&file.rel_path) {
+            Ok(p) => p,
+            Err(e) => {
+                eprintln!("Skipping bad path during restore: {} ({})", file.rel_path, e);
+                continue;
+            }
+        };
+        let target = root.join(&file.doc_id).join(&normalized);
+
+        // Containment check: ensure target is inside the per-doc dir.
+        let doc_root = root.join(&file.doc_id);
+        if let Some(parent) = target.parent() {
+            if !parent.starts_with(&doc_root) {
+                eprintln!("Skipping out-of-tree path: {}", target.display());
+                continue;
+            }
+            let _ = std::fs::create_dir_all(parent);
+        }
+        if std::str::from_utf8(file.content.as_bytes()).is_err() {
+            eprintln!("Skipping non-UTF8 file during restore: {}", normalized);
+            continue;
+        }
+        if let Err(e) = std::fs::write(&target, file.content.as_bytes()) {
+            eprintln!(
+                "Failed to restore {} to {}: {}",
+                file.rel_path,
+                target.display(),
+                e
+            );
+        }
+    }
+    Ok(())
 }
 
 #[tauri::command]

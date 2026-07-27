@@ -173,6 +173,22 @@ pub fn run() {
             commands::cloud::upload_backup_to_s3,
             commands::cloud::list_s3_backups,
             commands::cloud::restore_from_s3,
+            commands::documents::get_all_documents,
+            commands::documents::get_document_by_id,
+            commands::documents::create_new_document,
+            commands::documents::update_document,
+            commands::documents::set_document_starred,
+            commands::documents::delete_document,
+            commands::documents::delete_documents_batch,
+            commands::documents::list_document_files,
+            commands::documents::read_document_file,
+            commands::documents::write_document_file,
+            commands::documents::create_document_file,
+            commands::documents::delete_document_file,
+            commands::documents::rename_document_file,
+            commands::documents::set_document_main_file,
+            commands::documents::get_document_main_file,
+            commands::documents::compile_document_to_pdf,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
