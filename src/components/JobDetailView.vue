@@ -11,6 +11,7 @@ import { useResumesStore } from '../store/resumes';
 import { useCoverLettersStore } from '../store/cover_letters';
 import { useDialogStore } from '../store/dialog';
 import { useJobsStore, Job } from '../store/jobs';
+import { useScoringStore } from '../store/scoring';
 import CustomSelect from './CustomSelect.vue';
 import VuePdfEmbed from 'vue-pdf-embed';
 // Codemirror imports
@@ -19,14 +20,14 @@ import { latex, latexLanguage, autoCloseTags } from 'codemirror-lang-latex';
 import { oneDark } from '@codemirror/theme-one-dark';
 import { EditorView } from '@codemirror/view';
 
-import { 
-  ArrowLeft, 
-  Trash2, 
-  ExternalLink, 
-  Save, 
-  Hammer, 
-  Download, 
-  Wand2, 
+import {
+  ArrowLeft,
+  Trash2,
+  ExternalLink,
+  Save,
+  Hammer,
+  Download,
+  Wand2,
   Play,
   RotateCw,
   Loader2,
@@ -38,7 +39,11 @@ import {
   Activity,
   Mail,
   FileText,
-  Columns
+  Columns,
+  Gauge,
+  AlertTriangle,
+  CheckCircle2,
+  XCircle,
 } from '@lucide/vue';
 
 interface TemplateItem {
@@ -58,6 +63,7 @@ const resumesStore = useResumesStore();
 const clStore = useCoverLettersStore();
 const dialog = useDialogStore();
 const jobsStore = useJobsStore();
+const scoringStore = useScoringStore();
 
 const props = defineProps<{ id: string }>();
 
@@ -135,6 +141,38 @@ const isClCompiled = ref(false);
 const isComparing = ref(false);
 const basePdfUrl = ref<any>(null);
 const isCompilingBase = ref(false);
+
+// Match Scoring State
+type ScoreSource = 'tailored' | 'base';
+const scoreSource = ref<ScoreSource>('tailored');
+const showMatchPanel = ref(false);
+
+async function runMatchScore() {
+    if (scoringStore.isScoring) return;
+    showMatchPanel.value = true;
+    let latex = '';
+    if (scoreSource.value === 'base') {
+        const id = activeMode.value === 'resume' ? resumeSelectedId.value : clSelectedId.value;
+        if (!id) {
+            await dialog.showAlert('Pick a base template first.', 'No template selected');
+            return;
+        }
+        if (activeMode.value === 'resume') {
+            const r = await resumesStore.getResumeById(id);
+            latex = r.latex_content || '';
+        } else {
+            const c = await clStore.getCoverLetterById(id);
+            latex = c.latex_content || '';
+        }
+    } else {
+        latex = activeLatex.value || '';
+    }
+    if (!latex.trim()) {
+        await dialog.showAlert('Nothing to score — content is empty.', 'Empty content');
+        return;
+    }
+    await scoringStore.score(props.id, latex);
+}
 
 const toggleCompare = async () => {
   isComparing.value = !isComparing.value;
@@ -228,6 +266,19 @@ const activeCompError = computed({
 });
 
 const activePdfBytes = computed(() => activeMode.value === 'resume' ? resumePdfBytes.value : clPdfBytes.value);
+
+// Match Score helpers
+const matchColor = (score: number): string => {
+    if (score >= 75) return 'var(--accent)';       // green
+    if (score >= 50) return '#f5a623';              // amber
+    return '#e94560';                                // red
+};
+const matchLabel = (score: number): string => {
+    if (score >= 75) return 'Strong match';
+    if (score >= 50) return 'Decent match';
+    if (score >= 25) return 'Weak match';
+    return 'Poor match';
+};
 
 // Template data
 const standardResumes = ref<TemplateItem[]>([]);
@@ -1078,8 +1129,153 @@ const deleteJob = async () => {
                 </Motion>
               </AnimatePresence>
             </div>
+            <div class="btn-tooltip-wrapper" @mouseenter="activeTooltip = 'match-score'" @mouseleave="activeTooltip = null">
+              <button class="tab-btn" :class="{ 'active': showMatchPanel }" @click="runMatchScore" :disabled="scoringStore.isScoring">
+                <Gauge v-if="!scoringStore.isScoring" :size="14" />
+                <RotateCw v-else :size="14" class="spinner" />
+              </button>
+              <AnimatePresence>
+                <Motion
+                  v-if="activeTooltip === 'match-score'"
+                  :initial="{ opacity: 0, y: 5, scale: 0.9 }"
+                  :animate="{ opacity: 1, y: 0, scale: 1 }"
+                  :exit="{ opacity: 0, y: 5, scale: 0.9 }"
+                  :transition="{ duration: 0.15 }"
+                  class="flying-message tab-tooltip"
+                >
+                  Match Score
+                </Motion>
+              </AnimatePresence>
+            </div>
           </div>
         </div>
+
+        <AnimatePresence>
+          <Motion
+            v-if="showMatchPanel"
+            :initial="{ height: 0, opacity: 0 }"
+            :animate="{ height: 'auto', opacity: 1 }"
+            :exit="{ height: 0, opacity: 0 }"
+            :transition="{ duration: 0.2 }"
+            class="match-panel-wrapper"
+          >
+            <div class="match-panel">
+              <header class="match-panel-header">
+                <div class="match-panel-title">
+                  <Gauge :size="14" />
+                  <span>Resume Match Score</span>
+                  <span v-if="scoringStore.lastBreakdown" class="match-source-toggle">
+                    <button
+                      class="seg-btn"
+                      :class="{ active: scoreSource === 'tailored' }"
+                      @click="scoreSource = 'tailored'"
+                    >Tailored</button>
+                    <button
+                      class="seg-btn"
+                      :class="{ active: scoreSource === 'base' }"
+                      @click="scoreSource = 'base'"
+                    >Base</button>
+                  </span>
+                </div>
+                <div class="match-panel-actions">
+                  <button class="link-btn" @click="runMatchScore" :disabled="scoringStore.isScoring">
+                    <RotateCw v-if="scoringStore.isScoring" :size="12" class="spinner" />
+                    <span v-else>Re-score</span>
+                  </button>
+                  <button class="link-btn" @click="showMatchPanel = false">Close</button>
+                </div>
+              </header>
+
+              <!-- Empty / loading state -->
+              <div v-if="scoringStore.isScoring && !scoringStore.lastBreakdown" class="match-empty">
+                Analyzing resume...
+              </div>
+              <div v-else-if="!scoringStore.lastBreakdown" class="match-empty">
+                Click <strong>Re-score</strong> to analyze this resume against the job description.
+              </div>
+
+              <!-- Error state -->
+              <div v-else-if="scoringStore.error" class="match-error">
+                <AlertTriangle :size="14" />
+                <span>{{ scoringStore.error }}</span>
+              </div>
+
+              <!-- Breakdown -->
+              <div v-else class="match-body">
+                <div class="match-hero">
+                  <div
+                    class="match-score-circle"
+                    :style="{ color: matchColor(scoringStore.lastBreakdown.overall), borderColor: matchColor(scoringStore.lastBreakdown.overall) }"
+                  >
+                    {{ scoringStore.lastBreakdown.overall }}
+                  </div>
+                  <div class="match-score-label">
+                    <strong>{{ matchLabel(scoringStore.lastBreakdown.overall) }}</strong>
+                    <span>
+                      {{ scoringStore.lastBreakdown.present_skills.length }} of {{ scoringStore.lastBreakdown.jd_skill_count }}
+                      required skills present
+                    </span>
+                  </div>
+                </div>
+
+                <div class="match-bars">
+                  <div class="match-bar">
+                    <span>Skills</span>
+                    <div class="bar"><div class="fill" :style="{ width: scoringStore.lastBreakdown.skills_score + '%', background: matchColor(scoringStore.lastBreakdown.skills_score) }"></div></div>
+                    <strong>{{ scoringStore.lastBreakdown.skills_score }}%</strong>
+                  </div>
+                  <div class="match-bar">
+                    <span>TF-IDF</span>
+                    <div class="bar"><div class="fill" :style="{ width: scoringStore.lastBreakdown.tfidf_score + '%', background: matchColor(scoringStore.lastBreakdown.tfidf_score) }"></div></div>
+                    <strong>{{ scoringStore.lastBreakdown.tfidf_score }}%</strong>
+                  </div>
+                  <div class="match-bar">
+                    <span>Jaccard</span>
+                    <div class="bar"><div class="fill" :style="{ width: scoringStore.lastBreakdown.jaccard_score + '%', background: matchColor(scoringStore.lastBreakdown.jaccard_score) }"></div></div>
+                    <strong>{{ scoringStore.lastBreakdown.jaccard_score }}%</strong>
+                  </div>
+                </div>
+
+                <div v-if="scoringStore.lastBreakdown.missing_skills.length" class="match-section">
+                  <div class="match-section-title">
+                    <XCircle :size="12" />
+                    Missing skills ({{ scoringStore.lastBreakdown.missing_skills.length }})
+                  </div>
+                  <div class="match-chips">
+                    <span class="match-chip chip-missing" v-for="s in scoringStore.lastBreakdown.missing_skills" :key="`m-${s}`">{{ s }}</span>
+                  </div>
+                </div>
+
+                <div v-if="scoringStore.lastBreakdown.weak_skills.length" class="match-section">
+                  <div class="match-section-title">
+                    <AlertTriangle :size="12" />
+                    Weak skills ({{ scoringStore.lastBreakdown.weak_skills.length }})
+                    <small>present but mentioned only once in resume while the JD hammers them 3+ times</small>
+                  </div>
+                  <div class="match-chips">
+                    <span class="match-chip chip-weak" v-for="s in scoringStore.lastBreakdown.weak_skills" :key="`w-${s}`">{{ s }}</span>
+                  </div>
+                </div>
+
+                <div v-if="scoringStore.lastBreakdown.present_skills.length" class="match-section">
+                  <div class="match-section-title">
+                    <CheckCircle2 :size="12" />
+                    Present skills ({{ scoringStore.lastBreakdown.present_skills.length }})
+                  </div>
+                  <div class="match-chips">
+                    <span class="match-chip chip-present" v-for="s in scoringStore.lastBreakdown.present_skills" :key="`p-${s}`">{{ s }}</span>
+                  </div>
+                </div>
+
+                <footer class="match-footer">
+                  {{ scoringStore.lastBreakdown.jd_token_count }} JD tokens analyzed ·
+                  {{ scoringStore.lastBreakdown.resume_token_count }} resume tokens analyzed ·
+                  local-only scoring, no data sent off-device
+                </footer>
+              </div>
+            </div>
+          </Motion>
+        </AnimatePresence>
 
         <AnimatePresence>
           <Motion
@@ -1731,5 +1927,249 @@ const deleteJob = async () => {
 @media (max-width: 960px) {
   .info-panel { display: none; }
   .workspace-header { height: 44px; }
+}
+
+/* Match Score Panel */
+.match-panel-wrapper {
+  overflow: hidden;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-soft, var(--bg-accent));
+}
+
+.match-panel {
+  padding: 12px 16px;
+  font-size: 0.85rem;
+  color: var(--ink);
+}
+
+.match-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.match-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  color: var(--accent);
+}
+
+.match-source-toggle {
+  display: flex;
+  gap: 0;
+  background: var(--bg);
+  padding: 2px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  margin-left: 8px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.seg-btn {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.seg-btn.active {
+  background: var(--accent);
+  color: white;
+}
+
+.match-panel-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 0;
+}
+
+.link-btn:hover { text-decoration: underline; }
+
+.link-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.match-empty, .match-error {
+  padding: 16px 8px;
+  color: var(--muted);
+  text-align: center;
+  font-size: 0.85rem;
+}
+
+.match-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #e94560;
+}
+
+.match-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.match-hero {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.match-score-circle {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  border: 3px solid;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.6rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.match-score-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.85rem;
+}
+
+.match-score-label strong {
+  font-size: 1rem;
+  letter-spacing: 0.02em;
+}
+
+.match-score-label span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.match-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.match-bar {
+  display: grid;
+  grid-template-columns: 60px 1fr 48px;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.75rem;
+}
+
+.match-bar .bar {
+  height: 8px;
+  background: var(--line);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.match-bar .fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.4s ease;
+}
+
+.match-bar strong {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.match-section {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+
+.match-section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.match-section-title small {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.68rem;
+  color: var(--muted);
+  margin-left: 6px;
+}
+
+.match-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.match-chip {
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border: 1px solid transparent;
+  text-transform: lowercase;
+}
+
+.match-chip.chip-present {
+  background: rgba(46, 204, 113, 0.12);
+  color: #2ecc71;
+  border-color: rgba(46, 204, 113, 0.3);
+}
+
+.match-chip.chip-missing {
+  background: rgba(233, 69, 96, 0.12);
+  color: #e94560;
+  border-color: rgba(233, 69, 96, 0.3);
+}
+
+.match-chip.chip-weak {
+  background: rgba(245, 166, 35, 0.12);
+  color: #f5a623;
+  border-color: rgba(245, 166, 35, 0.3);
+}
+
+.match-footer {
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+  font-size: 0.7rem;
+  color: var(--muted);
+  font-style: italic;
+}
+
+.tab-btn.active {
+  color: var(--accent);
 }
 </style>

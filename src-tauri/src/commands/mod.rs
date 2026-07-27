@@ -7,6 +7,7 @@ pub mod inbox;
 pub mod jobs;
 pub mod pdf;
 pub mod resumes;
+pub mod scoring;
 pub mod settings;
 pub mod cloud;
 

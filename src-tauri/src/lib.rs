@@ -3,6 +3,7 @@ pub mod commands;
 pub mod db;
 pub mod server;
 pub mod s3;
+pub mod utils;
 
 use rusqlite::Connection;
 use std::sync::Mutex;
@@ -189,6 +190,7 @@ pub fn run() {
             commands::documents::set_document_main_file,
             commands::documents::get_document_main_file,
             commands::documents::compile_document_to_pdf,
+            commands::scoring::score_resume_match,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
