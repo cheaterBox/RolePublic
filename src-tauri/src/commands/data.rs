@@ -406,6 +406,7 @@ pub fn export_all_data_core(state: &AppState) -> Result<AppDataExport, String> {
         .prepare("SELECT doc_id, rel_path, content, size_bytes, updated_at FROM document_files ORDER BY doc_id, rel_path")
         .map_err(|e| e.to_string())?;
 
+    let mut skipped_binary_files: Vec<String> = Vec::new();
     let document_files: Vec<DocumentFileExport> = stmt
         .query_map([], |row| {
             Ok(DocumentFileExport {
@@ -418,8 +419,29 @@ pub fn export_all_data_core(state: &AppState) -> Result<AppDataExport, String> {
         })
         .map_err(|e| e.to_string())?
         .filter_map(|r| r.ok())
-        .filter(|f| is_text_extension(&f.rel_path))
+        .filter(|f| {
+            if is_text_extension(&f.rel_path) {
+                true
+            } else {
+                skipped_binary_files.push(format!("{}::{}", f.doc_id, f.rel_path));
+                false
+            }
+        })
         .collect();
+
+    if !skipped_binary_files.is_empty() {
+        eprintln!(
+            "[backup] Excluded {} binary/non-text document file(s) from export \
+             (.png/.jpg/.pdf etc. are not part of the backup):",
+            skipped_binary_files.len()
+        );
+        for entry in skipped_binary_files.iter().take(20) {
+            eprintln!("[backup]   - {}", entry);
+        }
+        if skipped_binary_files.len() > 20 {
+            eprintln!("[backup]   - ... and {} more", skipped_binary_files.len() - 20);
+        }
+    }
 
     Ok(AppDataExport {
         jobs,
@@ -1056,5 +1078,31 @@ mod tests {
         assert_eq!(safe.len(), 2);
         assert_eq!(safe[0].key, "active_theme");
         assert_eq!(safe[1].key, "font_family");
+    }
+
+    // --- Documents backup recursive-nested-path tests ---
+
+    #[test]
+    fn nested_document_paths_are_backup_eligible() {
+        // Text files nested inside subdirectories must be eligible for backup
+        // (recursive children must roundtrip through local + S3 backups).
+        assert!(is_text_extension("chapters/intro.tex"));
+        assert!(is_text_extension("sections/related/notes.bib"));
+        assert!(is_text_extension("a/b/c/preamble.sty"));
+        assert!(is_text_extension("figures/_folder.keep.txt"));
+    }
+
+    #[test]
+    fn nested_document_paths_can_be_validated() {
+        // The defensive validator used during import must accept nested paths and
+        // reject traversal attempts, regardless of extension.
+        assert!(normalize_rel_path_check("chapters/intro.tex").is_ok());
+        assert!(normalize_rel_path_check("a/b/c/d/notes.md").is_ok());
+
+        // Reject traversal.
+        assert!(normalize_rel_path_check("../etc/passwd").is_err());
+        assert!(normalize_rel_path_check("a/../../escape.tex").is_err());
+        assert!(normalize_rel_path_check("/absolute/path.tex").is_err());
+        assert!(normalize_rel_path_check("").is_err());
     }
 }
