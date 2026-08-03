@@ -1,0 +1,15 @@
+target
+**/*.db
+**/*.db-journal
+**/*.db-wal
+**/*.db-shm
+.texput.*
+*.pdf
+.env
+.env.*
+!.env.example
+.git
+.gitignore
+.DS_Store
+node_modules
+Cargo.lock.bak
