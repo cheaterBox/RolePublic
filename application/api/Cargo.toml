@@ -1,25 +1,64 @@
 [package]
 name = "roletect_api"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
+description = "Roletect VPS API — Axum HTTP server with multi-driver SQLx persistence."
 
 [dependencies]
-axum = "0.8.1"
+# Web
+axum = { version = "0.8", features = ["macros"] }
 tokio = { version = "1", features = ["full"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "fs", "trace"] }
+
+# Serialization
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-rusqlite = { version = "0.39.0", features = ["bundled"] }
-rig = { version = "0.37.0", features = ["gemini-grpc"] }
-nanoid = "0.5.0"
-tower-http = { version = "0.6.1", features = ["cors", "fs"] }
-tectonic = "0.16.9"
+
+# Database
+sqlx = { version = "0.8", default-features = false, features = [
+    "runtime-tokio",
+    "sqlite",
+    "postgres",
+    "macros",
+    "chrono",
+    "migrate",
+] }
+
+# AI
+rig = { version = "0.38", features = ["gemini-grpc"] }
+rig-bedrock = "0.38"
+aws-config = "1"
+aws-sdk-bedrockruntime = "1"
+
+# S3 (for backup feature)
+aws-sdk-s3 = "1"
+
+# Auth / crypto
+aes-gcm = "0.10"
+argon2 = "0.5"
+rand = "0.8"
+base64 = "0.22"
+zeroize = { version = "1.7", features = ["zeroize_derive"] }
+subtle = "2.5"
+async-trait = "0.1"
+
+# Misc
+nanoid = "0.5"
 chrono = { version = "0.4", features = ["serde"] }
-anyhow = "1.0"
+anyhow = "1"
+thiserror = "1"
 schemars = "1"
 dotenvy = "0.15"
-rig-bedrock = "0.38.1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+toml = "0.8"
+
+# Tectonic LaTeX compiler — MUST match desktop version for binary-compat output
+tectonic = "0.17"
 
 [profile.release]
 opt-level = 3
-lto = true
+lto = "thin"
 codegen-units = 1
+strip = true
