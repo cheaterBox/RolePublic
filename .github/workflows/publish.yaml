@@ -87,12 +87,12 @@ jobs:
       - name: Setup vcpkg and Dependencies (Windows)
         if: runner.os == 'Windows'
         run: |
-          git clone https://github.com/microsoft/vcpkg.git ${{ github.workspace }}\vcpkg
-          ${{ github.workspace }}\vcpkg\bootstrap-vcpkg.bat
+          git clone --depth 1 https://github.com/microsoft/vcpkg.git ${{ github.workspace }}\vcpkg
+          ${{ github.workspace }}\vcpkg\bootstrap-vcpkg.bat -disableMetrics
           
-          # Installs required C++ libraries for the Tectonic crate.
-          # Note: sqlite3 is intentionally omitted here because rusqlite handles it via the "bundled" Cargo feature.
-          ${{ github.workspace }}\vcpkg\vcpkg.exe install icu:${{ matrix.vcpkg_triplet }} libpng:${{ matrix.vcpkg_triplet }} harfbuzz[graphite2]:${{ matrix.vcpkg_triplet }} graphite2:${{ matrix.vcpkg_triplet }} fontconfig:${{ matrix.vcpkg_triplet }}
+          # Installs required C++ libraries for the Tectonic crate (Harfbuzz & FreeType are bundled internally by Tectonic).
+          # Note: sqlite3 is handled by rusqlite's "bundled" feature.
+          ${{ github.workspace }}\vcpkg\vcpkg.exe install icu:${{ matrix.vcpkg_triplet }} libpng:${{ matrix.vcpkg_triplet }}
 
           echo "TECTONIC_DEP_BACKEND=vcpkg" >> $env:GITHUB_ENV
           echo "VCPKG_ROOT=${{ github.workspace }}\vcpkg" >> $env:GITHUB_ENV
@@ -126,5 +126,6 @@ jobs:
             * **Windows on ARM (Snapdragon/Copilot+)**: Download the `arm64` or `aarch64` file (e.g., `-setup.exe`)
 
             ### 🐧 Linux
-            * **Standard PC (Intel/AMD)**: Download the `amd64` or `x64` file (e.g., `.AppImage` or `.deb`)
-            * **ARM 64-bit (Raspberry Pi/ARM Servers)**: Download the `aarch64` file (e.g., `.AppImage` or `.deb`)
+            * **Fedora / Arch / openSUSE / Generic Linux (Intel/AMD)**: Download the `.AppImage` (Universal self-contained bundle)
+            * **Ubuntu / Debian (Intel/AMD)**: Download the `.deb` or `.AppImage`
+            * **Linux ARM 64-bit (Raspberry Pi / ARM Servers)**: Download the `aarch64.AppImage` or `aarch64.deb`
