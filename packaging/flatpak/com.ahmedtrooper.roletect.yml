@@ -1,16 +1,15 @@
 app-id: com.ahmedtrooper.roletect
 runtime: org.gnome.Platform
-runtime-version: '46'
+runtime-version: '47'
 sdk: org.gnome.Sdk
-sdk-extensions:
-  - org.freedesktop.Sdk.Extension.rust-stable
 
-command: roletect
+command: roletect.sh
 
 finish-args:
   # Display & GPU hardware acceleration
   - --socket=wayland
   - --socket=fallback-x11
+  - --socket=x11
   - --share=ipc
   - --device=dri
 
@@ -22,29 +21,30 @@ finish-args:
   - --filesystem=xdg-cache/Tectonic:create
   - --filesystem=home:ro
 
-  # System features
+  # System features & IPC
+  - --socket=session-bus
   - --talk-name=org.freedesktop.Notifications
-
-build-options:
-  append-path: /usr/lib/sdk/rust-stable/bin
-  env:
-    CARGO_HOME: /run/build/roletect/cargo
+  - --env=WEBKIT_DISABLE_DMABUF_RENDERER=1
 
 modules:
   - name: roletect
     buildsystem: simple
     build-commands:
-      # 1. Build frontend dist
-      - bun install --frozen-lockfile
-      - bun run build
-
-      # 2. Build Tauri release binary
-      - cargo build --release --manifest-path src-tauri/Cargo.toml
-
-      # 3. Install binary
+      # 1. Install pre-compiled release binary
       - install -Dm755 src-tauri/target/release/roletect /app/bin/roletect
 
-      # 4. Install Desktop file, AppStream metadata, and App Icon
+      # 2. Install launch wrapper (sets working dir so Tauri finds dist/)
+      - install -Dm755 packaging/flatpak/roletect.sh /app/bin/roletect.sh
+
+      # 3. Install bundled runtime libraries
+      - mkdir -p /app/lib
+      - cp -a packaging/flatpak/lib/* /app/lib/
+
+      # 4. Install frontend dist assets (Tauri resolves ../dist from /app/share/roletect)
+      - mkdir -p /app/share/roletect
+      - cp -r dist /app/share/roletect/dist
+
+      # 5. Install Desktop file, AppStream metadata, and App Icon
       - install -Dm644 packaging/flatpak/com.ahmedtrooper.roletect.desktop /app/share/applications/com.ahmedtrooper.roletect.desktop
       - install -Dm644 packaging/flatpak/com.ahmedtrooper.roletect.metainfo.xml /app/share/metainfo/com.ahmedtrooper.roletect.metainfo.xml
       - install -Dm644 src-tauri/icons/128x128.png /app/share/icons/hicolor/128x128/apps/com.ahmedtrooper.roletect.png
