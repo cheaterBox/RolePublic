@@ -6,6 +6,7 @@ pub mod documents;
 pub mod downloads;
 pub mod inbox;
 pub mod jobs;
+pub mod license;
 pub mod pdf;
 pub mod resumes;
 pub mod scoring;

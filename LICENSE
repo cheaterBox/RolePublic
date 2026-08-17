@@ -1,21 +1,83 @@
-MIT License
+RoleTect Commercial Software License & Terms of Service
+======================================================
 
-Copyright (c) 2025 Md. Ramjan Miah
+Copyright (c) 2025-2026 Md. Ramjan Miah (AhmedTrooper). All Rights Reserved.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+IMPORTANT: PLEASE READ THIS SOFTWARE LICENSE AGREEMENT ("AGREEMENT") CAREFULLY
+BEFORE DOWNLOADING, INSTALLING, COPYING, OR USING ROLETECT ("SOFTWARE"). BY
+DOWNLOADING, INSTALLING, OR USING THE SOFTWARE, YOU AGREE TO BE BOUND BY THE
+TERMS OF THIS AGREEMENT. IF YOU DO NOT AGREE TO THE TERMS OF THIS AGREEMENT,
+DO NOT DOWNLOAD, INSTALL, OR USE THE SOFTWARE.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+1. GRANT OF LICENSE
+-------------------
+Subject to the terms and conditions of this Agreement and payment of the applicable
+license fees (or during an authorized evaluation/trial period), Md. Ramjan Miah
+("Licensor") grants you ("Licensee") a revocable, non-exclusive, non-transferable,
+limited license to download, install, activate, and use RoleTect on your authorized
+personal devices in accordance with the subscription or license tier purchased
+through Lemon Squeezy or authorized distributors.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+2. OWNERSHIP & INTELLECTUAL PROPERTY
+------------------------------------
+RoleTect, including but not limited to its source code, compiled binaries, user
+interface, design, branding, documentation, algorithms, AI orchestration layer,
+and LaTeX integration pipeline, is the sole and exclusive intellectual property of
+Md. Ramjan Miah. The Software is licensed, not sold. All rights not expressly
+granted to you in this Agreement are reserved by the Licensor.
+
+3. LICENSE ACTIVATION & TRIAL VERIFICATION
+------------------------------------------
+(a) Access to the Software requires activation using a valid, authentic license key
+    issued by Lemon Squeezy or the Licensor.
+(b) The Software employs periodic, privacy-respecting cryptographic license
+    verification and offline grace mechanisms to validate authorized use.
+(c) Attempting to tamper with, bypass, disable, spoof, or circumvent the license
+    validation, trial tracking, or cryptographic storage is a strict violation of
+    this Agreement and will result in immediate termination of the license without
+    refund.
+
+4. RESTRICTIONS
+---------------
+You expressly agree NOT to:
+(a) Decompile, reverse engineer, disassemble, decrypt, or attempt to derive the
+    source code of the Software or any part thereof;
+(b) Modify, adapt, translate, enhance, or create derivative works from the Software;
+(c) Sell, resell, rent, lease, sublicense, distribute, assign, host, or commercially
+    exploit the Software or its binaries to any third party;
+(d) Share, publish, leak, or distribute your private license key to unauthorized
+    individuals or public repositories;
+(e) Remove, alter, or obscure any proprietary notices, copyright notices, trademarks,
+    or watermarks embedded in the Software.
+
+5. USER PRIVACY & DATA OWNERSHIP
+--------------------------------
+(a) All user-generated content, documents, LaTeX source files, resumes, job vault
+    records, and customized configurations stored locally remain 100% your private
+    property.
+(b) User credentials and API keys are stored strictly in your local encrypted
+    hardware enclave and are never transmitted to the Licensor.
+
+6. TERMINATION
+--------------
+This Agreement is effective until terminated. Your rights under this Agreement will
+terminate automatically without notice if you fail to comply with any of its terms.
+Upon termination, you must cease all use of the Software and delete all copies
+from your systems.
+
+7. DISCLAIMER OF WARRANTY
+-------------------------
+THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHOR OR COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES, LOSS OF PROFITS, OR
+OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING
+FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+8. CONTACT & LICENSING INQUIRIES
+---------------------------------
+For business licensing, support, or questions regarding this Agreement, please
+contact Md. Ramjan Miah via:
+- GitHub: https://github.com/AhmedTrooper
+- Lemon Squeezy Store: https://roletect.lemonsqueezy.com

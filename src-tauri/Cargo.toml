@@ -2,7 +2,8 @@
 name = "roletect"
 version = "0.1.4"
 description = "The LLM Orchestrated, Privacy First, Centralized Job Application Vault, Local First LATEX Workspace & Professional Document Optimization Tool"
-authors = ["you"]
+authors = ["Md. Ramjan Miah <AhmedTrooper>"]
+license = "Proprietary"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -47,6 +48,8 @@ tauri-plugin-localhost = "2.3.2"
 tokio-util = "0.7.18"
 aws-sdk-s3 = "1"
 tectonic = { version = "0.17.0", features = ["external-harfbuzz"] }
+reqwest = { version = "0.12", features = ["json"] }
+machine-uid = "0.5"
 
 
 

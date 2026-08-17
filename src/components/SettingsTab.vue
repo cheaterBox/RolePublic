@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, watch, computed } from 'vue';
 import { useSettingsStore } from '../store/settings';
+import { useLicenseStore } from '../store/license';
 import { 
   CheckCircle, 
   Info, 
@@ -16,12 +17,18 @@ import {
   Type,
   Italic,
   Play,
-  DownloadCloud
+  DownloadCloud,
+  Key,
+  ShieldCheck,
+  LogOut,
+  ExternalLink,
+  Sparkles
 } from '@lucide/vue';
 import { Motion, AnimatePresence } from 'motion-v';
 import { invoke } from '@tauri-apps/api/core';
 import { save as saveDialog, open as openDialog } from '@tauri-apps/plugin-dialog';
 import { writeTextFile, readTextFile } from '@tauri-apps/plugin-fs';
+import { openUrl } from '@tauri-apps/plugin-opener';
 
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
 import { useDialogStore } from '../store/dialog';
@@ -29,7 +36,71 @@ import { ask } from '@tauri-apps/plugin-dialog';
 import CustomSelect from './CustomSelect.vue';
 
 const store = useSettingsStore();
+const licenseStore = useLicenseStore();
 const dialog = useDialogStore();
+const isDeactivatingLicense = ref(false);
+const upgradeKeyInput = ref('');
+const isActivatingUpgrade = ref(false);
+const isSyncingLicenseSettings = ref(false);
+
+const handleSyncLicenseSettings = async () => {
+  isSyncingLicenseSettings.value = true;
+  try {
+    const success = await licenseStore.refreshLicense();
+    if (success) {
+      const isTrial = licenseStore.licenseStatus?.trial;
+      const status = licenseStore.licenseStatus?.status;
+      if (!isTrial && status === 'active') {
+        await dialog.showAlert('License verified successfully! Your subscription is active as Pro Member.', 'License Verified');
+      } else if (isTrial) {
+        await dialog.showAlert(`License verified! Trial is active (${licenseStore.licenseStatus?.trial_ends_at ? new Date(licenseStore.licenseStatus.trial_ends_at).toLocaleDateString() : 'Active'}).`, 'Trial Active');
+      } else {
+        await dialog.showAlert(`License status: ${status}.`, 'License Status');
+      }
+    } else {
+      await dialog.showAlert('License verification failed. Please check your network connection or license key.', 'Verification Failed');
+    }
+  } catch (err: any) {
+    await dialog.showAlert(err.toString(), 'Verification Error');
+  } finally {
+    isSyncingLicenseSettings.value = false;
+  }
+};
+
+const handleActivateUpgrade = async () => {
+  if (!upgradeKeyInput.value.trim()) return;
+  isActivatingUpgrade.value = true;
+  try {
+    const success = await licenseStore.activateLicense(upgradeKeyInput.value);
+    if (success) {
+      await dialog.showAlert('License successfully activated! Your copy of RoleTect is now fully unlocked.', 'License Activated');
+      upgradeKeyInput.value = '';
+    } else {
+      await dialog.showAlert(licenseStore.activationError || 'Activation failed. Please check your key.', 'Activation Error');
+    }
+  } catch (err: any) {
+    await dialog.showAlert(err.toString(), 'Activation Error');
+  } finally {
+    isActivatingUpgrade.value = false;
+  }
+};
+
+const handleDeactivateLicense = async () => {
+  const confirmed = await ask('Are you sure you want to deactivate your license on this device? RoleTect will lock until a valid key is entered.', {
+    title: 'Deactivate License',
+    kind: 'warning'
+  });
+  if (!confirmed) return;
+  isDeactivatingLicense.value = true;
+  try {
+    await licenseStore.deactivateLicense();
+    await dialog.showAlert('License successfully deactivated.', 'Deactivated');
+  } catch (err: any) {
+    await dialog.showAlert('Failed to deactivate license.', 'Error');
+  } finally {
+    isDeactivatingLicense.value = false;
+  }
+};
 
 // Tooltip State
 const activeTooltip = ref<string | null>(null);
@@ -1437,6 +1508,106 @@ const handleSave = async () => {
               </div>
             </div>
           </button>
+        </div>
+      </div>
+
+      <!-- License & Activation -->
+      <div class="settings-card">
+        <div class="card-header">
+          <div class="title-row">
+            <h3>License & Subscription</h3>
+            <div class="header-btns">
+              <span v-if="licenseStore.isLicensed" class="badge-status-active">
+                <ShieldCheck :size="14" />
+                {{ licenseStore.licenseStatus?.trial ? 'Trial Active' : 'Licensed' }}
+              </span>
+            </div>
+          </div>
+          <p>Manage your Lemon Squeezy license activation and device authorization.</p>
+        </div>
+
+        <div class="license-info-section" style="margin-top: 16px;">
+          <div class="info-row" style="display: flex; flex-direction: column; gap: 12px;">
+            <div v-if="licenseStore.licenseStatus?.customer_email" class="license-detail-item" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; font-size: 0.85rem;">
+              <span style="color: var(--muted);">Registered To</span>
+              <span style="color: var(--ink); font-weight: 500;">{{ licenseStore.licenseStatus.customer_email }}</span>
+            </div>
+
+            <div v-if="licenseStore.licenseStatus?.trial_ends_at" class="license-detail-item" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; font-size: 0.85rem;">
+              <span style="color: var(--muted);">Trial Expiration</span>
+              <span style="color: var(--accent); font-weight: 500;">{{ new Date(licenseStore.licenseStatus.trial_ends_at).toLocaleDateString() }}</span>
+            </div>
+
+            <div v-if="licenseStore.licenseStatus?.license_key" class="license-detail-item" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; font-size: 0.85rem;">
+              <span style="color: var(--muted);">License Key</span>
+              <span style="color: var(--ink); font-family: monospace; font-size: 0.8rem;">
+                ••••••••-••••-{{ licenseStore.licenseStatus.license_key.slice(-8) }}
+              </span>
+            </div>
+
+            <!-- Upgrade / Enter License Key (When on Trial) -->
+            <div v-if="!licenseStore.licenseStatus?.license_key" class="license-upgrade-box" style="margin-top: 14px; padding: 14px; background: var(--bg); border: 1px dashed var(--line); border-radius: 8px; display: flex; flex-direction: column; gap: 10px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <Sparkles :size="14" style="color: var(--accent);" />
+                  <span style="font-size: 0.85rem; font-weight: 600; color: var(--ink);">Have a License Key?</span>
+                </div>
+                <button
+                  type="button"
+                  @click="openUrl('https://github.com/AhmedTrooper/roletect-app')"
+                  style="background: transparent; border: none; color: var(--accent); font-size: 0.8rem; cursor: pointer; display: flex; align-items: center; gap: 4px; text-decoration: underline;"
+                >
+                  <ExternalLink :size="12" />
+                  <span>Get License</span>
+                </button>
+              </div>
+              <p style="font-size: 0.8rem; color: var(--muted); margin: 0;">
+                Activate your permanent license key from Lemon Squeezy to upgrade to RoleTect Pro.
+              </p>
+              <div style="display: flex; gap: 8px;">
+                <input
+                  v-model="upgradeKeyInput"
+                  type="text"
+                  placeholder="XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
+                  style="flex: 1; padding: 8px 12px; font-family: monospace; font-size: 0.8rem; background: var(--surface-soft); border: 1px solid var(--line); border-radius: 6px; color: var(--ink);"
+                  :disabled="isActivatingUpgrade"
+                />
+                <button
+                  type="button"
+                  @click="handleActivateUpgrade"
+                  :disabled="isActivatingUpgrade || !upgradeKeyInput.trim()"
+                  style="padding: 8px 16px; background: var(--accent); color: #fff; border: none; border-radius: 6px; font-size: 0.8rem; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 6px;"
+                >
+                  <ShieldCheck :size="14" />
+                  <span>{{ isActivatingUpgrade ? 'Activating...' : 'Activate' }}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="licenseStore.licenseStatus?.license_key" class="license-actions" style="margin-top: 18px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+            <button 
+              type="button" 
+              class="text-btn" 
+              @click="handleSyncLicenseSettings"
+              :disabled="isSyncingLicenseSettings"
+              style="display: flex; align-items: center; gap: 6px; padding: 8px 14px; background: var(--surface-soft); border: 1px solid var(--line); color: var(--ink); border-radius: 8px; font-size: 0.85rem; cursor: pointer;"
+            >
+              <RefreshCw :size="14" :class="{ 'spinner': isSyncingLicenseSettings }" />
+              <span>{{ isSyncingLicenseSettings ? 'Verifying Online...' : 'Verify Status with Lemon Squeezy' }}</span>
+            </button>
+
+            <button 
+              type="button" 
+              class="text-btn danger" 
+              @click="handleDeactivateLicense"
+              :disabled="isDeactivatingLicense"
+              style="display: flex; align-items: center; gap: 6px; padding: 8px 14px; background: rgba(248, 81, 73, 0.1); border: 1px solid rgba(248, 81, 73, 0.3); color: var(--warning); border-radius: 8px; font-size: 0.85rem; cursor: pointer;"
+            >
+              <LogOut :size="14" />
+              <span>{{ isDeactivatingLicense ? 'Deactivating...' : 'Deactivate License on This Device' }}</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>

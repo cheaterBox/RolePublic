@@ -192,6 +192,9 @@ pub fn run() {
             commands::documents::get_document_main_file,
             commands::documents::compile_document_to_pdf,
             commands::scoring::score_resume_match,
+            commands::license::activate_license_api,
+            commands::license::validate_license_api,
+            commands::license::deactivate_license_api,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

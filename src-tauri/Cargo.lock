@@ -6987,6 +6987,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "machine-uid"
+version = "0.5.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7d7217d573cdb141d6da43113b098172e057d39915d79c4bdedbc3aacd46bd96"
+dependencies = [
+ "libc",
+ "windows-registry 0.6.1",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "macro_rules_attribute"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9651,7 +9662,9 @@ dependencies = [
  "aws-sdk-s3",
  "axum",
  "chrono",
+ "machine-uid",
  "nanoid 0.5.0",
+ "reqwest 0.12.28",
  "rig",
  "rig-bedrock",
  "rusqlite",

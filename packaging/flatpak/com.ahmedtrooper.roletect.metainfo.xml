@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
   <id>com.ahmedtrooper.roletect</id>
-  <metadata_license>MIT</metadata_license>
-  <project_license>MIT</project_license>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>LicenseRef-proprietary</project_license>
   <name>RoleTect</name>
   <summary>Privacy-First Job Application Vault &amp; Local-First LaTeX Workspace</summary>
   <description>

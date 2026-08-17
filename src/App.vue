@@ -6,7 +6,9 @@ import Titlebar from "./components/Titlebar.vue";
 import SplashLoader from "./components/SplashLoader.vue";
 import CustomDialog from "./components/CustomDialog.vue";
 import CloudUploadOverlay from "./components/CloudUploadOverlay.vue";
+import LicenseGate from "./components/LicenseGate.vue";
 import { useSettingsStore } from "./store/settings";
+import { useLicenseStore } from "./store/license";
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { invoke } from '@tauri-apps/api/core';
 import { exit } from '@tauri-apps/plugin-process';
@@ -40,8 +42,8 @@ const tabs = [
 
 const externalLinks = [
     {
-        url: "https://github.com/AhmedTrooper/Roletect",
-        label: "Source",
+        url: "https://github.com/AhmedTrooper/roletect-app",
+        label: "Community & Releases",
         icon: Code,
     },
     {
@@ -52,14 +54,18 @@ const externalLinks = [
 ];
 
 const settingsStore = useSettingsStore();
+const licenseStore = useLicenseStore();
 const activeTooltip = ref<string | null>(null);
 const isAppLoading = ref(true);
 const isUploadingToCloud = ref(false);
 
 onMounted(async () => {
     try {
-        // Load settings (database, stronghold, etc.)
-        await settingsStore.loadSettings();
+        // Load settings and check license validity concurrently
+        await Promise.allSettled([
+            settingsStore.loadSettings(),
+            licenseStore.checkLicense()
+        ]);
     } catch (error) {
         console.error("Initialization error:", error);
     } finally {
@@ -239,6 +245,9 @@ const handleExternalClick = (url: string) => {
     
     <!-- Cloud Upload Overlay -->
     <CloudUploadOverlay :is-visible="isUploadingToCloud" />
+
+    <!-- Strict License Gate Overlay (locks entire app when unlicensed) -->
+    <LicenseGate v-if="!licenseStore.isChecking && !licenseStore.isLicensed" />
 </template>
 
 <style scoped>

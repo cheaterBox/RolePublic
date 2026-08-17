@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue';
 import { getName, getVersion, getTauriVersion } from '@tauri-apps/api/app';
 import { type } from '@tauri-apps/plugin-os';
-import { Code, Video, Heart, Copy, Check, ShieldCheck } from '@lucide/vue';
+import { Code, Copy, Check, ShieldCheck } from '@lucide/vue';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
 import { Motion } from 'motion-v';
@@ -83,9 +83,9 @@ const copyIdentifier = async () => {
         </div>
         <div class="spec-item">
           <div class="spec-header">
-            <span class="spec-label">ENGINE</span>
+            <span class="spec-label">LICENSE</span>
           </div>
-          <span class="spec-value mono">Tauri {{ tauriVersion }}</span>
+          <span class="spec-value mono">Commercial Proprietary</span>
         </div>
         <div class="spec-item">
           <div class="spec-header">
@@ -97,30 +97,22 @@ const copyIdentifier = async () => {
 
       <div class="description-box">
         <p>
-          Roletect
- integrates sovereign LLM orchestration with professional TeX typesetting. 
-          Built for those who treat their professional narrative as a technical specification.
+          Roletect integrates sovereign LLM orchestration with professional TeX typesetting. 
+          Built for professionals who treat their career narrative as a precision specification.
         </p>
       </div>
 
       <div class="action-row">
-        <button class="btn-premium" @click="openLink('https://github.com/AhmedTrooper/Roletect')">
+        <button class="btn-premium" @click="openLink('https://github.com/AhmedTrooper/roletect-app')">
           <Code :size="14" />
-          <span>Source Repository</span>
-        </button>
-        <button class="btn-premium" @click="openLink('https://www.youtube.com/@AhmedTrooper')">
-          <Video :size="14" />
-          <span>Technical Demo</span>
+          <span>Community, Releases &amp; Documentation</span>
         </button>
       </div>
 
       <footer class="about-footer">
         <div class="footer-line"></div>
         <div class="footer-content">
-          <p>ENGINEERED BY AHMEDTROOPER</p>
-          <div class="heart-pulse">
-            <Heart :size="12" fill="var(--warning)" stroke="none" />
-          </div>
+          <p>© 2025-2026 MD. RAMJAN MIAH (AHMEDTROOPER) • ALL RIGHTS RESERVED</p>
         </div>
       </footer>
     </Motion>
@@ -371,16 +363,6 @@ const copyIdentifier = async () => {
   margin: 0;
 }
 
-.heart-pulse {
-  animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-  0% { transform: scale(1); opacity: 0.8; }
-  50% { transform: scale(1.2); opacity: 1; }
-  100% { transform: scale(1); opacity: 0.8; }
-}
-
 .text-accent {
   color: var(--accent);
 }
@@ -391,4 +373,3 @@ const copyIdentifier = async () => {
   .about-card { padding: 32px; }
 }
 </style>
->

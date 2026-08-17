@@ -39,3 +39,12 @@ potential_features.txt
 next-env.d.ts
 application/api/roletect.db
 src-tauri/texput.pdf
+
+# Flatpak & Packaging Artifacts
+.flatpak-builder/
+build-dir/
+repo/
+*.flatpak
+packaging/**/lib/
+packaging/**/*.so*
+
