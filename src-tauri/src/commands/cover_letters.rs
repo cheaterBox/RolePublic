@@ -261,7 +261,10 @@ pub async fn update_tailored_cover_letter(
 }
 
 #[tauri::command]
-pub async fn get_tailored_cover_letter(state: State<'_, AppState>, id: String) -> Result<String, String> {
+pub async fn get_tailored_cover_letter(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<String, String> {
     let mut db_guard = state.db.lock().map_err(|e| format!("Mutex error: {}", e))?;
     let conn = db_guard.as_mut().ok_or("Database connection lost")?;
 
@@ -390,7 +393,8 @@ pub async fn tailor_cover_letter(
             tx.execute(
                 "UPDATE jobs SET base_cl_id = ?1 WHERE id = ?2",
                 [&base_cl_id, &job_id],
-            ).map_err(|e| format!("Database error (update job): {}", e))?;
+            )
+            .map_err(|e| format!("Database error (update job): {}", e))?;
 
             tx.commit().map_err(|e| e.to_string())?;
             state.mark_dirty();

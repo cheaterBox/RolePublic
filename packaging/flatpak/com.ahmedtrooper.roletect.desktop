@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=RoleTect
+Comment=Privacy-First Job Application Vault & LaTeX Workspace
+Exec=roletect
+Icon=com.ahmedtrooper.roletect
+Terminal=false
+Type=Application
+Categories=Office;Development;TextEditor;
+Keywords=latex;resume;job;cover-letter;tectonic;
+StartupWMClass=roletect

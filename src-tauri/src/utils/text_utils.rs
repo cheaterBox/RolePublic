@@ -11,75 +11,429 @@ use std::collections::{HashMap, HashSet};
 /// Kept short and explicit so behavior is auditable.
 pub const STOPWORDS: &[&str] = &[
     // articles / conjunctions / prepositions
-    "a", "an", "the", "and", "or", "but", "if", "then", "else", "for", "of", "to", "in",
-    "on", "at", "by", "with", "from", "as", "into", "out", "up", "down", "over", "under",
-    "again", "further", "once", "here", "there", "when", "where", "why", "how", "all",
-    "any", "both", "each", "few", "more", "most", "other", "some", "such", "no", "nor",
-    "not", "only", "own", "same", "so", "than", "too", "very", "can", "will", "just",
-    "don", "should", "now", "is", "are", "was", "were", "be", "been", "being", "have",
-    "has", "had", "having", "do", "does", "did", "doing", "would", "could", "may",
-    "might", "must", "shall", "this", "that", "these", "those", "i", "you", "he", "she",
-    "it", "we", "they", "me", "him", "her", "us", "them", "my", "your", "his", "its",
-    "our", "their", "what", "which", "who", "whom", "whose",
+    "a",
+    "an",
+    "the",
+    "and",
+    "or",
+    "but",
+    "if",
+    "then",
+    "else",
+    "for",
+    "of",
+    "to",
+    "in",
+    "on",
+    "at",
+    "by",
+    "with",
+    "from",
+    "as",
+    "into",
+    "out",
+    "up",
+    "down",
+    "over",
+    "under",
+    "again",
+    "further",
+    "once",
+    "here",
+    "there",
+    "when",
+    "where",
+    "why",
+    "how",
+    "all",
+    "any",
+    "both",
+    "each",
+    "few",
+    "more",
+    "most",
+    "other",
+    "some",
+    "such",
+    "no",
+    "nor",
+    "not",
+    "only",
+    "own",
+    "same",
+    "so",
+    "than",
+    "too",
+    "very",
+    "can",
+    "will",
+    "just",
+    "don",
+    "should",
+    "now",
+    "is",
+    "are",
+    "was",
+    "were",
+    "be",
+    "been",
+    "being",
+    "have",
+    "has",
+    "had",
+    "having",
+    "do",
+    "does",
+    "did",
+    "doing",
+    "would",
+    "could",
+    "may",
+    "might",
+    "must",
+    "shall",
+    "this",
+    "that",
+    "these",
+    "those",
+    "i",
+    "you",
+    "he",
+    "she",
+    "it",
+    "we",
+    "they",
+    "me",
+    "him",
+    "her",
+    "us",
+    "them",
+    "my",
+    "your",
+    "his",
+    "its",
+    "our",
+    "their",
+    "what",
+    "which",
+    "who",
+    "whom",
+    "whose",
     // common resume filler
-    "work", "working", "worked", "experience", "experienced", "year", "years",
-    "role", "team", "company", "via", "using", "used", "use", "include", "includes",
-    "including", "well", "strong", "solid", "good", "great", "across", "within",
-    "also", "able", "etc", "via", "plus", "around", "via",
+    "work",
+    "working",
+    "worked",
+    "experience",
+    "experienced",
+    "year",
+    "years",
+    "role",
+    "team",
+    "company",
+    "via",
+    "using",
+    "used",
+    "use",
+    "include",
+    "includes",
+    "including",
+    "well",
+    "strong",
+    "solid",
+    "good",
+    "great",
+    "across",
+    "within",
+    "also",
+    "able",
+    "etc",
+    "via",
+    "plus",
+    "around",
+    "via",
     // LaTeX residue that survives stripping
-    "begin", "end", "document", "item", "items", "label", "ref", "cite", "usepackage",
-    "documentclass", "section", "subsection", "textbf", "textit", "emph", "href",
-    "url", "usepackage", "input", "include", "newpage", "noindent", "centering",
+    "begin",
+    "end",
+    "document",
+    "item",
+    "items",
+    "label",
+    "ref",
+    "cite",
+    "usepackage",
+    "documentclass",
+    "section",
+    "subsection",
+    "textbf",
+    "textit",
+    "emph",
+    "href",
+    "url",
+    "usepackage",
+    "input",
+    "include",
+    "newpage",
+    "noindent",
+    "centering",
 ];
 
 /// Curated technical skills/keywords. Stemmed forms included for plurals.
 /// Add to this list to expand coverage — no other code changes needed.
 pub const SKILLS_LEXICON: &[&str] = &[
     // Languages (stemmed forms included)
-    "rust", "python", "typescript", "javascript", "go", "java", "kotlin", "swift",
-    "cpp", "csharp", "ruby", "php", "scala", "elixir", "haskell", "perl", "dart",
-    "lua", "r", "matlab", "sql", "graphql", "html", "css", "sass", "less",
+    "rust",
+    "python",
+    "typescript",
+    "javascript",
+    "go",
+    "java",
+    "kotlin",
+    "swift",
+    "cpp",
+    "csharp",
+    "ruby",
+    "php",
+    "scala",
+    "elixir",
+    "haskell",
+    "perl",
+    "dart",
+    "lua",
+    "r",
+    "matlab",
+    "sql",
+    "graphql",
+    "html",
+    "css",
+    "sass",
+    "less",
     // Web frameworks / libraries
-    "react", "vue", "angular", "svelte", "nextjs", "nuxtjs", "remix", "astro",
-    "webpack", "vite", "rollup", "parcel", "tailwind", "bootstrap", "materialui",
-    "redux", "mobx", "rxjs", "vuex", "pinia", "tanstack", "reactquery",
+    "react",
+    "vue",
+    "angular",
+    "svelte",
+    "nextjs",
+    "nuxtjs",
+    "remix",
+    "astro",
+    "webpack",
+    "vite",
+    "rollup",
+    "parcel",
+    "tailwind",
+    "bootstrap",
+    "materialui",
+    "redux",
+    "mobx",
+    "rxjs",
+    "vuex",
+    "pinia",
+    "tanstack",
+    "reactquery",
     // Backend
-    "axum", "actix", "rocket", "warp", "django", "flask", "fastapi", "starlette",
-    "express", "nestjs", "koa", "hapi", "gin", "echo", "fiber", "spring", "springboot",
-    "rails", "laravel", "symfony", "phoenix", "aspnet",
+    "axum",
+    "actix",
+    "rocket",
+    "warp",
+    "django",
+    "flask",
+    "fastapi",
+    "starlette",
+    "express",
+    "nestjs",
+    "koa",
+    "hapi",
+    "gin",
+    "echo",
+    "fiber",
+    "spring",
+    "springboot",
+    "rails",
+    "laravel",
+    "symfony",
+    "phoenix",
+    "aspnet",
     // Databases
-    "postgres", "postgresql", "mysql", "mariadb", "mongodb", "redis", "memcached",
-    "elasticsearch", "dynamodb", "sqlite", "cassandra", "clickhouse", "snowflake",
-    "bigquery", "redshift", "neo4j", "influxdb", "cockroachdb",
+    "postgres",
+    "postgresql",
+    "mysql",
+    "mariadb",
+    "mongodb",
+    "redis",
+    "memcached",
+    "elasticsearch",
+    "dynamodb",
+    "sqlite",
+    "cassandra",
+    "clickhouse",
+    "snowflake",
+    "bigquery",
+    "redshift",
+    "neo4j",
+    "influxdb",
+    "cockroachdb",
     // Cloud / DevOps
-    "aws", "gcp", "azure", "kubernetes", "k8s", "docker", "terraform", "ansible",
-    "helm", "jenkins", "github", "gitlab", "prometheus", "grafana", "loki",
-    "argo", "istio", "linkerd", "consul", "vault", "nginx", "traefik",
-    "serverless", "lambda", "cloudfront", "s3", "ec2", "rds", "eks", "ecs", "fargate",
+    "aws",
+    "gcp",
+    "azure",
+    "kubernetes",
+    "k8s",
+    "docker",
+    "terraform",
+    "ansible",
+    "helm",
+    "jenkins",
+    "github",
+    "gitlab",
+    "prometheus",
+    "grafana",
+    "loki",
+    "argo",
+    "istio",
+    "linkerd",
+    "consul",
+    "vault",
+    "nginx",
+    "traefik",
+    "serverless",
+    "lambda",
+    "cloudfront",
+    "s3",
+    "ec2",
+    "rds",
+    "eks",
+    "ecs",
+    "fargate",
     // AI / ML
-    "pytorch", "tensorflow", "jax", "sklearn", "scikit", "pandas", "numpy", "scipy",
-    "langchain", "llamaindex", "huggingface", "transformers", "embedding", "embeddings",
-    "rag", "finetuning", "prompt", "agent", "agents", "nlp", "llm", "llms",
-    "vectordb", "pinecone", "weaviate", "qdrant", "chroma", "milvus",
+    "pytorch",
+    "tensorflow",
+    "jax",
+    "sklearn",
+    "scikit",
+    "pandas",
+    "numpy",
+    "scipy",
+    "langchain",
+    "llamaindex",
+    "huggingface",
+    "transformers",
+    "embedding",
+    "embeddings",
+    "rag",
+    "finetuning",
+    "prompt",
+    "agent",
+    "agents",
+    "nlp",
+    "llm",
+    "llms",
+    "vectordb",
+    "pinecone",
+    "weaviate",
+    "qdrant",
+    "chroma",
+    "milvus",
     // Concepts / architecture
-    "microservice", "microservices", "rest", "grpc", "soap", "kafka", "rabbitmq",
-    "nats", "eventdriven", "cqrs", "eventSourcing", "observability", "monitoring",
-    "distributed", "highavailability", "loadbalancing", "caching", "tracing",
-    "opentelemetry", "jaeger", "zipkin",
+    "microservice",
+    "microservices",
+    "rest",
+    "grpc",
+    "soap",
+    "kafka",
+    "rabbitmq",
+    "nats",
+    "eventdriven",
+    "cqrs",
+    "eventSourcing",
+    "observability",
+    "monitoring",
+    "distributed",
+    "highavailability",
+    "loadbalancing",
+    "caching",
+    "tracing",
+    "opentelemetry",
+    "jaeger",
+    "zipkin",
     // Methodologies / soft
-    "agile", "scrum", "kanban", "tdd", "bdd", "ddd", "cicd", "devops",
-    "leadership", "mentoring", "communication", "collaboration", "ownership",
-    "stakeholder", "crossfunctional", "remote", "hybrid",
+    "agile",
+    "scrum",
+    "kanban",
+    "tdd",
+    "bdd",
+    "ddd",
+    "cicd",
+    "devops",
+    "leadership",
+    "mentoring",
+    "communication",
+    "collaboration",
+    "ownership",
+    "stakeholder",
+    "crossfunctional",
+    "remote",
+    "hybrid",
     // Misc tech
-    "websocket", "webrtc", "wasm", "webassembly", "electron", "tauri",
-    "reactnative", "flutter", "ionic", "xamarin", "unity", "godot",
-    "opengl", "vulkan", "metal", "cuda", "opencl", "ros", "embedded",
-    "linux", "unix", "bash", "zsh", "powershell", "vim", "neovim",
-    "git", "linux", "nginx", "dns", "tcp", "udp", "http", "https", "tls", "ssl",
-    "oauth", "jwt", "openid", "saml", "sso", "rbac", "iam",
+    "websocket",
+    "webrtc",
+    "wasm",
+    "webassembly",
+    "electron",
+    "tauri",
+    "reactnative",
+    "flutter",
+    "ionic",
+    "xamarin",
+    "unity",
+    "godot",
+    "opengl",
+    "vulkan",
+    "metal",
+    "cuda",
+    "opencl",
+    "ros",
+    "embedded",
+    "linux",
+    "unix",
+    "bash",
+    "zsh",
+    "powershell",
+    "vim",
+    "neovim",
+    "git",
+    "linux",
+    "nginx",
+    "dns",
+    "tcp",
+    "udp",
+    "http",
+    "https",
+    "tls",
+    "ssl",
+    "oauth",
+    "jwt",
+    "openid",
+    "saml",
+    "sso",
+    "rbac",
+    "iam",
     // Data / analytics
-    "etl", "elt", "datawarehouse", "datalake", "lakehouse", "airflow", "dbt",
-    "spark", "hadoop", "flink", "beam", "kafka", "storm", "hive", "presto", "trino",
+    "etl",
+    "elt",
+    "datawarehouse",
+    "datalake",
+    "lakehouse",
+    "airflow",
+    "dbt",
+    "spark",
+    "hadoop",
+    "flink",
+    "beam",
+    "kafka",
+    "storm",
+    "hive",
+    "presto",
+    "trino",
 ];
 
 /// Build a lookup set from the skills lexicon (stemmed).
@@ -99,7 +453,9 @@ pub fn strip_latex(input: &str) -> String {
         if c == '%' {
             while let Some(&nc) = chars.peek() {
                 chars.next();
-                if nc == '\n' { break; }
+                if nc == '\n' {
+                    break;
+                }
             }
         } else {
             s.push(c);
@@ -123,7 +479,9 @@ pub fn strip_latex(input: &str) -> String {
         let prev_len = s.len();
         s = remove_braced_commands(&s);
         s = remove_bracketed_commands(&s);
-        if s.len() == prev_len { break; }
+        if s.len() == prev_len {
+            break;
+        }
     }
 
     // 5. Strip remaining bare \command sequences (no args).
@@ -134,17 +492,23 @@ pub fn strip_latex(input: &str) -> String {
     let mut in_math = false;
     for c in s.chars() {
         match c {
-            '$' => { in_math = !in_math; out.push(' '); }
+            '$' => {
+                in_math = !in_math;
+                out.push(' ');
+            }
             '\\' | '{' | '}' | '~' | '^' => out.push(' '),
-            '&' => out.push(' '),     // alignment in tables/eqn
-            '_' => out.push(' '),     // subscript marker
+            '&' => out.push(' '), // alignment in tables/eqn
+            '_' => out.push(' '), // subscript marker
             _ if in_math => out.push(' '),
             c => out.push(c),
         }
     }
 
     // 7. Normalize whitespace and lowercase.
-    out.split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase()
+    out.split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase()
 }
 
 /// Remove `\name{...}` (and `\name{...}{...}` chains) by string replace.
@@ -157,23 +521,30 @@ fn remove_braced_commands(s: &str) -> String {
             // skip command name
             let name_start = i + 1;
             let mut name_end = name_start;
-            while name_end < bytes.len() && (bytes[name_end].is_ascii_alphabetic() || bytes[name_end] == b'*') {
+            while name_end < bytes.len()
+                && (bytes[name_end].is_ascii_alphabetic() || bytes[name_end] == b'*')
+            {
                 name_end += 1;
             }
             if name_end > name_start {
                 // skip whitespace
                 let mut j = name_end;
-                while j < bytes.len() && bytes[j].is_ascii_whitespace() { j += 1; }
+                while j < bytes.len() && bytes[j].is_ascii_whitespace() {
+                    j += 1;
+                }
                 if j < bytes.len() && bytes[j] == b'{' {
                     // matched \name{ -> find matching }
                     let depth_start = j;
                     let mut depth = 0;
                     let mut k = j;
                     while k < bytes.len() {
-                        if bytes[k] == b'{' { depth += 1; }
-                        else if bytes[k] == b'}' {
+                        if bytes[k] == b'{' {
+                            depth += 1;
+                        } else if bytes[k] == b'}' {
                             depth -= 1;
-                            if depth == 0 { break; }
+                            if depth == 0 {
+                                break;
+                            }
                         }
                         k += 1;
                     }
@@ -206,20 +577,27 @@ fn remove_bracketed_commands(s: &str) -> String {
         if bytes[i] == b'\\' {
             let name_start = i + 1;
             let mut name_end = name_start;
-            while name_end < bytes.len() && (bytes[name_end].is_ascii_alphabetic() || bytes[name_end] == b'*') {
+            while name_end < bytes.len()
+                && (bytes[name_end].is_ascii_alphabetic() || bytes[name_end] == b'*')
+            {
                 name_end += 1;
             }
             if name_end > name_start {
                 let mut j = name_end;
-                while j < bytes.len() && bytes[j].is_ascii_whitespace() { j += 1; }
+                while j < bytes.len() && bytes[j].is_ascii_whitespace() {
+                    j += 1;
+                }
                 if j < bytes.len() && bytes[j] == b'[' {
                     let mut depth = 0;
                     let mut k = j;
                     while k < bytes.len() {
-                        if bytes[k] == b'[' { depth += 1; }
-                        else if bytes[k] == b']' {
+                        if bytes[k] == b'[' {
+                            depth += 1;
+                        } else if bytes[k] == b']' {
                             depth -= 1;
-                            if depth == 0 { break; }
+                            if depth == 0 {
+                                break;
+                            }
                         }
                         k += 1;
                     }
@@ -254,21 +632,34 @@ fn remove_command_with_braces(s: &str, name: &str) -> String {
             if j < bytes.len() && bytes[j] == b'[' {
                 let mut depth = 0;
                 while j < bytes.len() {
-                    if bytes[j] == b'[' { depth += 1; }
-                    else if bytes[j] == b']' { depth -= 1; if depth == 0 { j += 1; break; } }
+                    if bytes[j] == b'[' {
+                        depth += 1;
+                    } else if bytes[j] == b']' {
+                        depth -= 1;
+                        if depth == 0 {
+                            j += 1;
+                            break;
+                        }
+                    }
                     j += 1;
                 }
             }
             // skip whitespace
-            while j < bytes.len() && bytes[j].is_ascii_whitespace() { j += 1; }
+            while j < bytes.len() && bytes[j].is_ascii_whitespace() {
+                j += 1;
+            }
             // skip braces
             if j < bytes.len() && bytes[j] == b'{' {
                 let mut depth = 0;
                 while j < bytes.len() {
-                    if bytes[j] == b'{' { depth += 1; }
-                    else if bytes[j] == b'}' {
+                    if bytes[j] == b'{' {
+                        depth += 1;
+                    } else if bytes[j] == b'}' {
                         depth -= 1;
-                        if depth == 0 { j += 1; break; }
+                        if depth == 0 {
+                            j += 1;
+                            break;
+                        }
                     }
                     j += 1;
                 }
@@ -291,18 +682,29 @@ fn remove_bare_commands(s: &str) -> String {
         if bytes[i] == b'\\' {
             let name_start = i + 1;
             let mut name_end = name_start;
-            while name_end < bytes.len() && (bytes[name_end].is_ascii_alphabetic() || bytes[name_end] == b'*') {
+            while name_end < bytes.len()
+                && (bytes[name_end].is_ascii_alphabetic() || bytes[name_end] == b'*')
+            {
                 name_end += 1;
             }
             if name_end > name_start {
                 // drop the command entirely (including trailing optional [..])
                 let mut j = name_end;
-                while j < bytes.len() && bytes[j].is_ascii_whitespace() { j += 1; }
+                while j < bytes.len() && bytes[j].is_ascii_whitespace() {
+                    j += 1;
+                }
                 if j < bytes.len() && bytes[j] == b'[' {
                     let mut depth = 0;
                     while j < bytes.len() {
-                        if bytes[j] == b'[' { depth += 1; }
-                        else if bytes[j] == b']' { depth -= 1; if depth == 0 { j += 1; break; } }
+                        if bytes[j] == b'[' {
+                            depth += 1;
+                        } else if bytes[j] == b']' {
+                            depth -= 1;
+                            if depth == 0 {
+                                j += 1;
+                                break;
+                            }
+                        }
                         j += 1;
                     }
                 }
@@ -347,7 +749,9 @@ fn strip_environments(s: &str) -> String {
         } else {
             break;
         }
-        if out == prev { break; }
+        if out == prev {
+            break;
+        }
     }
     out
 }
@@ -358,7 +762,9 @@ fn find_begin(s: &str) -> Option<usize> {
 
 fn next_char_boundary(s: &str, i: usize) -> usize {
     let mut j = i + 1;
-    while j < s.len() && !s.is_char_boundary(j) { j += 1; }
+    while j < s.len() && !s.is_char_boundary(j) {
+        j += 1;
+    }
     j
 }
 
@@ -372,42 +778,70 @@ fn is_vowel(c: char) -> bool {
 /// don't over-stem short words like 'aws', 'postgres', 'kubernetes'.
 pub fn stem(word: &str) -> String {
     let w = word;
-    if w.len() < 4 { return w.to_string(); }
+    if w.len() < 4 {
+        return w.to_string();
+    }
 
     // (suffix, replacement, min_stem_len_after_strip)
     // Rules ordered longest-first per suffix group so the longest match wins.
     const RULES: &[(&str, &str, usize)] = &[
         // --- derivational (long) ---
-        ("ational", "ate", 3), ("tional", "tion", 3), ("ization", "ize", 3),
-        ("iveness", "ive", 3), ("fulness", "ful", 3), ("ousness", "ous", 3),
-        ("ability", "able", 3), ("ibility", "ible", 3),
+        ("ational", "ate", 3),
+        ("tional", "tion", 3),
+        ("ization", "ize", 3),
+        ("iveness", "ive", 3),
+        ("fulness", "ful", 3),
+        ("ousness", "ous", 3),
+        ("ability", "able", 3),
+        ("ibility", "ible", 3),
         // --- noun-forming ---
-        ("ment", "", 4), ("ness", "", 4), ("tion", "", 4), ("sion", "", 4),
-        ("ation", "", 5), ("ity", "", 5),
+        ("ment", "", 4),
+        ("ness", "", 4),
+        ("tion", "", 4),
+        ("sion", "", 4),
+        ("ation", "", 5),
+        ("ity", "", 5),
         // --- plurals with -es (clear endings) ---
-        ("sses", "ss", 3), ("shes", "sh", 3), ("ches", "ch", 3),
-        ("xes", "x", 3), ("zes", "z", 3),
+        ("sses", "ss", 3),
+        ("shes", "sh", 3),
+        ("ches", "ch", 3),
+        ("xes", "x", 3),
+        ("zes", "z", 3),
         // --- plural -ies ---
-        ("ies", "y", 3),   // cities -> city, qualities -> quality
+        ("ies", "y", 3), // cities -> city, qualities -> quality
         // --- verb / participle ---
         ("ying", "y", 3),
-        ("ings", "", 5),   // meetings -> meeting
-        ("ing", "", 4),    // running -> runn (we accept crude stems)
+        ("ings", "", 5), // meetings -> meeting
+        ("ing", "", 4),  // running -> runn (we accept crude stems)
         ("ied", "y", 3),
         ("ed", "", 4),
         // --- adverb / comparative ---
-        ("ly", "", 4), ("est", "", 4), ("er", "", 4),
+        ("ly", "", 4),
+        ("est", "", 4),
+        ("er", "", 4),
         // --- adjective ---
-        ("able", "", 4), ("ible", "", 4),
-        ("ous", "", 4), ("ive", "", 4), ("ful", "", 4), ("less", "", 4),
+        ("able", "", 4),
+        ("ible", "", 4),
+        ("ous", "", 4),
+        ("ive", "", 4),
+        ("ful", "", 4),
+        ("less", "", 4),
         // --- derivational (short) ---
-        ("ate", "", 4), ("ize", "", 4), ("ise", "", 4),
-        ("al", "", 4), ("ic", "", 4),
+        ("ate", "", 4),
+        ("ize", "", 4),
+        ("ise", "", 4),
+        ("al", "", 4),
+        ("ic", "", 4),
     ];
 
     // --- plain plural -s (handled separately: only if preceded by non-vowel AND stem >= 3 chars
     //     AND not ending in 'ss', 'us', 'is' which are not real plurals) ---
-    if w.len() >= 4 && w.ends_with('s') && !w.ends_with("ss") && !w.ends_with("us") && !w.ends_with("is") {
+    if w.len() >= 4
+        && w.ends_with('s')
+        && !w.ends_with("ss")
+        && !w.ends_with("us")
+        && !w.ends_with("is")
+    {
         let chars: Vec<char> = w.chars().collect();
         let n = chars.len();
         if n >= 2 && !is_vowel(chars[n - 2]) {
@@ -457,8 +891,12 @@ pub fn tokenize(text: &str) -> Vec<String> {
 }
 
 fn push_token(out: &mut Vec<String>, raw: &str) {
-    if raw.len() < 2 { return; }
-    if STOPWORDS.contains(&raw) { return; }
+    if raw.len() < 2 {
+        return;
+    }
+    if STOPWORDS.contains(&raw) {
+        return;
+    }
     out.push(stem(raw));
 }
 
@@ -477,10 +915,16 @@ pub fn extract_skills(text: &str) -> HashSet<String> {
 
 /// Jaccard similarity between two sets.
 pub fn jaccard<T: Eq + std::hash::Hash>(a: &HashSet<T>, b: &HashSet<T>) -> f64 {
-    if a.is_empty() && b.is_empty() { return 0.0; }
+    if a.is_empty() && b.is_empty() {
+        return 0.0;
+    }
     let inter = a.intersection(b).count() as f64;
     let union = a.union(b).count() as f64;
-    if union == 0.0 { 0.0 } else { inter / union }
+    if union == 0.0 {
+        0.0
+    } else {
+        inter / union
+    }
 }
 
 /// TF-IDF cosine similarity over a corpus of tokenized documents.
@@ -533,7 +977,9 @@ impl TfIdf {
 
     /// Cosine similarity between two pre-computed vectors.
     pub fn cosine(a: &[f64], b: &[f64]) -> f64 {
-        if a.len() != b.len() { return 0.0; }
+        if a.len() != b.len() {
+            return 0.0;
+        }
         let mut dot = 0.0;
         let mut na = 0.0;
         let mut nb = 0.0;
@@ -542,7 +988,9 @@ impl TfIdf {
             na += x * x;
             nb += y * y;
         }
-        if na == 0.0 || nb == 0.0 { return 0.0; }
+        if na == 0.0 || nb == 0.0 {
+            return 0.0;
+        }
         dot / (na.sqrt() * nb.sqrt())
     }
 }

@@ -58,7 +58,11 @@ pub async fn score_resume_match(
     let mut corpus = String::with_capacity(
         job.raw_jd.len()
             + job.requirements.as_ref().map(|s| s.len()).unwrap_or(0)
-            + job.core_responsibilities.as_ref().map(|s| s.len()).unwrap_or(0)
+            + job
+                .core_responsibilities
+                .as_ref()
+                .map(|s| s.len())
+                .unwrap_or(0)
             + 2,
     );
     corpus.push_str(&job.raw_jd);
@@ -110,9 +114,13 @@ pub fn score_core(corpus: &str, resume_latex: &str) -> MatchBreakdown {
     // Weak: in resume exactly once (i.e. mentioned but not reinforced) while
     // the JD hammers the term 3+ times.
     let mut resume_counts: HashMap<&str, usize> = HashMap::new();
-    for t in &resume_tokens { *resume_counts.entry(t.as_str()).or_insert(0) += 1; }
+    for t in &resume_tokens {
+        *resume_counts.entry(t.as_str()).or_insert(0) += 1;
+    }
     let mut jd_counts: HashMap<&str, usize> = HashMap::new();
-    for t in &jd_tokens { *jd_counts.entry(t.as_str()).or_insert(0) += 1; }
+    for t in &jd_tokens {
+        *jd_counts.entry(t.as_str()).or_insert(0) += 1;
+    }
     let mut weak: Vec<String> = Vec::new();
     for s in &present {
         let rc = *resume_counts.get(s.as_str()).unwrap_or(&0);
@@ -134,7 +142,11 @@ pub fn score_core(corpus: &str, resume_latex: &str) -> MatchBreakdown {
     let skills_score = pct(skills_sim);
     let tfidf_score = pct(tfidf_sim);
     let jaccard_score = pct(jaccard_sim);
-    let overall = blend((skills_score as f64, tfidf_score as f64, jaccard_score as f64));
+    let overall = blend((
+        skills_score as f64,
+        tfidf_score as f64,
+        jaccard_score as f64,
+    ));
 
     MatchBreakdown {
         overall,
@@ -210,8 +222,11 @@ mod tests {
         let resume = "Built services in Rust backed by Postgres.";
         let b = score_core(jd, resume);
         // 2/4 skills match = Jaccard 2/4 = 0.5
-        assert!(b.skills_score >= 49 && b.skills_score <= 51,
-                "expected ~50, got {}", b.skills_score);
+        assert!(
+            b.skills_score >= 49 && b.skills_score <= 51,
+            "expected ~50, got {}",
+            b.skills_score
+        );
         assert!(b.missing_skills.contains(&"kubernetes".to_string()));
         assert!(b.missing_skills.contains(&"graphql".to_string()));
         assert!(b.present_skills.contains(&"rust".to_string()));
@@ -224,7 +239,10 @@ mod tests {
         let jd = "rust rust rust rust engineer with postgres and redis";
         let resume = "Software engineer who knows rust and some python.";
         let b = score_core(jd, resume);
-        assert!(b.weak_skills.contains(&"rust".to_string()),
-                "expected weak=rust, got {:?}", b.weak_skills);
+        assert!(
+            b.weak_skills.contains(&"rust".to_string()),
+            "expected weak=rust, got {:?}",
+            b.weak_skills
+        );
     }
 }

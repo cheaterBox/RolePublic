@@ -1,8 +1,8 @@
 pub mod ai;
 pub mod commands;
 pub mod db;
-pub mod server;
 pub mod s3;
+pub mod server;
 pub mod utils;
 
 use rusqlite::Connection;
@@ -29,7 +29,8 @@ impl AppState {
     where
         F: FnOnce(&mut Connection) -> Result<R, String>,
     {
-        for _ in 0..50 { // 5 seconds timeout
+        for _ in 0..50 {
+            // 5 seconds timeout
             {
                 let mut db_guard = self.db.lock().map_err(|e| e.to_string())?;
                 if let Some(conn) = db_guard.as_mut() {

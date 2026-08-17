@@ -1,3 +1,4 @@
+pub mod cloud;
 pub mod compiler;
 pub mod cover_letters;
 pub mod data;
@@ -9,7 +10,6 @@ pub mod pdf;
 pub mod resumes;
 pub mod scoring;
 pub mod settings;
-pub mod cloud;
 
 use serde::{Deserialize, Serialize};
 

@@ -7,7 +7,8 @@ use tauri::{AppHandle, Manager, State};
 const MAX_FILENAME_LEN: usize = 100;
 const MAX_REL_PATH_LEN: usize = 256;
 /// File extensions eligible for backup. Binary assets are excluded.
-pub const TEXT_BACKUP_EXTENSIONS: &[&str] = &["tex", "bib", "cls", "sty", "md", "mmd", "txt", "cfg"];
+pub const TEXT_BACKUP_EXTENSIONS: &[&str] =
+    &["tex", "bib", "cls", "sty", "md", "mmd", "txt", "cfg"];
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct DocumentSummary {
@@ -172,7 +173,11 @@ fn document_dir(app: &AppHandle, doc_id: &str) -> Result<PathBuf, String> {
 
 /// Resolve a safe absolute file path for a given document + rel_path. Verifies
 /// the canonicalized path stays inside the document directory.
-fn safe_document_file_path(app: &AppHandle, doc_id: &str, rel_path: &str) -> Result<PathBuf, String> {
+fn safe_document_file_path(
+    app: &AppHandle,
+    doc_id: &str,
+    rel_path: &str,
+) -> Result<PathBuf, String> {
     let normalized = normalize_rel_path(rel_path)?;
     let root = document_dir(app, doc_id)?;
     let candidate = root.join(&normalized);
@@ -234,7 +239,10 @@ pub fn get_all_documents(state: State<'_, AppState>) -> Result<Vec<DocumentSumma
     let mut db_guard = state.db.lock().map_err(|e| format!("Mutex error: {}", e))?;
     let conn = db_guard.as_mut().ok_or("Database connection lost")?;
     let mut stmt = conn
-        .prepare(&format!("{} ORDER BY starred DESC, updated_at DESC", DOCUMENT_SELECT))
+        .prepare(&format!(
+            "{} ORDER BY starred DESC, updated_at DESC",
+            DOCUMENT_SELECT
+        ))
         .map_err(|e| e.to_string())?;
     let docs = stmt
         .query_map([], summary_from_row)
@@ -245,7 +253,10 @@ pub fn get_all_documents(state: State<'_, AppState>) -> Result<Vec<DocumentSumma
 }
 
 #[tauri::command]
-pub fn get_document_by_id(state: State<'_, AppState>, doc_id: String) -> Result<DocumentSummary, String> {
+pub fn get_document_by_id(
+    state: State<'_, AppState>,
+    doc_id: String,
+) -> Result<DocumentSummary, String> {
     let mut db_guard = state.db.lock().map_err(|e| format!("Mutex error: {}", e))?;
     let conn = db_guard.as_mut().ok_or("Database connection lost")?;
     let mut stmt = conn
@@ -364,7 +375,11 @@ pub fn update_document(state: State<'_, AppState>, args: UpdateDocumentArgs) -> 
 }
 
 #[tauri::command]
-pub fn set_document_starred(state: State<'_, AppState>, doc_id: String, starred: bool) -> Result<(), String> {
+pub fn set_document_starred(
+    state: State<'_, AppState>,
+    doc_id: String,
+    starred: bool,
+) -> Result<(), String> {
     let mut db_guard = state.db.lock().map_err(|e| format!("Mutex error: {}", e))?;
     let conn = db_guard.as_mut().ok_or("Database connection lost")?;
     conn.execute(
@@ -505,12 +520,10 @@ pub async fn write_document_file(
     }
 
     // Atomic write: temp file + rename.
-    let tmp = target.with_extension(
-        match target.extension().and_then(|s| s.to_str()) {
-            Some(ext) => format!("{}.tmp", ext),
-            None => "tmp".to_string(),
-        },
-    );
+    let tmp = target.with_extension(match target.extension().and_then(|s| s.to_str()) {
+        Some(ext) => format!("{}.tmp", ext),
+        None => "tmp".to_string(),
+    });
     std::fs::write(&tmp, args.content.as_bytes())
         .map_err(|e| format!("Failed to write temp file: {}", e))?;
     std::fs::rename(&tmp, &target).map_err(|e| format!("Failed to commit file: {}", e))?;
@@ -548,7 +561,7 @@ pub async fn create_document_file(
     let parent_rel = args
         .parent_rel
         .as_deref()
-        .map(|p| normalize_rel_path(p))
+        .map(normalize_rel_path)
         .transpose()?
         .unwrap_or_default();
     let rel_path = if parent_rel.is_empty() {
@@ -652,7 +665,8 @@ pub async fn rename_document_file(
 
     if old_path.is_file() {
         if let Some(parent) = new_path.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| format!("Failed to create parent: {}", e))?;
+            std::fs::create_dir_all(parent)
+                .map_err(|e| format!("Failed to create parent: {}", e))?;
         }
         std::fs::rename(&old_path, &new_path).map_err(|e| format!("Failed to rename: {}", e))?;
     }
@@ -862,7 +876,10 @@ mod tests {
     #[test]
     fn normalize_rel_path_accepts_normal() {
         assert_eq!(normalize_rel_path("main.tex").unwrap(), "main.tex");
-        assert_eq!(normalize_rel_path("chapters/intro.tex").unwrap(), "chapters/intro.tex");
+        assert_eq!(
+            normalize_rel_path("chapters/intro.tex").unwrap(),
+            "chapters/intro.tex"
+        );
         assert_eq!(normalize_rel_path("a\\b.tex").unwrap(), "a/b.tex");
     }
 

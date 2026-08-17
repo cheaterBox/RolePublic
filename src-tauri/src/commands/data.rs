@@ -1,5 +1,5 @@
 use crate::commands::cover_letters::CoverLetterDetail;
-use crate::commands::documents::{DocumentSummary, is_text_extension};
+use crate::commands::documents::{is_text_extension, DocumentSummary};
 use crate::commands::downloads::DownloadRecord;
 use crate::commands::inbox::InboxJob;
 use crate::commands::jobs::JobPayload;
@@ -20,11 +20,7 @@ const SENSITIVE_EXACT_KEYS: &[&str] = &[
 ];
 
 /// Prefix patterns — any key starting with one of these is sensitive.
-const SENSITIVE_PREFIXES: &[&str] = &[
-    "s3_",
-    "aws_",
-    "cloud_",
-];
+const SENSITIVE_PREFIXES: &[&str] = &["s3_", "aws_", "cloud_"];
 
 /// Substring patterns — any key containing one of these is sensitive.
 const SENSITIVE_SUBSTRINGS: &[&str] = &[
@@ -439,7 +435,10 @@ pub fn export_all_data_core(state: &AppState) -> Result<AppDataExport, String> {
             eprintln!("[backup]   - {}", entry);
         }
         if skipped_binary_files.len() > 20 {
-            eprintln!("[backup]   - ... and {} more", skipped_binary_files.len() - 20);
+            eprintln!(
+                "[backup]   - ... and {} more",
+                skipped_binary_files.len() - 20
+            );
         }
     }
 
@@ -678,8 +677,10 @@ pub fn import_data_core(
     // 5. Import Themes
     for theme in data.themes {
         // Skip built-in themes as they are re-populated on app start
-        if theme.is_builtin { continue; }
-        
+        if theme.is_builtin {
+            continue;
+        }
+
         tx.execute(
             "INSERT INTO themes (id, name, config, is_builtin, created_at)
              VALUES (?1, ?2, ?3, ?4, ?5)
@@ -869,7 +870,10 @@ fn restore_document_filesystem(
         let normalized = match normalize_rel_path_check(&file.rel_path) {
             Ok(p) => p,
             Err(e) => {
-                eprintln!("Skipping bad path during restore: {} ({})", file.rel_path, e);
+                eprintln!(
+                    "Skipping bad path during restore: {} ({})",
+                    file.rel_path, e
+                );
                 continue;
             }
         };
@@ -906,22 +910,25 @@ pub async fn auto_local_backup(
     state: tauri::State<'_, AppState>,
 ) -> Result<(), String> {
     use tauri::Manager;
-    
+
     let data = export_all_data_core(&state)?;
     let json = serde_json::to_string_pretty(&data).map_err(|e| e.to_string())?;
-    
-    let docs_dir = app.path().document_dir().map_err(|_| "Could not find documents directory".to_string())?;
+
+    let docs_dir = app
+        .path()
+        .document_dir()
+        .map_err(|_| "Could not find documents directory".to_string())?;
     let backup_dir = docs_dir.join("RoleTect-Backups");
-    
+
     if !backup_dir.exists() {
         std::fs::create_dir_all(&backup_dir).map_err(|e| e.to_string())?;
     }
-    
+
     let timestamp = chrono::Local::now().format("%Y%m%d_%H%M");
     let file_path = backup_dir.join(format!("RoleTect_Backup_{}.json", timestamp));
-    
+
     std::fs::write(&file_path, json).map_err(|e| format!("Failed to write local backup: {}", e))?;
-    
+
     Ok(())
 }
 
@@ -987,24 +994,48 @@ mod tests {
 
     fn setup_test_db() -> Connection {
         let conn = Connection::open_in_memory().unwrap();
-        conn.execute_batch("
+        conn.execute_batch(
+            "
             CREATE TABLE app_settings (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL
             );
-        ").unwrap();
+        ",
+        )
+        .unwrap();
         conn
     }
 
     #[test]
     fn snapshot_captures_only_sensitive_keys() {
         let conn = setup_test_db();
-        conn.execute("INSERT INTO app_settings VALUES ('ai_provider', 'gemini')", []).unwrap();
-        conn.execute("INSERT INTO app_settings VALUES ('ai_model', 'gemini-2.5-pro')", []).unwrap();
-        conn.execute("INSERT INTO app_settings VALUES ('extension_secret', 'abc123')", []).unwrap();
-        conn.execute("INSERT INTO app_settings VALUES ('active_theme', 'dracula')", []).unwrap();
-        conn.execute("INSERT INTO app_settings VALUES ('font_size', '14')", []).unwrap();
-        conn.execute("INSERT INTO app_settings VALUES ('s3_bucket_name', 'my-bucket')", []).unwrap();
+        conn.execute(
+            "INSERT INTO app_settings VALUES ('ai_provider', 'gemini')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO app_settings VALUES ('ai_model', 'gemini-2.5-pro')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO app_settings VALUES ('extension_secret', 'abc123')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO app_settings VALUES ('active_theme', 'dracula')",
+            [],
+        )
+        .unwrap();
+        conn.execute("INSERT INTO app_settings VALUES ('font_size', '14')", [])
+            .unwrap();
+        conn.execute(
+            "INSERT INTO app_settings VALUES ('s3_bucket_name', 'my-bucket')",
+            [],
+        )
+        .unwrap();
 
         let snapshot = snapshot_sensitive_settings(&conn);
         let keys: Vec<&str> = snapshot.iter().map(|(k, _)| k.as_str()).collect();
@@ -1020,9 +1051,21 @@ mod tests {
     #[test]
     fn restore_brings_back_sensitive_keys_after_wipe() {
         let conn = setup_test_db();
-        conn.execute("INSERT INTO app_settings VALUES ('ai_provider', 'gemini')", []).unwrap();
-        conn.execute("INSERT INTO app_settings VALUES ('extension_secret', 'my-secret-123')", []).unwrap();
-        conn.execute("INSERT INTO app_settings VALUES ('active_theme', 'dracula')", []).unwrap();
+        conn.execute(
+            "INSERT INTO app_settings VALUES ('ai_provider', 'gemini')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO app_settings VALUES ('extension_secret', 'my-secret-123')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO app_settings VALUES ('active_theme', 'dracula')",
+            [],
+        )
+        .unwrap();
 
         let snapshot = snapshot_sensitive_settings(&conn);
 
@@ -1030,32 +1073,53 @@ mod tests {
         conn.execute("DELETE FROM app_settings", []).unwrap();
 
         // Import some foreign settings
-        conn.execute("INSERT INTO app_settings VALUES ('active_theme', 'nord-dark')", []).unwrap();
-        conn.execute("INSERT INTO app_settings VALUES ('font_size', '16')", []).unwrap();
+        conn.execute(
+            "INSERT INTO app_settings VALUES ('active_theme', 'nord-dark')",
+            [],
+        )
+        .unwrap();
+        conn.execute("INSERT INTO app_settings VALUES ('font_size', '16')", [])
+            .unwrap();
 
         // Restore sensitive keys
         restore_sensitive_settings(&conn, &snapshot);
 
         // Sensitive keys restored
-        let provider: String = conn.query_row(
-            "SELECT value FROM app_settings WHERE key = 'ai_provider'", [], |r| r.get(0)
-        ).unwrap();
+        let provider: String = conn
+            .query_row(
+                "SELECT value FROM app_settings WHERE key = 'ai_provider'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
         assert_eq!(provider, "gemini");
 
-        let secret: String = conn.query_row(
-            "SELECT value FROM app_settings WHERE key = 'extension_secret'", [], |r| r.get(0)
-        ).unwrap();
+        let secret: String = conn
+            .query_row(
+                "SELECT value FROM app_settings WHERE key = 'extension_secret'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
         assert_eq!(secret, "my-secret-123");
 
         // Non-sensitive keys from import are untouched
-        let theme: String = conn.query_row(
-            "SELECT value FROM app_settings WHERE key = 'active_theme'", [], |r| r.get(0)
-        ).unwrap();
+        let theme: String = conn
+            .query_row(
+                "SELECT value FROM app_settings WHERE key = 'active_theme'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
         assert_eq!(theme, "nord-dark");
 
-        let font: String = conn.query_row(
-            "SELECT value FROM app_settings WHERE key = 'font_size'", [], |r| r.get(0)
-        ).unwrap();
+        let font: String = conn
+            .query_row(
+                "SELECT value FROM app_settings WHERE key = 'font_size'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
         assert_eq!(font, "16");
     }
 
@@ -1064,14 +1128,30 @@ mod tests {
         // Verify the guard: even if a backup file somehow contains sensitive keys,
         // they should be skipped during import.
         let incoming = vec![
-            SettingExport { key: "active_theme".to_string(), value: "monokai".to_string() },
-            SettingExport { key: "ai_provider".to_string(), value: "openai".to_string() },
-            SettingExport { key: "extension_secret".to_string(), value: "LEAKED".to_string() },
-            SettingExport { key: "s3_bucket_name".to_string(), value: "evil-bucket".to_string() },
-            SettingExport { key: "font_family".to_string(), value: "Inter".to_string() },
+            SettingExport {
+                key: "active_theme".to_string(),
+                value: "monokai".to_string(),
+            },
+            SettingExport {
+                key: "ai_provider".to_string(),
+                value: "openai".to_string(),
+            },
+            SettingExport {
+                key: "extension_secret".to_string(),
+                value: "LEAKED".to_string(),
+            },
+            SettingExport {
+                key: "s3_bucket_name".to_string(),
+                value: "evil-bucket".to_string(),
+            },
+            SettingExport {
+                key: "font_family".to_string(),
+                value: "Inter".to_string(),
+            },
         ];
 
-        let safe: Vec<&SettingExport> = incoming.iter()
+        let safe: Vec<&SettingExport> = incoming
+            .iter()
             .filter(|s| !is_sensitive_key(&s.key))
             .collect();
 

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.ahmedtrooper.roletect</id>
+  <metadata_license>MIT</metadata_license>
+  <project_license>MIT</project_license>
+  <name>RoleTect</name>
+  <summary>Privacy-First Job Application Vault &amp; Local-First LaTeX Workspace</summary>
+  <description>
+    <p>
+      RoleTect is an LLM-orchestrated, privacy-first job application vault, local-first LaTeX workspace, and professional document optimization tool with built-in Tectonic compiler support.
+    </p>
+  </description>
+  <launchable type="desktop-id">com.ahmedtrooper.roletect.desktop</launchable>
+  <provides>
+    <binary>roletect</binary>
+  </provides>
+  <content_rating type="oars-1.1" />
+  <releases>
+    <release version="0.1.4" date="2026-08-17" />
+  </releases>
+</component>

@@ -192,7 +192,9 @@ pub fn delete_resume(state: State<'_, AppState>, args: DeleteResumeArgs) -> Resu
     let mut db_guard = state.db.lock().map_err(|e| format!("Mutex error: {}", e))?;
 
     if let Some(conn) = db_guard.as_mut() {
-        let tx = conn.transaction().map_err(|e| format!("Transaction error: {}", e))?;
+        let tx = conn
+            .transaction()
+            .map_err(|e| format!("Transaction error: {}", e))?;
 
         // 1. Delete dependent tailored resumes
         tx.execute(

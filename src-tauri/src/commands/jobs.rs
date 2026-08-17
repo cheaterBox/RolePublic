@@ -60,7 +60,15 @@ pub async fn parse_job(
     job_url: Option<String>,
 ) -> Result<ai::JobParseResult, String> {
     let custom_base_url = crate::commands::settings::get_custom_base_url(&state, &provider).await;
-    ai::parse_job_description(&provider, &model, &api_key, custom_base_url.as_deref(), &raw_jd, job_url.as_deref()).await
+    ai::parse_job_description(
+        &provider,
+        &model,
+        &api_key,
+        custom_base_url.as_deref(),
+        &raw_jd,
+        job_url.as_deref(),
+    )
+    .await
 }
 
 #[tauri::command]
@@ -162,10 +170,11 @@ pub async fn get_job_by_id(state: State<'_, AppState>, id: String) -> Result<Job
 
 #[tauri::command]
 pub async fn get_all_jobs(state: State<'_, AppState>) -> Result<Vec<JobPayload>, String> {
-    state.with_db(|conn| {
-        let mut stmt = conn
-            .prepare(
-                "SELECT id, company_name, job_title, work_model, employment_type, 
+    state
+        .with_db(|conn| {
+            let mut stmt = conn
+                .prepare(
+                    "SELECT id, company_name, job_title, work_model, employment_type, 
                     status, raw_jd, requirements, core_responsibilities,
                     custom_instruction, reference_name, 
                     reference_email, social_link, job_url,
@@ -173,47 +182,47 @@ pub async fn get_all_jobs(state: State<'_, AppState>) -> Result<Vec<JobPayload>,
                     salary, applied_date, interview_date, offer_date, rejected_date, joining_date,
                     created_at, updated_at
              FROM jobs ORDER BY created_at DESC",
-            )
-            .map_err(|e| e.to_string())?;
+                )
+                .map_err(|e| e.to_string())?;
 
-        let job_iter = stmt
-            .query_map([], |row| {
-                Ok(JobPayload {
-                    id: row.get(0)?,
-                    company_name: row.get(1)?,
-                    job_title: row.get(2)?,
-                    work_model: row.get(3)?,
-                    employment_type: row.get(4)?,
-                    status: row.get(5)?,
-                    raw_jd: row.get(6)?,
-                    requirements: row.get(7)?,
-                    core_responsibilities: row.get(8)?,
-                    custom_instruction: row.get(9)?,
-                    reference_name: row.get(10)?,
-                    reference_email: row.get(11)?,
-                    social_link: row.get(12)?,
-                    job_url: row.get(13)?,
-                    base_resume_id: row.get::<_, Option<String>>(14)?,
-                    base_cl_id: row.get::<_, Option<String>>(15)?,
-                    salary: row.get(16)?,
-                    applied_date: row.get(17)?,
-                    interview_date: row.get(18)?,
-                    offer_date: row.get(19)?,
-                    rejected_date: row.get(20)?,
-                    joining_date: row.get(21)?,
-                    created_at: Some(row.get(22)?),
-                    updated_at: Some(row.get(23)?),
+            let job_iter = stmt
+                .query_map([], |row| {
+                    Ok(JobPayload {
+                        id: row.get(0)?,
+                        company_name: row.get(1)?,
+                        job_title: row.get(2)?,
+                        work_model: row.get(3)?,
+                        employment_type: row.get(4)?,
+                        status: row.get(5)?,
+                        raw_jd: row.get(6)?,
+                        requirements: row.get(7)?,
+                        core_responsibilities: row.get(8)?,
+                        custom_instruction: row.get(9)?,
+                        reference_name: row.get(10)?,
+                        reference_email: row.get(11)?,
+                        social_link: row.get(12)?,
+                        job_url: row.get(13)?,
+                        base_resume_id: row.get::<_, Option<String>>(14)?,
+                        base_cl_id: row.get::<_, Option<String>>(15)?,
+                        salary: row.get(16)?,
+                        applied_date: row.get(17)?,
+                        interview_date: row.get(18)?,
+                        offer_date: row.get(19)?,
+                        rejected_date: row.get(20)?,
+                        joining_date: row.get(21)?,
+                        created_at: Some(row.get(22)?),
+                        updated_at: Some(row.get(23)?),
+                    })
                 })
-            })
-            .map_err(|e| e.to_string())?;
+                .map_err(|e| e.to_string())?;
 
-
-        let mut jobs = Vec::new();
-        for job in job_iter {
-            jobs.push(job.map_err(|e| e.to_string())?);
-        }
-        Ok(jobs)
-    }).await
+            let mut jobs = Vec::new();
+            for job in job_iter {
+                jobs.push(job.map_err(|e| e.to_string())?);
+            }
+            Ok(jobs)
+        })
+        .await
 }
 
 #[tauri::command]
@@ -221,13 +230,18 @@ pub async fn delete_job(state: State<'_, AppState>, id: String) -> Result<(), St
     let mut db_guard = state.db.lock().map_err(|e| format!("Mutex error: {}", e))?;
     let conn = db_guard.as_mut().ok_or("Database connection lost")?;
 
-    let tx = conn.transaction().map_err(|e| format!("Transaction error: {}", e))?;
+    let tx = conn
+        .transaction()
+        .map_err(|e| format!("Transaction error: {}", e))?;
 
     tx.execute("DELETE FROM downloads WHERE job_id = ?1", [&id])
         .map_err(|e| format!("Database error (downloads): {}", e))?;
 
-    tx.execute("DELETE FROM tailored_cover_letters WHERE job_id = ?1", [&id])
-        .map_err(|e| format!("Database error (tailored_cover_letters): {}", e))?;
+    tx.execute(
+        "DELETE FROM tailored_cover_letters WHERE job_id = ?1",
+        [&id],
+    )
+    .map_err(|e| format!("Database error (tailored_cover_letters): {}", e))?;
 
     tx.execute("DELETE FROM tailored_resumes WHERE job_id = ?1", [&id])
         .map_err(|e| format!("Database error (tailored_resumes): {}", e))?;
@@ -253,9 +267,12 @@ pub async fn delete_jobs_batch(state: State<'_, AppState>, ids: Vec<String>) -> 
     for id in ids {
         tx.execute("DELETE FROM downloads WHERE job_id = ?1", [&id])
             .map_err(|e| format!("Database error (downloads): {}", e))?;
-            
-        tx.execute("DELETE FROM tailored_cover_letters WHERE job_id = ?1", [&id])
-            .map_err(|e| format!("Database error (tailored_cover_letters): {}", e))?;
+
+        tx.execute(
+            "DELETE FROM tailored_cover_letters WHERE job_id = ?1",
+            [&id],
+        )
+        .map_err(|e| format!("Database error (tailored_cover_letters): {}", e))?;
 
         tx.execute("DELETE FROM tailored_resumes WHERE job_id = ?1", [&id])
             .map_err(|e| format!("Database error (tailored_resumes): {}", e))?;
@@ -377,12 +394,13 @@ pub async fn update_tailored_resume(
     let tx = conn.transaction().map_err(|e| e.to_string())?;
 
     // 1. Update tailored_resumes
-    let rows_affected = tx.execute(
-        "UPDATE tailored_resumes SET final_latex_content = ?1, updated_at = CURRENT_TIMESTAMP 
+    let rows_affected = tx
+        .execute(
+            "UPDATE tailored_resumes SET final_latex_content = ?1, updated_at = CURRENT_TIMESTAMP 
          WHERE job_id = ?2",
-        [&latex_content, &job_id],
-    )
-    .map_err(|e| format!("Database error (update): {}", e))?;
+            [&latex_content, &job_id],
+        )
+        .map_err(|e| format!("Database error (update): {}", e))?;
 
     if rows_affected == 0 {
         if let Some(base_id) = base_resume_id.clone() {
@@ -472,7 +490,7 @@ pub async fn tailor_resume(
     // 1. Fetch job and resume data
     let (raw_job_content, requirements, core_responsibilities, base_latex) = {
         let mut db_guard = state.db.lock().map_err(|e| format!("Mutex error: {}", e))?;
-        
+
         if let Some(conn) = db_guard.as_mut() {
             let mut stmt = conn
                 .prepare(
@@ -542,7 +560,8 @@ pub async fn tailor_resume(
             tx.execute(
                 "UPDATE jobs SET base_resume_id = ?1 WHERE id = ?2",
                 [&base_resume_id, &job_id],
-            ).map_err(|e| format!("Database error (update job): {}", e))?;
+            )
+            .map_err(|e| format!("Database error (update job): {}", e))?;
 
             tx.commit().map_err(|e| e.to_string())?;
             state.mark_dirty();

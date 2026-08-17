@@ -37,10 +37,13 @@ pub async fn upload_backup(
     let timestamp = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
     let key = format!("roletect_{}.json", timestamp);
 
-    client.put_object()
+    client
+        .put_object()
         .bucket(bucket)
         .key(&key)
-        .body(s3::primitives::ByteStream::from(backup_data.as_bytes().to_vec()))
+        .body(s3::primitives::ByteStream::from(
+            backup_data.as_bytes().to_vec(),
+        ))
         .content_type("application/json")
         .send()
         .await
@@ -61,22 +64,32 @@ pub async fn list_backups(
     bucket: &str,
     limit: i32,
 ) -> Result<Vec<BackupEntry>, String> {
-    let response = client.list_objects_v2()
+    let response = client
+        .list_objects_v2()
         .bucket(bucket)
         .prefix("roletect_")
         .send()
         .await
         .map_err(|e| format!("S3 list error: {}", e))?;
 
-    let mut entries: Vec<BackupEntry> = response.contents()
+    let mut entries: Vec<BackupEntry> = response
+        .contents()
         .iter()
         .filter_map(|obj| {
             let key = obj.key()?.to_string();
             let size = obj.size().unwrap_or(0);
-            let last_modified = obj.last_modified()
-                .map(|t| t.fmt(aws_sdk_s3::primitives::DateTimeFormat::DateTime).unwrap_or_default())
+            let last_modified = obj
+                .last_modified()
+                .map(|t| {
+                    t.fmt(aws_sdk_s3::primitives::DateTimeFormat::DateTime)
+                        .unwrap_or_default()
+                })
                 .unwrap_or_default();
-            Some(BackupEntry { key, size, last_modified })
+            Some(BackupEntry {
+                key,
+                size,
+                last_modified,
+            })
         })
         .collect();
 
@@ -91,25 +104,26 @@ pub async fn download_backup(
     bucket: &str,
     key: &str,
 ) -> Result<String, String> {
-    let response = client.get_object()
+    let response = client
+        .get_object()
         .bucket(bucket)
         .key(key)
         .send()
         .await
         .map_err(|e| format!("S3 download error: {}", e))?;
 
-    let bytes = response.body.collect().await
+    let bytes = response
+        .body
+        .collect()
+        .await
         .map_err(|e| format!("S3 read error: {}", e))?;
 
-    String::from_utf8(bytes.into_bytes().to_vec())
-        .map_err(|e| format!("UTF-8 decode error: {}", e))
+    String::from_utf8(bytes.into_bytes().to_vec()).map_err(|e| format!("UTF-8 decode error: {}", e))
 }
 
-pub async fn test_connection(
-    client: &s3::Client,
-    bucket: &str,
-) -> Result<(), String> {
-    client.head_bucket()
+pub async fn test_connection(client: &s3::Client, bucket: &str) -> Result<(), String> {
+    client
+        .head_bucket()
         .bucket(bucket)
         .send()
         .await

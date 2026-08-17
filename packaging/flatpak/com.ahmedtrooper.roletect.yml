@@ -1,0 +1,53 @@
+app-id: com.ahmedtrooper.roletect
+runtime: org.gnome.Platform
+runtime-version: '46'
+sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+
+command: roletect
+
+finish-args:
+  # Display & GPU hardware acceleration
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --share=ipc
+  - --device=dri
+
+  # Network (LLM APIs, S3 sync, Extension server localhost, Tectonic packages)
+  - --share=network
+
+  # Filesystem permissions
+  - --filesystem=xdg-documents/RoleTect:create
+  - --filesystem=xdg-cache/Tectonic:create
+  - --filesystem=home:ro
+
+  # System features
+  - --talk-name=org.freedesktop.Notifications
+
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin
+  env:
+    CARGO_HOME: /run/build/roletect/cargo
+
+modules:
+  - name: roletect
+    buildsystem: simple
+    build-commands:
+      # 1. Build frontend dist
+      - bun install --frozen-lockfile
+      - bun run build
+
+      # 2. Build Tauri release binary
+      - cargo build --release --manifest-path src-tauri/Cargo.toml
+
+      # 3. Install binary
+      - install -Dm755 src-tauri/target/release/roletect /app/bin/roletect
+
+      # 4. Install Desktop file, AppStream metadata, and App Icon
+      - install -Dm644 packaging/flatpak/com.ahmedtrooper.roletect.desktop /app/share/applications/com.ahmedtrooper.roletect.desktop
+      - install -Dm644 packaging/flatpak/com.ahmedtrooper.roletect.metainfo.xml /app/share/metainfo/com.ahmedtrooper.roletect.metainfo.xml
+      - install -Dm644 src-tauri/icons/128x128.png /app/share/icons/hicolor/128x128/apps/com.ahmedtrooper.roletect.png
+    sources:
+      - type: dir
+        path: ../../

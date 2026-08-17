@@ -69,7 +69,7 @@ jobs:
             patchelf \
             pkg-config \
             build-essential \
-            libicu-dev \
+            libharfbuzz-dev \
             libpng-dev \
             fontconfig \
             libfontconfig1-dev \

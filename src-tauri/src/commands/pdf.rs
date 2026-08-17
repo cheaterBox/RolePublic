@@ -1,9 +1,9 @@
-use tauri::{command, State, AppHandle, Manager};
-use std::path::PathBuf;
 use crate::{ai, AppState};
-use tectonic::status::StatusBackend;
-use tectonic::status::MessageKind;
 use std::fmt::Arguments;
+use std::path::PathBuf;
+use tauri::{command, AppHandle, Manager, State};
+use tectonic::status::MessageKind;
+use tectonic::status::StatusBackend;
 
 pub struct CapturingStatusBackend {
     pub logs: String,
@@ -11,7 +11,15 @@ pub struct CapturingStatusBackend {
 
 impl CapturingStatusBackend {
     pub fn new() -> Self {
-        Self { logs: String::new() }
+        Self {
+            logs: String::new(),
+        }
+    }
+}
+
+impl Default for CapturingStatusBackend {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -25,7 +33,7 @@ impl StatusBackend for CapturingStatusBackend {
         let msg = format!("{}", args);
         self.logs.push_str(prefix);
         self.logs.push_str(&msg);
-        
+
         if let Some(e) = err {
             self.logs.push_str(&format!(" (error detail: {})", e));
             // Also push to stdout for tauri dev logs
@@ -33,7 +41,7 @@ impl StatusBackend for CapturingStatusBackend {
         } else if kind == MessageKind::Error {
             eprintln!("Tectonic Error: {}", msg);
         }
-        
+
         self.logs.push('\n');
     }
 
@@ -56,7 +64,16 @@ pub async fn refine_latex_with_ai(
     instruction: String,
 ) -> Result<String, String> {
     let custom_base_url = crate::commands::settings::get_custom_base_url(&state, &provider).await;
-    ai::refine_technical_content(&provider, &model, &api_key, custom_base_url.as_deref(), &current_latex, &instruction, "LaTeX").await
+    ai::refine_technical_content(
+        &provider,
+        &model,
+        &api_key,
+        custom_base_url.as_deref(),
+        &current_latex,
+        &instruction,
+        "LaTeX",
+    )
+    .await
 }
 
 #[command]
@@ -69,7 +86,16 @@ pub async fn fix_latex_with_ai(
     error_logs: String,
 ) -> Result<String, String> {
     let custom_base_url = crate::commands::settings::get_custom_base_url(&state, &provider).await;
-    ai::fix_technical_errors(&provider, &model, &api_key, custom_base_url.as_deref(), &broken_latex, &error_logs, "LaTeX").await
+    ai::fix_technical_errors(
+        &provider,
+        &model,
+        &api_key,
+        custom_base_url.as_deref(),
+        &broken_latex,
+        &error_logs,
+        "LaTeX",
+    )
+    .await
 }
 
 #[command]
@@ -83,7 +109,16 @@ pub async fn refine_diagram_with_ai(
     content_type: String,
 ) -> Result<String, String> {
     let custom_base_url = crate::commands::settings::get_custom_base_url(&state, &provider).await;
-    ai::refine_technical_content(&provider, &model, &api_key, custom_base_url.as_deref(), &current_code, &instruction, &content_type).await
+    ai::refine_technical_content(
+        &provider,
+        &model,
+        &api_key,
+        custom_base_url.as_deref(),
+        &current_code,
+        &instruction,
+        &content_type,
+    )
+    .await
 }
 
 #[command]
@@ -97,15 +132,32 @@ pub async fn fix_diagram_with_ai(
     content_type: String,
 ) -> Result<String, String> {
     let custom_base_url = crate::commands::settings::get_custom_base_url(&state, &provider).await;
-    ai::fix_technical_errors(&provider, &model, &api_key, custom_base_url.as_deref(), &broken_code, &error_logs, &content_type).await
+    ai::fix_technical_errors(
+        &provider,
+        &model,
+        &api_key,
+        custom_base_url.as_deref(),
+        &broken_code,
+        &error_logs,
+        &content_type,
+    )
+    .await
 }
 
 #[command]
-pub async fn compile_resume_to_pdf(app_handle: AppHandle, latex_code: String, filename: Option<String>) -> Result<Vec<u8>, String> {
-    let docs_dir = app_handle.path().document_dir().map_err(|e| format!("Failed to get documents dir: {}", e))?;
+pub async fn compile_resume_to_pdf(
+    app_handle: AppHandle,
+    latex_code: String,
+    filename: Option<String>,
+) -> Result<Vec<u8>, String> {
+    let docs_dir = app_handle
+        .path()
+        .document_dir()
+        .map_err(|e| format!("Failed to get documents dir: {}", e))?;
     let roletect_dir = docs_dir.join("RoleTect");
     if !roletect_dir.exists() {
-        std::fs::create_dir_all(&roletect_dir).map_err(|e| format!("Failed to create RoleTect dir: {}", e))?;
+        std::fs::create_dir_all(&roletect_dir)
+            .map_err(|e| format!("Failed to create RoleTect dir: {}", e))?;
     }
     let output_name = filename.unwrap_or_else(|| "output.pdf".to_string());
     let output_pdf_path = roletect_dir.join(output_name);
@@ -116,7 +168,7 @@ pub async fn compile_resume_to_pdf(app_handle: AppHandle, latex_code: String, fi
             .stack_size(100 * 1024 * 1024)
             .spawn(move || {
                 let mut status = CapturingStatusBackend::new();
-                
+
                 let config_loader = tectonic::config::PersistentConfig::default();
                 let bundle = config_loader
                     .default_bundle(false)
@@ -127,8 +179,10 @@ pub async fn compile_resume_to_pdf(app_handle: AppHandle, latex_code: String, fi
                     .map_err(|e| format!("Failed to get format cache path: {}", e))?;
 
                 let mut sb = tectonic::driver::ProcessingSessionBuilder::default();
-                let temp_output_dir = std::env::temp_dir().join(format!("roletect-{}", nanoid::nanoid!()));
-                std::fs::create_dir_all(&temp_output_dir).map_err(|e| format!("Failed to create temp output dir: {}", e))?;
+                let temp_output_dir =
+                    std::env::temp_dir().join(format!("roletect-{}", nanoid::nanoid!()));
+                std::fs::create_dir_all(&temp_output_dir)
+                    .map_err(|e| format!("Failed to create temp output dir: {}", e))?;
 
                 sb.bundle(bundle)
                     .primary_input_buffer(latex_code.as_bytes())
@@ -140,7 +194,8 @@ pub async fn compile_resume_to_pdf(app_handle: AppHandle, latex_code: String, fi
                     .output_format(tectonic::driver::OutputFormat::Pdf)
                     .build_date(std::time::SystemTime::now());
 
-                let mut sess = sb.create(&mut status)
+                let mut sess = sb
+                    .create(&mut status)
                     .map_err(|e| format!("Failed to create Tectonic session: {}\n\nLogs:\n{}", e, status.logs))?;
 
                 sess.run(&mut status)
@@ -148,8 +203,9 @@ pub async fn compile_resume_to_pdf(app_handle: AppHandle, latex_code: String, fi
 
                 let temp_pdf_path = temp_output_dir.join("texput.pdf");
                 if temp_pdf_path.exists() {
-                    let pdf_data = std::fs::read(&temp_pdf_path).map_err(|e| format!("Failed to read generated PDF: {}", e))?;
-                    
+                    let pdf_data = std::fs::read(&temp_pdf_path)
+                        .map_err(|e| format!("Failed to read generated PDF: {}", e))?;
+
                     // Copy it to Documents/RoleTect/output.pdf
                     let _ = std::fs::write(&output_pdf_path, &pdf_data);
 
@@ -159,7 +215,10 @@ pub async fn compile_resume_to_pdf(app_handle: AppHandle, latex_code: String, fi
                     Ok(pdf_data)
                 } else {
                     let _ = std::fs::remove_dir_all(&temp_output_dir);
-                    Err(format!("Compilation appeared successful, but PDF was not found at {:?}\n\nLogs:\n{}", temp_pdf_path, status.logs))
+                    Err(format!(
+                        "Compilation appeared successful, but PDF was not found at {:?}\n\nLogs:\n{}",
+                        temp_pdf_path, status.logs
+                    ))
                 }
             })
             .map_err(|e| format!("Failed to spawn compiler thread: {}", e))?;
@@ -173,23 +232,40 @@ pub async fn compile_resume_to_pdf(app_handle: AppHandle, latex_code: String, fi
 }
 
 #[command]
-pub async fn compile_workspace_to_pdf(app_handle: AppHandle, workspace_dir: String, main_file_name: String, filename: Option<String>) -> Result<Vec<u8>, String> {
+pub async fn compile_workspace_to_pdf(
+    app_handle: AppHandle,
+    workspace_dir: String,
+    main_file_name: String,
+    filename: Option<String>,
+) -> Result<Vec<u8>, String> {
     compile_workspace_to_pdf_inner(app_handle, workspace_dir, main_file_name, filename).await
 }
 
-pub(crate) async fn compile_workspace_to_pdf_inner(app_handle: AppHandle, workspace_dir: String, main_file_name: String, filename: Option<String>) -> Result<Vec<u8>, String> {
-    let docs_dir = app_handle.path().document_dir().map_err(|e| format!("Failed to get documents dir: {}", e))?;
+pub(crate) async fn compile_workspace_to_pdf_inner(
+    app_handle: AppHandle,
+    workspace_dir: String,
+    main_file_name: String,
+    filename: Option<String>,
+) -> Result<Vec<u8>, String> {
+    let docs_dir = app_handle
+        .path()
+        .document_dir()
+        .map_err(|e| format!("Failed to get documents dir: {}", e))?;
     let roletect_dir = docs_dir.join("RoleTect");
     if !roletect_dir.exists() {
-        std::fs::create_dir_all(&roletect_dir).map_err(|e| format!("Failed to create RoleTect dir: {}", e))?;
+        std::fs::create_dir_all(&roletect_dir)
+            .map_err(|e| format!("Failed to create RoleTect dir: {}", e))?;
     }
     let output_name = filename.unwrap_or_else(|| "output.pdf".to_string());
     let output_pdf_path = roletect_dir.join(output_name);
 
     let workspace_path = PathBuf::from(&workspace_dir);
-    
+
     if !workspace_path.is_dir() {
-        return Err(format!("Workspace path '{}' is not a valid directory.", workspace_dir));
+        return Err(format!(
+            "Workspace path '{}' is not a valid directory.",
+            workspace_dir
+        ));
     }
 
     tokio::task::spawn_blocking(move || {
@@ -199,7 +275,7 @@ pub(crate) async fn compile_workspace_to_pdf_inner(app_handle: AppHandle, worksp
             .spawn(move || {
                 let mut status = CapturingStatusBackend::new();
                 let workspace_path = PathBuf::from(&workspace_dir);
-                
+
                 let config_loader = tectonic::config::PersistentConfig::default();
                 let bundle = config_loader
                     .default_bundle(false)
@@ -212,13 +288,17 @@ pub(crate) async fn compile_workspace_to_pdf_inner(app_handle: AppHandle, worksp
                 // Determine the absolute path to the main file
                 let main_file_path = workspace_path.join(&main_file_name);
                 if !main_file_path.is_file() {
-                    return Err(format!("Main TeX file '{}' not found in workspace.", main_file_name));
+                    return Err(format!(
+                        "Main TeX file '{}' not found in workspace.",
+                        main_file_name
+                    ));
                 }
 
-
                 let mut sb = tectonic::driver::ProcessingSessionBuilder::default();
-                let temp_output_dir = std::env::temp_dir().join(format!("roletect-{}", nanoid::nanoid!()));
-                std::fs::create_dir_all(&temp_output_dir).map_err(|e| format!("Failed to create temp output dir: {}", e))?;
+                let temp_output_dir =
+                    std::env::temp_dir().join(format!("roletect-{}", nanoid::nanoid!()));
+                std::fs::create_dir_all(&temp_output_dir)
+                    .map_err(|e| format!("Failed to create temp output dir: {}", e))?;
 
                 sb.bundle(bundle)
                     .primary_input_path(&main_file_path)
@@ -229,7 +309,8 @@ pub(crate) async fn compile_workspace_to_pdf_inner(app_handle: AppHandle, worksp
                     .format_name("latex")
                     .output_format(tectonic::driver::OutputFormat::Pdf);
 
-                let mut sess = sb.create(&mut status)
+                let mut sess = sb
+                    .create(&mut status)
                     .map_err(|e| format!("Failed to create Tectonic session: {}\n\nLogs:\n{}", e, status.logs))?;
 
                 sess.run(&mut status)
@@ -237,10 +318,11 @@ pub(crate) async fn compile_workspace_to_pdf_inner(app_handle: AppHandle, worksp
 
                 // The PDF will be named texput.pdf in the temp_output_dir
                 let temp_pdf_path = temp_output_dir.join("texput.pdf");
-                
+
                 if temp_pdf_path.exists() {
-                    let pdf_data = std::fs::read(&temp_pdf_path).map_err(|e| format!("Failed to read generated PDF: {}", e))?;
-                    
+                    let pdf_data = std::fs::read(&temp_pdf_path)
+                        .map_err(|e| format!("Failed to read generated PDF: {}", e))?;
+
                     // Copy it to the same directory as the compiling source file
                     let mut final_pdf_path = workspace_path.join(&main_file_name);
                     final_pdf_path.set_extension("pdf");
@@ -255,7 +337,10 @@ pub(crate) async fn compile_workspace_to_pdf_inner(app_handle: AppHandle, worksp
                     Ok(pdf_data)
                 } else {
                     let _ = std::fs::remove_dir_all(&temp_output_dir);
-                    Err(format!("Compilation appeared successful, but PDF was not found at {:?}\n\nLogs:\n{}", temp_pdf_path, status.logs))
+                    Err(format!(
+                        "Compilation appeared successful, but PDF was not found at {:?}\n\nLogs:\n{}",
+                        temp_pdf_path, status.logs
+                    ))
                 }
             })
             .map_err(|e| format!("Failed to spawn compiler thread: {}", e))?;
@@ -278,7 +363,11 @@ mod tests {
     #[test]
     fn capturing_backend_records_errors() {
         let mut backend = CapturingStatusBackend::new();
-        backend.report(MessageKind::Error, format_args!("missing \\begin{{document}}"), None);
+        backend.report(
+            MessageKind::Error,
+            format_args!("missing \\begin{{document}}"),
+            None,
+        );
         assert!(backend.logs.contains("error: missing \\begin{document}"));
     }
 

@@ -46,7 +46,9 @@ aws-sdk-bedrockruntime = "1.124.0"
 tauri-plugin-localhost = "2.3.2"
 tokio-util = "0.7.18"
 aws-sdk-s3 = "1"
-tectonic = "0.17.0"
+tectonic = { version = "0.17.0", features = ["external-harfbuzz"] }
+
+
 
 
 [profile.dev.package.rust-argon2]
