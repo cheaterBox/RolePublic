@@ -28,6 +28,7 @@
     "@tauri-apps/plugin-process": "~2",
     "@tauri-apps/plugin-shell": "~2",
     "@tauri-apps/plugin-stronghold": "~2",
+    "@tauri-apps/plugin-updater": "~2",
     "@types/dompurify": "^3.2.0",
     "@types/markdown-it": "^14.1.2",
     "@vuepic/vue-datepicker": "^12.1.0",
