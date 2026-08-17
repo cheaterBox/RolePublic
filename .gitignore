@@ -13,6 +13,8 @@ application/mobile/roletect/.dart_tool/
 *.local
 .env*
 .DS_Store
+*.key
+*.key.pub
 
 # IDEs
 .vscode/*

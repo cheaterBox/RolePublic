@@ -70,6 +70,7 @@
     "notification:default",
     "os:default",
     "process:default",
-    "shell:default"
+    "shell:default",
+    "updater:default"
   ]
 }
