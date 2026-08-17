@@ -18,7 +18,6 @@ import {
   Italic,
   Play,
   DownloadCloud,
-  Key,
   ShieldCheck,
   LogOut,
   ExternalLink,
