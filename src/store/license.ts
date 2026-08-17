@@ -269,35 +269,32 @@ export const useLicenseStore = defineStore('license', () => {
 
   /**
    * Deactivate current instance with Lemon Squeezy and wipe encrypted credentials from Stronghold.
+   * Throws an error if Lemon Squeezy rejects deactivation or if network is unavailable.
    */
-  const deactivateLicense = async (): Promise<void> => {
-    try {
-      const licenseKey = await settingsStore.getSecret(KEY_LICENSE_KEY);
-      const instanceId = await settingsStore.getSecret(KEY_INSTANCE_ID);
+  const deactivateLicense = async (): Promise<boolean> => {
+    const licenseKey = await settingsStore.getSecret(KEY_LICENSE_KEY);
+    const instanceId = await settingsStore.getSecret(KEY_INSTANCE_ID);
 
-      if (licenseKey && instanceId) {
-        await invoke('deactivate_license_api', {
-          licenseKey,
-          instanceId,
-        });
-      }
-
-      // Wipe all license entries from Stronghold
-      await settingsStore.saveSecret(KEY_LICENSE_KEY, '');
-      await settingsStore.saveSecret(KEY_INSTANCE_ID, '');
-      await settingsStore.saveSecret(KEY_LAST_VALIDATED, '');
-      await settingsStore.saveSecret(KEY_STATUS, '');
-      await settingsStore.saveSecret(KEY_CUSTOMER_EMAIL, '');
-      await settingsStore.saveSecret(KEY_CUSTOMER_NAME, '');
-      await settingsStore.saveSecret(KEY_IS_TRIAL, '');
-
-      licenseStatus.value = null;
-      isLicensed.value = false;
-    } catch (err: any) {
-      console.error('Failed to deactivate license:', err);
-      licenseStatus.value = null;
-      isLicensed.value = false;
+    if (licenseKey && instanceId) {
+      // Must receive explicit success from Lemon Squeezy
+      await invoke('deactivate_license_api', {
+        licenseKey,
+        instanceId,
+      });
     }
+
+    // Wipe all license entries from Stronghold on verified success
+    await settingsStore.saveSecret(KEY_LICENSE_KEY, '');
+    await settingsStore.saveSecret(KEY_INSTANCE_ID, '');
+    await settingsStore.saveSecret(KEY_LAST_VALIDATED, '');
+    await settingsStore.saveSecret(KEY_STATUS, '');
+    await settingsStore.saveSecret(KEY_CUSTOMER_EMAIL, '');
+    await settingsStore.saveSecret(KEY_CUSTOMER_NAME, '');
+    await settingsStore.saveSecret(KEY_IS_TRIAL, '');
+
+    licenseStatus.value = null;
+    isLicensed.value = false;
+    return true;
   };
 
   /**
@@ -352,6 +349,48 @@ export const useLicenseStore = defineStore('license', () => {
     }
   };
 
+  /**
+   * Cancel/End trial early and return to License Gate.
+   */
+  /**
+   * Cancel/End trial early and return to License Gate.
+   * If a Lemon Squeezy license key was active, deactivates the key with Lemon Squeezy first.
+   */
+  const cancelTrial = async (): Promise<boolean> => {
+    const licenseKey = await settingsStore.getSecret(KEY_LICENSE_KEY);
+    const instanceId = await settingsStore.getSecret(KEY_INSTANCE_ID);
+
+    // If key is tied to Lemon Squeezy, deactivate with API first
+    if (licenseKey && instanceId) {
+      await invoke('deactivate_license_api', {
+        licenseKey,
+        instanceId,
+      });
+      await settingsStore.saveSecret(KEY_LICENSE_KEY, '');
+      await settingsStore.saveSecret(KEY_INSTANCE_ID, '');
+    }
+
+    const expiredDate = new Date(0).toISOString();
+    await settingsStore.saveSecret(KEY_TRIAL_ENDS_AT, expiredDate);
+    await settingsStore.saveSecret(KEY_STATUS, 'expired');
+    await settingsStore.saveSecret(KEY_IS_TRIAL, 'false');
+
+    isTrialExpired.value = true;
+    isLicensed.value = false;
+    licenseStatus.value = {
+      activated: false,
+      valid: false,
+      status: 'expired',
+      trial: true,
+      trial_ends_at: expiredDate,
+      customer_name: null,
+      customer_email: null,
+      license_key: null,
+      instance_id: null,
+    };
+    return true;
+  };
+
   return {
     isLicensed,
     licenseStatus,
@@ -363,5 +402,6 @@ export const useLicenseStore = defineStore('license', () => {
     refreshLicense,
     activateLicense,
     deactivateLicense,
+    cancelTrial,
   };
 });

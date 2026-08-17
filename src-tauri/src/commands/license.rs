@@ -11,9 +11,22 @@ use serde::{Deserialize, Serialize};
 const _LS_STORE_ID: &str = env!("LS_STORE_ID");
 const _LS_PRODUCT_ID: &str = env!("LS_PRODUCT_ID");
 
-const LS_ACTIVATE_URL: &str = "https://api.lemonsqueezy.com/v1/licenses/activate";
-const LS_VALIDATE_URL: &str = "https://api.lemonsqueezy.com/v1/licenses/validate";
-const LS_DEACTIVATE_URL: &str = "https://api.lemonsqueezy.com/v1/licenses/deactivate";
+const LS_API_BASE: &str = env!("LS_API_BASE");
+
+#[inline]
+fn activate_url() -> String {
+    format!("{LS_API_BASE}/activate")
+}
+
+#[inline]
+fn validate_url() -> String {
+    format!("{LS_API_BASE}/validate")
+}
+
+#[inline]
+fn deactivate_url() -> String {
+    format!("{LS_API_BASE}/deactivate")
+}
 
 /// Generous 120-second timeout to handle slow mobile tethering/satellite connections
 const HTTP_TIMEOUT_SECS: u64 = 120;
@@ -83,6 +96,12 @@ struct LsValidateResponse {
     trial_ends_at: Option<String>,
 }
 
+#[derive(Deserialize, Debug)]
+struct LsDeactivateResponse {
+    deactivated: Option<bool>,
+    error: Option<String>,
+}
+
 // ─── Commands ────────────────────────────────────────────────────────────────
 
 /// Activate a Lemon Squeezy license key for this machine.
@@ -102,7 +121,7 @@ pub async fn activate_license_api(license_key: String) -> Result<LicenseStatus, 
         .map_err(|e| format!("HTTP client error: {e}"))?;
 
     let resp = client
-        .post(LS_ACTIVATE_URL)
+        .post(activate_url())
         .header("Accept", "application/json")
         .form(&[
             ("license_key", license_key.as_str()),
@@ -147,9 +166,7 @@ pub async fn activate_license_api(license_key: String) -> Result<LicenseStatus, 
         .and_then(|c| c.email.clone())
         .or_else(|| data.meta.as_ref().and_then(|m| m.customer_email.clone()));
 
-    let trial_ends_at = data
-        .trial_ends_at
-        .or_else(|| lk_meta.expires_at.clone());
+    let trial_ends_at = data.trial_ends_at.or_else(|| lk_meta.expires_at.clone());
 
     Ok(LicenseStatus {
         activated: true,
@@ -179,7 +196,7 @@ pub async fn validate_license_api(
     let iid = instance_id.trim().to_string();
 
     let resp = client
-        .post(LS_VALIDATE_URL)
+        .post(validate_url())
         .header("Accept", "application/json")
         .form(&[("license_key", lk.as_str()), ("instance_id", iid.as_str())])
         .send()
@@ -225,25 +242,44 @@ pub async fn validate_license_api(
     })
 }
 
-/// Deactivate a license instance on Lemon Squeezy (best-effort).
+/// Deactivate a license instance on Lemon Squeezy and verify server confirmation.
 #[tauri::command]
-pub async fn deactivate_license_api(license_key: String, instance_id: String) -> Result<(), String> {
+pub async fn deactivate_license_api(
+    license_key: String,
+    instance_id: String,
+) -> Result<bool, String> {
     let lk = license_key.trim().to_string();
     let iid = instance_id.trim().to_string();
 
-    if !lk.is_empty() && !iid.is_empty() {
-        if let Ok(client) = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(HTTP_TIMEOUT_SECS))
-            .build()
-        {
-            let _ = client
-                .post(LS_DEACTIVATE_URL)
-                .header("Accept", "application/json")
-                .form(&[("license_key", lk.as_str()), ("instance_id", iid.as_str())])
-                .send()
-                .await;
-        }
+    if lk.is_empty() || iid.is_empty() {
+        return Err("Missing license key or instance ID for deactivation.".into());
     }
 
-    Ok(())
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(HTTP_TIMEOUT_SECS))
+        .build()
+        .map_err(|e| format!("HTTP client error: {e}"))?;
+
+    let resp = client
+        .post(deactivate_url())
+        .header("Accept", "application/json")
+        .form(&[("license_key", lk.as_str()), ("instance_id", iid.as_str())])
+        .send()
+        .await
+        .map_err(|e| format!("Network error connecting to Lemon Squeezy: {e}"))?;
+
+    let data: LsDeactivateResponse = resp
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse Lemon Squeezy response: {e}"))?;
+
+    if let Some(ref err) = data.error {
+        return Err(format!("Lemon Squeezy error: {err}"));
+    }
+
+    if data.deactivated == Some(true) {
+        Ok(true)
+    } else {
+        Err("Lemon Squeezy was unable to deactivate this instance.".into())
+    }
 }

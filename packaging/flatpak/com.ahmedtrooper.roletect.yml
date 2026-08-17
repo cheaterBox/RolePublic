@@ -36,9 +36,9 @@ modules:
       # 2. Install launch wrapper (sets working dir so Tauri finds dist/)
       - install -Dm755 packaging/flatpak/roletect.sh /app/bin/roletect.sh
 
-      # 3. Install bundled runtime libraries
+      # 3. Install bundled runtime libraries (if present)
       - mkdir -p /app/lib
-      - cp -a packaging/flatpak/lib/* /app/lib/
+      - bash -c 'if [ -d packaging/flatpak/lib ] && [ -n "$(ls -A packaging/flatpak/lib 2>/dev/null)" ]; then cp -a packaging/flatpak/lib/* /app/lib/; fi'
 
       # 4. Install frontend dist assets (Tauri resolves ../dist from /app/share/roletect)
       - mkdir -p /app/share/roletect

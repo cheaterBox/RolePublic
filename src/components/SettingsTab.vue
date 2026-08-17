@@ -85,18 +85,39 @@ const handleActivateUpgrade = async () => {
   }
 };
 
+const isCancelingTrial = ref(false);
+
+const handleCancelTrial = async () => {
+  const confirmed = await ask('Are you sure you want to cancel and end your free trial? RoleTect will lock until a valid license key is entered.', {
+    title: 'Cancel Free Trial',
+    kind: 'warning'
+  });
+  if (!confirmed) return;
+  isCancelingTrial.value = true;
+  try {
+    // Contacts Lemon Squeezy (if remote key) & updates Stronghold
+    await licenseStore.cancelTrial();
+    // Instantly mounts LicenseGate overlay across the entire viewport
+  } catch (err: any) {
+    await dialog.showAlert(err.message || err.toString() || 'Failed to cancel trial with Lemon Squeezy. Please check your internet connection.', 'Cancellation Failed');
+  } finally {
+    isCancelingTrial.value = false;
+  }
+};
+
 const handleDeactivateLicense = async () => {
-  const confirmed = await ask('Are you sure you want to deactivate your license on this device? RoleTect will lock until a valid key is entered.', {
+  const confirmed = await ask('Are you sure you want to deactivate your license on this device? This will release the seat on Lemon Squeezy and lock RoleTect until a valid key is entered.', {
     title: 'Deactivate License',
     kind: 'warning'
   });
   if (!confirmed) return;
   isDeactivatingLicense.value = true;
   try {
+    // Verifies server deactivation with Lemon Squeezy API
     await licenseStore.deactivateLicense();
-    await dialog.showAlert('License successfully deactivated.', 'Deactivated');
+    // Instantly mounts LicenseGate overlay across the entire viewport
   } catch (err: any) {
-    await dialog.showAlert('Failed to deactivate license.', 'Error');
+    await dialog.showAlert(err.message || err.toString() || 'Failed to deactivate license with Lemon Squeezy. Please check your internet connection.', 'Deactivation Failed');
   } finally {
     isDeactivatingLicense.value = false;
   }
@@ -1580,6 +1601,19 @@ const handleSave = async () => {
                 >
                   <ShieldCheck :size="14" />
                   <span>{{ isActivatingUpgrade ? 'Activating...' : 'Activate' }}</span>
+                </button>
+              </div>
+
+              <!-- Action to End Free Trial Early -->
+              <div style="display: flex; justify-content: flex-end; margin-top: 4px;">
+                <button
+                  type="button"
+                  @click="handleCancelTrial"
+                  :disabled="isCancelingTrial"
+                  style="display: flex; align-items: center; gap: 4px; background: transparent; border: none; color: var(--muted); font-size: 0.75rem; cursor: pointer; text-decoration: underline;"
+                >
+                  <LogOut :size="12" />
+                  <span>{{ isCancelingTrial ? 'Ending Trial...' : 'End Trial & Lock Workspace' }}</span>
                 </button>
               </div>
             </div>
