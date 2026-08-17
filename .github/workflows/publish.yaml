@@ -23,10 +23,10 @@ jobs:
             args: "--target aarch64-apple-darwin"
 
           # --- LINUX ---
-          - platform: "ubuntu-22.04" # Linux x64
+          - platform: "ubuntu-latest" # Modern Linux x64 (Ubuntu 24.04+)
             target: "x86_64-unknown-linux-gnu"
             args: ""
-          - platform: "ubuntu-22.04-arm" # Linux ARM64
+          - platform: "ubuntu-24.04-arm" # Modern Linux ARM64
             target: "aarch64-unknown-linux-gnu"
             args: ""
 
@@ -135,7 +135,7 @@ jobs:
 
       # --- FLATPAK BUILD & ATTACH (Linux x86_64) ---
       - name: Build and Upload Flatpak Bundle (Linux x64)
-        if: matrix.platform == 'ubuntu-22.04' && matrix.target == 'x86_64-unknown-linux-gnu'
+        if: startsWith(matrix.platform, 'ubuntu') && matrix.target == 'x86_64-unknown-linux-gnu'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
