@@ -126,26 +126,5 @@ jobs:
             * **Windows on ARM (Snapdragon/Copilot+)**: Download the `arm64` or `aarch64` file (e.g., `-setup.exe`)
 
             ### 🐧 Linux
-            * **Standard PC (Intel/AMD)**: Download the `amd64` or `x64` file (e.g., `.AppImage`, `.deb`, or `.flatpak`)
+            * **Standard PC (Intel/AMD)**: Download the `amd64` or `x64` file (e.g., `.AppImage` or `.deb`)
             * **ARM 64-bit (Raspberry Pi/ARM Servers)**: Download the `aarch64` file (e.g., `.AppImage` or `.deb`)
-
-      # --- FLATPAK BUILD & ATTACH (Linux x86_64) ---
-      - name: Build and Upload Flatpak Bundle (Linux x64)
-        if: matrix.platform == 'ubuntu-22.04' && matrix.target == 'x86_64-unknown-linux-gnu'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          sudo apt-get update && sudo apt-get install -y flatpak flatpak-builder elfutils
-          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-          flatpak install --user -y flathub org.gnome.Platform//47 org.gnome.Sdk//47
-
-          # Build Flatpak inside isolated build directory
-          flatpak-builder --user --force-clean --repo=flatpak-repo flatpak-build-dir packaging/flatpak/com.ahmedtrooper.roletect.yml
-
-          # Create single-file bundle
-          flatpak build-bundle flatpak-repo roletect_amd64.flatpak com.ahmedtrooper.roletect
-
-          # Attach Flatpak bundle to the draft release
-          TAG_NAME="${GITHUB_REF#refs/tags/}"
-          echo "Uploading roletect_amd64.flatpak to draft release for tag $TAG_NAME..."
-          gh release upload "$TAG_NAME" roletect_amd64.flatpak --clobber || echo "Draft upload fallback: will be included in release assets."
