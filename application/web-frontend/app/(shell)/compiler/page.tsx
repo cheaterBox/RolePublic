@@ -1,22 +1,289 @@
 "use client";
-import { Card } from "@astryxdesign/core/Card";
-import { VStack } from "@astryxdesign/core/Layout";
-import { Text } from "@astryxdesign/core/Text";
-import { PageHeader } from "@/components/ui/PageHeader";
-export default function Page() {
-  const title = "Compiler";
+
+import {
+  AlertTriangle,
+  Check,
+  Copy,
+  Download,
+  FileCode,
+  Hammer,
+  RotateCw,
+  Terminal,
+  Wand2,
+} from "lucide-react";
+import { useEffect, useState } from "react";
+import { getAiConfig } from "@/features/settings/api";
+import { apiFetch } from "@/lib/api/client";
+import type { CompilerState } from "@/lib/api/types";
+import { buildApiUrl, getApiToken } from "@/lib/config/env";
+
+export default function CompilerPage() {
+  const [latex, setLatex] = useState(defaultCompilerLatex);
+  const [isCompiling, setIsCompiling] = useState(false);
+  const [isFixing, setIsFixing] = useState(false);
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+  const [compilationError, setCompilationError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const state = await apiFetch<CompilerState>("/compiler/state");
+        if (state?.latex_content?.trim()) {
+          setLatex(state.latex_content);
+        }
+      } catch {
+        // Fallback
+      }
+    })();
+  }, []);
+
+  const handleCompile = async () => {
+    if (!latex.trim()) return;
+    setIsCompiling(true);
+    setCompilationError(null);
+
+    try {
+      // Save state
+      void apiFetch("/compiler/state", {
+        method: "POST",
+        body: { latex_content: latex },
+      });
+
+      const token = getApiToken();
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      const res = await fetch(buildApiUrl("/pdf/compile"), {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          latex_content: latex,
+          filename: "compiler_output.pdf",
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: res.statusText }));
+        throw new Error(err.message || err.error || "Compilation failed");
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      setPdfBlobUrl(url);
+    } catch (err: any) {
+      console.error(err);
+      setCompilationError(
+        err.message || "Compilation failed. Check LaTeX syntax.",
+      );
+    } finally {
+      setIsCompiling(false);
+    }
+  };
+
+  const handleAiFix = async () => {
+    if (!compilationError) return;
+    setIsFixing(true);
+    try {
+      const cfg = await getAiConfig().catch(() => ({
+        provider: "gemini",
+        model: "gemini-1.5-pro",
+      }));
+      const res = await apiFetch<{ latex: string }>("/pdf/fix", {
+        method: "POST",
+        body: {
+          provider: cfg.provider || "gemini",
+          model: cfg.model || "gemini-1.5-pro",
+          api_key: "vault_key",
+          broken_latex: latex,
+          error_logs: compilationError,
+        },
+      });
+      if (res?.latex) {
+        setLatex(res.latex);
+        setCompilationError(null);
+        setTimeout(() => void handleCompile(), 100);
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert(`AI Fix error: ${err.message}`);
+    } finally {
+      setIsFixing(false);
+    }
+  };
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(latex);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   return (
-    <VStack gap={4}>
-      <PageHeader
-        title={title}
-        description="Feature slice ready — API client under src/features/compiler."
-      />
-      <Card padding={4}>
-        <Text color="secondary">
-          UI for this feature is stubbed. Connect NEXT_PUBLIC_API_BASE and use
-          the client in src/features/compiler/api.ts.
-        </Text>
-      </Card>
-    </VStack>
+    <div className="flex flex-col h-full bg-[var(--bg)] animate-in fade-in-50 duration-150">
+      {/* Header Bar (Matching CompilerTab.vue) */}
+      <header className="h-12 flex items-center justify-between px-4 bg-[var(--bg-accent)] border-b border-[var(--line)] shrink-0 select-none z-20">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 text-xs font-bold text-[var(--ink)]">
+            <Terminal className="h-4 w-4 text-[var(--accent)]" />
+            <span>Tectonic Compiler</span>
+          </div>
+          <span className="font-mono text-[10px] text-[var(--muted)]">
+            100MB Thread Stack
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleCopy}
+            className="flex items-center gap-1 h-8 px-2.5 rounded bg-[var(--surface-soft)] border border-[var(--line)] text-xs font-bold text-[var(--ink)] hover:border-[var(--muted)] transition-colors"
+            title="Copy Source"
+          >
+            {copied ? (
+              <Check className="h-3.5 w-3.5" />
+            ) : (
+              <Copy className="h-3.5 w-3.5" />
+            )}
+            <span className="hidden sm:inline">
+              {copied ? "Copied" : "Copy"}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleCompile}
+            disabled={isCompiling}
+            className="flex items-center gap-1.5 h-8 px-3 rounded bg-[var(--accent)] text-white text-xs font-bold hover:opacity-90 disabled:opacity-50 transition-opacity"
+          >
+            {isCompiling ? (
+              <RotateCw className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Hammer className="h-3.5 w-3.5" />
+            )}
+            <span>Compile (Ctrl+Enter)</span>
+          </button>
+
+          {pdfBlobUrl && (
+            <a
+              href={pdfBlobUrl}
+              download="compiler_output.pdf"
+              className="flex items-center gap-1 h-8 px-2.5 rounded bg-[var(--surface-soft)] border border-[var(--line)] text-xs font-bold text-[var(--ink)] hover:border-[var(--muted)] transition-colors"
+              title="Download PDF"
+            >
+              <Download className="h-3.5 w-3.5" />
+            </a>
+          )}
+        </div>
+      </header>
+
+      {/* Error Bar */}
+      {compilationError && (
+        <div className="px-4 py-2 bg-[rgba(248,81,73,0.15)] border-b border-[var(--warning)] text-xs text-[var(--warning)] font-semibold flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2 truncate pr-4">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            <span className="truncate">{compilationError}</span>
+          </div>
+          <button
+            type="button"
+            onClick={handleAiFix}
+            disabled={isFixing}
+            className="flex items-center gap-1.5 px-3 py-1 rounded bg-[var(--warning)] text-white text-xs font-bold hover:opacity-90 shrink-0"
+          >
+            {isFixing ? (
+              <RotateCw className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Wand2 className="h-3.5 w-3.5" />
+            )}
+            <span>AI Fix LaTeX</span>
+          </button>
+        </div>
+      )}
+
+      {/* Split-Pane Studio */}
+      <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden">
+        {/* Left: Code Editor */}
+        <div className="flex-1 flex flex-col min-w-0 bg-[#0d0f14] overflow-hidden">
+          <div className="h-8 flex items-center justify-between px-3 bg-[var(--bg-accent)] border-b border-[var(--line)] text-[10px] font-mono text-[var(--muted)] select-none">
+            <span>document.tex</span>
+            <span>{latex.split("\n").length} lines</span>
+          </div>
+
+          <textarea
+            value={latex}
+            onChange={(e) => setLatex(e.target.value)}
+            onKeyDown={(e) => {
+              if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+                e.preventDefault();
+                void handleCompile();
+              }
+            }}
+            spellCheck={false}
+            className="flex-1 w-full bg-[#0d0f14] p-4 font-mono text-xs text-[#e6edf3] border-0 resize-none focus:outline-none leading-relaxed select-text overflow-y-auto"
+          />
+        </div>
+
+        {/* Right: PDF Vector Viewer */}
+        <div className="w-full lg:w-[500px] xl:w-[560px] bg-[var(--bg-accent)] border-t lg:border-t-0 lg:border-l border-[var(--line)] flex flex-col shrink-0 overflow-hidden">
+          <div className="h-8 flex items-center justify-between px-3 bg-[var(--bg-accent)] border-b border-[var(--line)] text-[10px] font-bold uppercase tracking-wider text-[var(--muted)] select-none">
+            <span>PDF Vector Output</span>
+          </div>
+
+          <div className="flex-1 bg-zinc-900 overflow-hidden flex items-center justify-center">
+            {isCompiling ? (
+              <div className="flex flex-col items-center gap-2 text-xs text-[var(--muted)]">
+                <RotateCw className="h-6 w-6 animate-spin text-[var(--accent)]" />
+                <span>Compiling in Tectonic…</span>
+              </div>
+            ) : pdfBlobUrl ? (
+              <iframe
+                src={pdfBlobUrl}
+                title="Tectonic PDF Output"
+                className="h-full w-full bg-white border-0"
+              />
+            ) : (
+              <div className="text-center p-6 space-y-2 text-[var(--muted)]">
+                <FileCode className="h-8 w-8 mx-auto opacity-40" />
+                <p className="text-xs">
+                  Click Compile or press Ctrl+Enter to render output.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
+
+const defaultCompilerLatex = `\\documentclass[11pt,a4paper]{article}
+\\usepackage[margin=0.75in]{geometry}
+\\usepackage{hyperref}
+\\usepackage{enumitem}
+
+\\begin{document}
+\\begin{center}
+  {\\Huge \\textbf{Alex Morgan}}\\\\
+  \\vspace{2pt}
+  San Francisco, CA $\\cdot$ \\href{mailto:alex@example.com}{alex@example.com} $\\cdot$ (555) 019-2834\\\\
+  \\href{https://github.com/alexmorgan}{github.com/alexmorgan} $\\cdot$ \\href{https://linkedin.com/in/alexmorgan}{linkedin.com/in/alexmorgan}
+\\end{center}
+
+\\vspace{-8pt}
+\\section*{Summary}
+Principal Systems Software Engineer with 8+ years experience designing high-throughput distributed backends in Rust, TypeScript, and Go.
+
+\\vspace{-4pt}
+\\section*{Experience}
+\\textbf{Senior Systems Engineer} \\hfill \\textit{Acme Cloud $\\cdot$ 2022 -- Present}
+\\begin{itemize}[noitemsep,topsep=2pt]
+  \\item Architected high-throughput async processing pipeline in Rust handling 50,000+ RPS.
+  \\item Reduced end-to-end latency by 45\\% using Tokio channels and zero-copy memory buffers.
+\\end{itemize}
+
+\\vspace{-4pt}
+\\section*{Skills}
+\\textbf{Languages:} Rust, Go, TypeScript, C++, Python, SQL\\\\
+\\textbf{Technologies:} Tokio, Axum, PostgreSQL, SQLite, Docker, AWS S3, Linux Internals
+\\end{document}`;
