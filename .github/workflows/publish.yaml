@@ -1,219 +1,111 @@
-# RoleTect desktop release
-#
-# Produces runnable artifacts for:
-#   - macOS Apple Silicon (M1+)
-#   - Windows 10/11 x64 (Intel/AMD) and ARM64 (Snapdragon / Copilot+)
-#   - Linux x64 and ARM64 — Ubuntu 22.04 LTS and newer (Debian 12+, Fedora, Arch)
-#
-# Why Ubuntu 22.04 is the floor (not 20.04):
-#   Tauri 2 links WebKitGTK 4.1, which does not exist on Ubuntu 20.04.
-#   GitHub no longer has 20.04 runners, and a 22.04-built binary needs glibc 2.35+.
-#   AppImages still use the host WebKitGTK, so 20.04 cannot run this app.
-#
-# Current-workflow bugs this file fixes (Cargo.toml is intentionally untouched):
-#   1. Windows: tectonic 0.17 does NOT vendor FreeType/HarfBuzz. The old job only
-#      installed icu+libpng, then TECTONIC_DEP_BACKEND=vcpkg failed with
-#      "package freetype is not installed for triplet x64-windows-static-md".
-#      Official tectonic 0.17 vcpkg set is fontconfig, freetype, harfbuzz[graphite2], icu.
-#      We keep *-static-md (static libs + dynamic CRT) so we do not mix /MT with Tauri/WebView2.
-#      Do NOT switch to tectonic's x64-windows-static-release warning — that custom
-#      /MT triplet is for standalone tectonic.exe, not a Tauri app.
-#   2. Linux AppImage SEGV: host GTK_MODULES (KDE colorreload / window-decorations)
-#      were injected into the bundled GTK/WebKit and jumped to 0x3e800000000.
-#      After tauri-action we wrap AppRun to unset those and disable WebKit DMA-BUF.
-#   3. Linux/macOS were missing freetype/harfbuzz/graphite2/fontconfig build deps,
-#      so Tectonic either failed or dynamically linked brew/system copies that
-#      users do not have.
-
-name: publish
+name: "publish"
 
 on:
   push:
     tags:
-      - "v*"
-      - "roletect-v*"
-  workflow_dispatch:
-
-concurrency:
-  group: publish-${{ github.ref }}
-  cancel-in-progress: false
+      - 'v*'
+      - 'roletect-v*'
 
 jobs:
   publish-tauri:
-    name: ${{ matrix.name }}
+    # Forces GitHub Actions (checkout and setup-bun) to use Node 24, fixing the deprecation warning
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     permissions:
       contents: write
     strategy:
       fail-fast: false
       matrix:
         include:
-          - name: macos-arm64
-            platform: macos-latest
-            target: aarch64-apple-darwin
+          # --- APPLE ---
+          - platform: "macos-latest" # Apple Silicon
+            target: "aarch64-apple-darwin"
             args: "--target aarch64-apple-darwin"
-            vcpkg_triplet: arm64-osx-static
 
-          - name: linux-x64
-            platform: ubuntu-22.04
-            target: x86_64-unknown-linux-gnu
+          # --- LINUX ---
+          - platform: "ubuntu-22.04" # Linux x64
+            target: "x86_64-unknown-linux-gnu"
+            args: ""
+          - platform: "ubuntu-22.04-arm" # Linux ARM64
+            target: "aarch64-unknown-linux-gnu"
             args: ""
 
-          - name: linux-arm64
-            platform: ubuntu-22.04-arm
-            target: aarch64-unknown-linux-gnu
+          # --- WINDOWS ---
+          - platform: "windows-latest" # Windows x64
+            target: "x86_64-pc-windows-msvc"
+            vcpkg_triplet: "x64-windows-static-md"
             args: ""
-
-          - name: windows-x64
-            platform: windows-latest
-            target: x86_64-pc-windows-msvc
-            args: ""
-            vcpkg_triplet: x64-windows-static-md
-
-          - name: windows-arm64
-            platform: windows-latest
-            target: aarch64-pc-windows-msvc
+          - platform: "windows-latest" # Windows ARM64
+            target: "aarch64-pc-windows-msvc"
+            vcpkg_triplet: "arm64-windows-static-md"
             args: "--target aarch64-pc-windows-msvc"
-            vcpkg_triplet: arm64-windows-static-md
 
     runs-on: ${{ matrix.platform }}
-    timeout-minutes: 180
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-      CARGO_TERM_COLOR: always
-      CARGO_INCREMENTAL: "0"
-      MACOSX_DEPLOYMENT_TARGET: "11.0"
-
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup bun
-        uses: oven-sh/setup-bun@v2
+      - name: setup bun
+        uses: oven-sh/setup-bun@v1
         with:
-          bun-version: "1.2.15"
+          bun-version: latest
 
-      - name: Install Rust stable
+      - name: install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
+          # Uses the target defined in the matrix above
           targets: ${{ matrix.target }}
 
-      - name: Cache Rust build
-        uses: swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
-          shared-key: ${{ matrix.target }}
-
-      - name: Enable vcpkg GitHub Actions binary cache
-        if: runner.os == 'Windows' || runner.os == 'macOS'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
-            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
-
-      # ---------------------------------------------------------------------------
-      # Linux: native WebKitGTK 4.1 (Ubuntu 22.04) + Tectonic pkg-config deps.
-      # Semi-static so FreeType/HarfBuzz are baked into the binary and the
-      # AppImage does not pick a random host HarfBuzz from 22.04 vs 26.04.
-      # ---------------------------------------------------------------------------
-      - name: Install Linux dependencies
-        if: runner.os == 'Linux'
+      # --- UBUNTU SETUP ---
+      - name: install dependencies (ubuntu only)
+        if: startsWith(matrix.platform, 'ubuntu')
         run: |
           sudo apt-get update
+          # Standard Tauri dependencies + core C build utilities for Tectonic's internal engines
           sudo apt-get install -y \
-            build-essential \
-            file \
-            patchelf \
-            pkg-config \
-            xdg-utils \
-            libgtk-3-dev \
+            libwebkit2gtk-4.0-dev \
             libwebkit2gtk-4.1-dev \
-            libayatana-appindicator3-dev \
             libappindicator3-dev \
             librsvg2-dev \
-            libssl-dev \
-            libfreetype6-dev \
+            patchelf \
+            pkg-config \
+            build-essential \
             libharfbuzz-dev \
-            libgraphite2-dev \
-            libfontconfig1-dev \
-            libicu-dev \
             libpng-dev \
-            libbrotli-dev \
-            zlib1g-dev
-          {
-            echo "TECTONIC_PKGCONFIG_FORCE_SEMI_STATIC=1"
-            echo "RUSTFLAGS=-C link-arg=-lstdc++"
-          } >> "$GITHUB_ENV"
+            fontconfig \
+            libfontconfig1-dev \
+            xdg-utils
 
-      # ---------------------------------------------------------------------------
-      # macOS: vcpkg STATIC libs. Homebrew dylibs would make the .app depend on
-      # brew paths that do not exist on user machines.
-      # ---------------------------------------------------------------------------
-      - name: Install macOS Tectonic dependencies (static vcpkg)
+      # --- MACOS SETUP ---
+      - name: Setup Tectonic Dependencies (macOS)
         if: runner.os == 'macOS'
-        env:
-          VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
         run: |
-          brew install pkg-config cmake ninja
-          git clone --depth 1 https://github.com/microsoft/vcpkg.git "$HOME/vcpkg"
-          "$HOME/vcpkg/bootstrap-vcpkg.sh" -disableMetrics
+          brew install pkg-config icu4c libpng
+          # Specific brew paths for tectonic
+          echo "PKG_CONFIG_PATH=/opt/homebrew/opt/icu4c/lib/pkgconfig:/opt/homebrew/opt/libpng/lib/pkgconfig:/usr/local/opt/icu4c/lib/pkgconfig:/usr/local/opt/libpng/lib/pkgconfig:$PKG_CONFIG_PATH" >> $GITHUB_ENV
 
-          mkdir -p "$HOME/vcpkg-triplets"
-          cat > "$HOME/vcpkg-triplets/arm64-osx-static.cmake" <<'EOF'
-          set(VCPKG_TARGET_ARCHITECTURE arm64)
-          set(VCPKG_CRT_LINKAGE dynamic)
-          set(VCPKG_LIBRARY_LINKAGE static)
-          set(VCPKG_CMAKE_SYSTEM_NAME Darwin)
-          EOF
-
-          "$HOME/vcpkg/vcpkg" install --overlay-triplets="$HOME/vcpkg-triplets" \
-            --triplet "${{ matrix.vcpkg_triplet }}" \
-            --clean-after-build \
-            fontconfig freetype 'harfbuzz[graphite2]' icu
-
-          {
-            echo "VCPKG_ROOT=$HOME/vcpkg"
-            echo "VCPKG_DEFAULT_TRIPLET=${{ matrix.vcpkg_triplet }}"
-            echo "VCPKGRS_TRIPLET=${{ matrix.vcpkg_triplet }}"
-            echo "TECTONIC_DEP_BACKEND=vcpkg"
-            echo "RUSTFLAGS=-C link-arg=-lc++"
-          } >> "$GITHUB_ENV"
-
-      # ---------------------------------------------------------------------------
-      # Windows: same four packages tectonic 0.17 declares, but *-static-md so
-      # CRT matches Tauri / MSVC default (/MD). Runner already has vcpkg.
-      # ---------------------------------------------------------------------------
-      - name: Install Windows Tectonic dependencies (vcpkg)
+      # --- WINDOWS SETUP ---
+      - name: Setup vcpkg and Dependencies (Windows)
         if: runner.os == 'Windows'
-        env:
-          VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
-        shell: pwsh
         run: |
-          git config --system core.longpaths true
-          $root = if ($env:VCPKG_INSTALLATION_ROOT) { $env:VCPKG_INSTALLATION_ROOT } else { "C:\vcpkg" }
-          if (-not (Test-Path "$root\vcpkg.exe")) {
-            git clone --depth 1 https://github.com/microsoft/vcpkg.git $root
-            & "$root\bootstrap-vcpkg.bat" -disableMetrics
-          }
-          $triplet = "${{ matrix.vcpkg_triplet }}"
-          & "$root\vcpkg.exe" install --clean-after-build `
-            "fontconfig:$triplet" `
-            "freetype:$triplet" `
-            "harfbuzz[graphite2]:$triplet" `
-            "icu:$triplet"
-          if ($LASTEXITCODE -ne 0) { throw "vcpkg install failed" }
+          git clone https://github.com/microsoft/vcpkg.git ${{ github.workspace }}\vcpkg
+          ${{ github.workspace }}\vcpkg\bootstrap-vcpkg.bat
 
-          Add-Content -Path $env:GITHUB_ENV -Value "VCPKG_ROOT=$root"
-          Add-Content -Path $env:GITHUB_ENV -Value "VCPKG_DEFAULT_TRIPLET=$triplet"
-          Add-Content -Path $env:GITHUB_ENV -Value "VCPKGRS_TRIPLET=$triplet"
-          Add-Content -Path $env:GITHUB_ENV -Value "TECTONIC_DEP_BACKEND=vcpkg"
-          Add-Content -Path $env:GITHUB_ENV -Value "CXXFLAGS=/std:c++17"
+          # Installs required C++ libraries for the Tectonic crate.
+          # Note: sqlite3 is intentionally omitted here because rusqlite handles it via the "bundled" Cargo feature.
+          ${{ github.workspace }}\vcpkg\vcpkg.exe install icu:${{ matrix.vcpkg_triplet }} libpng:${{ matrix.vcpkg_triplet }} harfbuzz[graphite2]:${{ matrix.vcpkg_triplet }} graphite2:${{ matrix.vcpkg_triplet }} fontconfig:${{ matrix.vcpkg_triplet }}
 
-      - name: Install frontend dependencies
+          echo "TECTONIC_DEP_BACKEND=vcpkg" >> $env:GITHUB_ENV
+          echo "VCPKG_ROOT=${{ github.workspace }}\vcpkg" >> $env:GITHUB_ENV
+          echo "VCPKGRS_TRIPLET=${{ matrix.vcpkg_triplet }}" >> $env:GITHUB_ENV
+
+          # Force MSVC to use C++17 standard
+          echo "CXXFLAGS=/std:c++17" >> $env:GITHUB_ENV
+
+      # --- BUILD AND PUBLISH ---
+      - name: install frontend dependencies
         run: bun install --frozen-lockfile
 
-      - name: Build and publish
-        id: tauri
-        uses: tauri-apps/tauri-action@v0
+      - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -223,104 +115,37 @@ jobs:
           prerelease: false
           args: ${{ matrix.args }}
           releaseBody: |
-            ## Which file should I download?
+            ## 📥 Which file should I download?
+            Select the correct file from the **Assets** list below based on your operating system and computer architecture.
 
-            Pick the asset that matches your OS and CPU. These builds are intended
-            to run without extra C++/TeX toolchains.
+            ### 🍎 macOS
+            * **Apple Silicon (M1/M2/M3/M4)**: Download the `aarch64` file (e.g., `.dmg` or `.app.tar.gz`)
 
-            ### macOS
-            * **Apple Silicon (M1 / M2 / M3 / M4)**: `aarch64` `.dmg` (or `.app.tar.gz`)
-            * Requires macOS 11 Big Sur or newer
+            ### 🪟 Windows
+            * **Standard PC (Most Intel/AMD)**: Download the `x64` file (e.g., `-setup.exe` or `.msi`)
+            * **Windows on ARM (Snapdragon/Copilot+)**: Download the `arm64` or `aarch64` file (e.g., `-setup.exe`)
 
-            ### Windows 10 and 11
-            * **Intel / AMD (x64)**: `x64` `-setup.exe` (NSIS) or `.msi`
-            * **ARM64 (Snapdragon / Copilot+)**: `arm64` / `aarch64` `-setup.exe`
-            * WebView2 is bootstrapped by the installer if it is missing
-            * Windows 10 version 1809+ and Windows 11
+            ### 🐧 Linux
+            * **Standard PC (Intel/AMD)**: Download the `amd64` or `x64` file (e.g., `.AppImage`, `.deb`, or `.flatpak`)
+            * **ARM 64-bit (Raspberry Pi/ARM Servers)**: Download the `aarch64` file (e.g., `.AppImage` or `.deb`)
 
-            ### Linux (Ubuntu 22.04 LTS and newer)
-            * **Ubuntu / Debian**: prefer the `.deb` (`amd64` or `aarch64`)
-            * **Fedora / Arch / openSUSE / other**: `.AppImage`
-            * **ARM64** (Pi 4/5, ARM laptops): `aarch64.AppImage` or `aarch64.deb`
-            * Needs **WebKitGTK 4.1** on the host (`sudo apt install libwebkit2gtk-4.1-0`)
-            * **Ubuntu 20.04 is not supported** (no WebKitGTK 4.1, older glibc)
-
-            If an AppImage immediately exits on KDE / newer Ubuntu, the patched
-            build already unsets host GTK modules. Manual workaround:
-
-            ```
-            GTK_MODULES= WEBKIT_DISABLE_DMABUF_RENDERER=1 ./Roletect_*.AppImage
-            ```
-
-      - name: Patch Linux AppImage (host GTK / WebKit crash)
-        if: runner.os == 'Linux'
+      # --- FLATPAK BUILD & ATTACH (Linux x86_64) ---
+      - name: Build and Upload Flatpak Bundle (Linux x64)
+        if: matrix.platform == 'ubuntu-22.04' && matrix.target == 'x86_64-unknown-linux-gnu'
         env:
-          APPIMAGE_EXTRACT_AND_RUN: "1"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set -euo pipefail
-          shopt -s nullglob
-          mapfile -t images < <(find "${GITHUB_WORKSPACE}/src-tauri/target" -type f -path '*/bundle/appimage/*.AppImage' | sort)
-          if [[ ${#images[@]} -eq 0 ]]; then
-            echo "No AppImage produced"
-            exit 1
-          fi
+          sudo apt-get update && sudo apt-get install -y flatpak flatpak-builder elfutils
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user -y flathub org.gnome.Platform//47 org.gnome.Sdk//47
 
-          arch="$(uname -m)"
-          curl -sL -o /tmp/appimagetool \
-            "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-${arch}.AppImage"
-          chmod +x /tmp/appimagetool
+          # Build Flatpak inside isolated build directory
+          flatpak-builder --user --force-clean --repo=flatpak-repo flatpak-build-dir packaging/flatpak/com.ahmedtrooper.roletect.yml
 
-          for appimage in "${images[@]}"; do
-            echo "Patching $appimage"
-            work="$(mktemp -d)"
-            pushd "$work" >/dev/null
-            chmod +x "$appimage"
-            "$appimage" --appimage-extract
+          # Create single-file bundle
+          flatpak build-bundle flatpak-repo roletect_amd64.flatpak com.ahmedtrooper.roletect
 
-            if [[ ! -f squashfs-root/AppRun ]]; then
-              echo "AppRun missing inside $appimage"
-              exit 1
-            fi
-
-            mv squashfs-root/AppRun squashfs-root/AppRun.real
-            cat > squashfs-root/AppRun <<'EOF'
-          #!/bin/sh
-          # Isolate bundled GTK/WebKit from the host desktop (KDE GTK modules,
-          # GTK_PATH, DMA-BUF on new Mesa). This is the RoleTect 0.1.4 SEGV fix.
-          HERE="$(dirname "$(readlink -f "$0" 2>/dev/null || echo "$0")")"
-          unset GTK_MODULES
-          unset GTK3_MODULES
-          unset GTK_PATH
-          unset GDK_PIXBUF_MODULE_FILE
-          unset GIO_MODULE_DIR
-          export WEBKIT_DISABLE_DMABUF_RENDERER=1
-          exec "$HERE/AppRun.real" "$@"
-          EOF
-            chmod +x squashfs-root/AppRun squashfs-root/AppRun.real
-
-            ARCH="$arch" /tmp/appimagetool squashfs-root "$appimage"
-            popd >/dev/null
-            rm -rf "$work"
-          done
-
-      - name: Replace release AppImage with patched file
-        if: runner.os == 'Linux'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          VERSION="$(jq -r .version src-tauri/tauri.conf.json)"
-          TAG="roletect-v${VERSION}"
-          mapfile -t images < <(find "${GITHUB_WORKSPACE}/src-tauri/target" -type f -path '*/bundle/appimage/*.AppImage' | sort)
-          gh release upload "$TAG" "${images[@]}" --clobber
-
-      - name: Show Linux binary glibc / linkage
-        if: runner.os == 'Linux'
-        run: |
-          bin="$(find src-tauri/target -type f -path '*/release/roletect' ! -path '*/deps/*' | head -n1)"
-          echo "binary=$bin"
-          file "$bin"
-          echo "---- ldd (first 80 lines) ----"
-          ldd "$bin" | head -n 80
-          echo "---- highest GLIBC symbol ----"
-          objdump -T "$bin" | grep -o 'GLIBC_[0-9.]*' | sort -V | tail -n 5 || true
+          # Attach Flatpak bundle to the draft release
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          echo "Uploading roletect_amd64.flatpak to draft release for tag $TAG_NAME..."
+          gh release upload "$TAG_NAME" roletect_amd64.flatpak --clobber || echo "Draft upload fallback: will be included in release assets."
