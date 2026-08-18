@@ -5,11 +5,7 @@ export function SkeletonList({ rows = 4 }: { rows?: number }) {
   return (
     <VStack gap={2}>
       {Array.from({ length: rows }).map((_, i) => (
-        <Skeleton
-          // biome-ignore lint/suspicious/noArrayIndexKey: static skeleton list
-          key={i}
-          height={48}
-        />
+        <Skeleton key={i} height={48} />
       ))}
     </VStack>
   );

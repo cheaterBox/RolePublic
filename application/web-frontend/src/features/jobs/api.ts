@@ -32,6 +32,8 @@ export function updateStatus(id: string, status: string, metadata?: unknown) {
   });
 }
 
+export const updateJobStatus = updateStatus;
+
 export function updateMetadata(id: string, field: string, value: string) {
   return apiFetch<void>(`/jobs/${id}/metadata`, {
     method: "POST",
@@ -59,3 +61,5 @@ export function parseJd(payload: {
     body: payload,
   });
 }
+
+export const parseJobDescription = parseJd;
