@@ -23,7 +23,7 @@ jobs:
             args: "--target aarch64-apple-darwin"
 
           # --- LINUX ---
-          - platform: "ubuntu-latest" # Modern Linux x64 (Ubuntu 24.04+)
+          - platform: "ubuntu-22.04" # Ubuntu 22.04 LTS (GLIBC 2.35 baseline for broad distro compatibility)
             target: "x86_64-unknown-linux-gnu"
             args: ""
           - platform: "ubuntu-24.04-arm" # Modern Linux ARM64
