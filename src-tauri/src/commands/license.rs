@@ -39,8 +39,8 @@ pub struct LicenseStatus {
     pub valid: bool,
     /// "active" | "inactive" | "expired" | "disabled" | "none"
     pub status: String,
-    pub trial: bool,
-    pub trial_ends_at: Option<String>,
+    /// License/subscription (or trial) expiry timestamp, if any. `None` for lifetime licenses.
+    pub expires_at: Option<String>,
     pub customer_name: Option<String>,
     pub customer_email: Option<String>,
     pub license_key: Option<String>,
@@ -50,8 +50,6 @@ pub struct LicenseStatus {
 #[derive(Deserialize, Debug)]
 struct LsLicenseMeta {
     status: String,
-    #[serde(default)]
-    is_trial: bool,
     expires_at: Option<String>,
 }
 
@@ -80,7 +78,6 @@ struct LsActivateResponse {
     instance: Option<LsInstance>,
     customer: Option<LsCustomer>,
     meta: Option<LsMeta>,
-    trial_ends_at: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -93,7 +90,6 @@ struct LsValidateResponse {
     instance: Option<LsInstance>,
     customer: Option<LsCustomer>,
     meta: Option<LsMeta>,
-    trial_ends_at: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -166,14 +162,11 @@ pub async fn activate_license_api(license_key: String) -> Result<LicenseStatus, 
         .and_then(|c| c.email.clone())
         .or_else(|| data.meta.as_ref().and_then(|m| m.customer_email.clone()));
 
-    let trial_ends_at = data.trial_ends_at.or_else(|| lk_meta.expires_at.clone());
-
     Ok(LicenseStatus {
         activated: true,
         valid: true,
         status: lk_meta.status.clone(),
-        trial: lk_meta.is_trial,
-        trial_ends_at,
+        expires_at: lk_meta.expires_at.clone(),
         customer_name,
         customer_email,
         license_key: Some(license_key),
@@ -223,18 +216,13 @@ pub async fn validate_license_api(
         .and_then(|c| c.email.clone())
         .or_else(|| data.meta.as_ref().and_then(|m| m.customer_email.clone()));
 
-    let trial_ends_at = data
-        .trial_ends_at
-        .or_else(|| lk_meta.and_then(|m| m.expires_at.clone()));
-
     Ok(LicenseStatus {
         activated: true,
         valid,
         status: lk_meta
             .map(|m| m.status.clone())
             .unwrap_or_else(|| "unknown".into()),
-        trial: lk_meta.map(|m| m.is_trial).unwrap_or(false),
-        trial_ends_at,
+        expires_at: lk_meta.and_then(|m| m.expires_at.clone()),
         customer_name,
         customer_email,
         license_key: Some(lk),
@@ -273,13 +261,20 @@ pub async fn deactivate_license_api(
         .await
         .map_err(|e| format!("Failed to parse Lemon Squeezy response: {e}"))?;
 
+    if data.deactivated == Some(true) {
+        return Ok(true);
+    }
+
+    // Deactivation is idempotent from the app's perspective: if Lemon Squeezy reports the
+    // instance as already removed/inactive (e.g. the device was deactivated on the web side),
+    // treat that as a successful local release so we can wipe the vault and lock this device.
     if let Some(ref err) = data.error {
+        let msg = err.to_lowercase();
+        if msg.contains("not found") || msg.contains("already") || msg.contains("deactivat") {
+            return Ok(true);
+        }
         return Err(format!("Lemon Squeezy error: {err}"));
     }
 
-    if data.deactivated == Some(true) {
-        Ok(true)
-    } else {
-        Err("Lemon Squeezy was unable to deactivate this instance.".into())
-    }
+    Err("Lemon Squeezy was unable to deactivate this instance.".into())
 }

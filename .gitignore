@@ -49,4 +49,5 @@ repo/
 *.flatpak
 packaging/**/lib/
 packaging/**/*.so*
+.qwen/
 

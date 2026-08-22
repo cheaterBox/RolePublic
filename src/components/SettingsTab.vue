@@ -21,7 +21,8 @@ import {
   ShieldCheck,
   LogOut,
   ExternalLink,
-  Sparkles
+  Sparkles,
+  ClipboardPaste
 } from '@lucide/vue';
 import { Motion, AnimatePresence } from 'motion-v';
 import { invoke } from '@tauri-apps/api/core';
@@ -29,7 +30,7 @@ import { save as saveDialog, open as openDialog } from '@tauri-apps/plugin-dialo
 import { writeTextFile, readTextFile } from '@tauri-apps/plugin-fs';
 import { openUrl } from '@tauri-apps/plugin-opener';
 
-import { writeText } from '@tauri-apps/plugin-clipboard-manager';
+import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager';
 import { useDialogStore } from '../store/dialog';
 import { ask } from '@tauri-apps/plugin-dialog';
 import CustomSelect from './CustomSelect.vue';
@@ -56,13 +57,28 @@ const handleSyncLicenseSettings = async () => {
       } else {
         await dialog.showAlert(`License status: ${status}.`, 'License Status');
       }
+    } else if (licenseStore.isLicensed) {
+      await dialog.showAlert(
+        "Couldn't reach Lemon Squeezy right now. Using your saved license for the grace period \u2014 your access stays active and will re-check automatically.",
+        'Offline Grace'
+      );
     } else {
-      await dialog.showAlert('License verification failed. Please check your network connection or license key.', 'Verification Failed');
+      await dialog.showAlert('Your license is no longer active (deactivated or expired). RoleTect is now locked. Activate a valid license key to continue.', 'License Inactive');
     }
   } catch (err: any) {
     await dialog.showAlert(err.toString(), 'Verification Error');
   } finally {
     isSyncingLicenseSettings.value = false;
+  }
+};
+
+// Explicit paste button (desktop apps don't always expose a native context menu).
+const handlePasteUpgradeKey = async () => {
+  try {
+    const text = await readText();
+    if (text) upgradeKeyInput.value = text;
+  } catch (e) {
+    console.error('Failed to read clipboard:', e);
   }
 };
 
@@ -84,24 +100,12 @@ const handleActivateUpgrade = async () => {
   }
 };
 
-const isCancelingTrial = ref(false);
-
-const handleCancelTrial = async () => {
-  const confirmed = await ask('Are you sure you want to cancel and end your free trial? RoleTect will lock until a valid license key is entered.', {
-    title: 'Cancel Free Trial',
-    kind: 'warning'
-  });
-  if (!confirmed) return;
-  isCancelingTrial.value = true;
-  try {
-    // Contacts Lemon Squeezy (if remote key) & updates Stronghold
-    await licenseStore.cancelTrial();
-    // Instantly mounts LicenseGate overlay across the entire viewport
-  } catch (err: any) {
-    await dialog.showAlert(err.message || err.toString() || 'Failed to cancel trial with Lemon Squeezy. Please check your internet connection.', 'Cancellation Failed');
-  } finally {
-    isCancelingTrial.value = false;
-  }
+// Opens Lemon Squeezy's customer orders page, where the user cancels their own
+// subscription or trial. No store API key needed; billing stays with Lemon Squeezy.
+const handleCancelSubscription = async () => {
+  await openUrl('https://app.lemonsqueezy.com/my-orders/').catch((e: any) =>
+    console.error('Failed to open subscription management page:', e)
+  );
 };
 
 const handleDeactivateLicense = async () => {
@@ -1553,7 +1557,7 @@ const handleSave = async () => {
               <span style="color: var(--ink); font-weight: 500;">{{ licenseStore.licenseStatus.customer_email }}</span>
             </div>
 
-            <div v-if="licenseStore.licenseStatus?.trial_ends_at" class="license-detail-item" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; font-size: 0.85rem;">
+                        <div v-if="licenseStore.licenseStatus?.trial_ends_at" class="license-detail-item" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; font-size: 0.85rem;">
               <span style="color: var(--muted);">Trial Expiration</span>
               <span style="color: var(--accent); font-weight: 500;">{{ new Date(licenseStore.licenseStatus.trial_ends_at).toLocaleDateString() }}</span>
             </div>
@@ -1565,7 +1569,7 @@ const handleSave = async () => {
               </span>
             </div>
 
-            <!-- Upgrade / Enter License Key (When on Trial) -->
+            <!-- Upgrade / Enter License Key -->
             <div v-if="!licenseStore.licenseStatus?.license_key" class="license-upgrade-box" style="margin-top: 14px; padding: 14px; background: var(--bg); border: 1px dashed var(--line); border-radius: 8px; display: flex; flex-direction: column; gap: 10px;">
               <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div style="display: flex; align-items: center; gap: 6px;">
@@ -1594,6 +1598,15 @@ const handleSave = async () => {
                 />
                 <button
                   type="button"
+                  @click="handlePasteUpgradeKey"
+                  :disabled="isActivatingUpgrade"
+                  title="Paste from clipboard"
+                  style="display: flex; align-items: center; justify-content: center; padding: 8px 10px; background: var(--surface-soft); border: 1px solid var(--line); color: var(--muted); border-radius: 6px; font-size: 0.8rem; cursor: pointer;"
+                >
+                  <ClipboardPaste :size="14" />
+                </button>
+                <button
+                  type="button"
                   @click="handleActivateUpgrade"
                   :disabled="isActivatingUpgrade || !upgradeKeyInput.trim()"
                   style="padding: 8px 16px; background: var(--accent); color: #fff; border: none; border-radius: 6px; font-size: 0.8rem; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 6px;"
@@ -1603,20 +1616,9 @@ const handleSave = async () => {
                 </button>
               </div>
 
-              <!-- Action to End Free Trial Early -->
-              <div style="display: flex; justify-content: flex-end; margin-top: 4px;">
-                <button
-                  type="button"
-                  @click="handleCancelTrial"
-                  :disabled="isCancelingTrial"
-                  style="display: flex; align-items: center; gap: 4px; background: transparent; border: none; color: var(--muted); font-size: 0.75rem; cursor: pointer; text-decoration: underline;"
-                >
-                  <LogOut :size="12" />
-                  <span>{{ isCancelingTrial ? 'Ending Trial...' : 'End Trial & Lock Workspace' }}</span>
-                </button>
               </div>
+
             </div>
-          </div>
 
           <div v-if="licenseStore.licenseStatus?.license_key" class="license-actions" style="margin-top: 18px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
             <button 
@@ -1628,6 +1630,17 @@ const handleSave = async () => {
             >
               <RefreshCw :size="14" :class="{ 'spinner': isSyncingLicenseSettings }" />
               <span>{{ isSyncingLicenseSettings ? 'Verifying Online...' : 'Verify Status with Lemon Squeezy' }}</span>
+            </button>
+
+            <button
+              v-if="licenseStore.isLicensed"
+              type="button"
+              class="text-btn warning"
+              @click="handleCancelSubscription"
+              style="display: flex; align-items: center; gap: 6px; padding: 8px 14px; background: rgba(250, 189, 47, 0.12); border: 1px solid rgba(250, 189, 47, 0.4); color: #fabd2f; border-radius: 8px; font-size: 0.85rem; cursor: pointer;"
+            >
+              <LogOut :size="14" />
+              <span>Cancel Subscription</span>
             </button>
 
             <button 

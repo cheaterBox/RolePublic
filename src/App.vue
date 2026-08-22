@@ -71,7 +71,12 @@ onMounted(async () => {
     } finally {
         isAppLoading.value = false;
     }
-    
+
+    // Randomized background license re-validation while the app stays open, so a
+    // deactivated license is caught even if the user never relaunches. Stops once
+    // Lemon Squeezy is reached and a definite answer is received.
+    licenseStore.startBackgroundRefresh();
+
     // Intercept window close for cloud backup
     const appWindow = getCurrentWindow();
     appWindow.onCloseRequested(async (event) => {

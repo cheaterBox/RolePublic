@@ -3,15 +3,16 @@ import { ref } from 'vue';
 import { useLicenseStore } from '../store/license';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { exit } from '@tauri-apps/plugin-process';
-import { 
-  Key, 
-  ShieldCheck, 
-  AlertCircle, 
-  ExternalLink, 
-  Lock, 
-  Loader2, 
-  Sparkles,
-  Power
+import { readText } from '@tauri-apps/plugin-clipboard-manager';
+import {
+  Key,
+  ShieldCheck,
+  AlertCircle,
+  ExternalLink,
+  Lock,
+  Loader2,
+  Power,
+  ClipboardPaste
 } from '@lucide/vue';
 import { Motion } from 'motion-v';
 
@@ -26,8 +27,26 @@ const handleActivate = async () => {
   await licenseStore.activateLicense(licenseKeyInput.value);
 };
 
+// Desktop apps don't always show a native context menu, so provide an explicit paste button.
+const handlePasteKey = async () => {
+  try {
+    const text = await readText();
+    if (text) licenseKeyInput.value = text;
+  } catch (e) {
+    console.error('Failed to read clipboard:', e);
+  }
+};
+
 const handleBuyClick = () => {
   openUrl(purchaseUrl).catch((err: any) => console.error('Failed to open purchase URL:', err));
+};
+
+// Manage/cancel subscription directly with Lemon Squeezy. Shown here too so users who
+// changed plans (or upgraded) but never entered a key can still reach their billing.
+const handleCancelSubscriptionClick = () => {
+  openUrl('https://app.lemonsqueezy.com/my-orders/').catch((err: any) =>
+    console.error('Failed to open subscription page:', err)
+  );
 };
 
 const handleExit = async () => {
@@ -45,29 +64,22 @@ const handleExit = async () => {
     >
       <!-- Header / Icon -->
       <div class="card-header">
-        <div class="icon-badge" :class="{ 'expired': licenseStore.isTrialExpired }">
+        <div class="icon-badge">
           <Lock class="badge-icon" :size="28" />
         </div>
         <h1 class="card-title">
-          {{ licenseStore.isTrialExpired ? '7-Day Free Trial Ended' : 'RoleTect License Required' }}
+          RoleTect License Required
         </h1>
         <p class="card-subtitle">
-          {{ licenseStore.isTrialExpired 
-            ? 'Your 7-day full access trial has concluded. Enter your Lemon Squeezy license key to continue using RoleTect Pro.' 
-            : 'Activate your copy of RoleTect with your Lemon Squeezy license key to unlock the complete workspace.' 
-          }}
+          Activate your copy of RoleTect with your Lemon Squeezy license key to unlock the complete workspace.
         </p>
       </div>
 
-      <!-- Trial / Promotion Banner -->
-      <div class="trial-banner" :class="{ 'warning-banner': licenseStore.isTrialExpired }">
-        <Sparkles v-if="!licenseStore.isTrialExpired" class="banner-icon" :size="16" />
-        <AlertCircle v-else class="banner-icon warning" :size="16" />
+      <!-- Feature Banner -->
+      <div class="trial-banner">
+        <ShieldCheck class="banner-icon" :size="16" />
         <span>
-          {{ licenseStore.isTrialExpired 
-            ? 'All your local LaTeX templates, jobs, and documents are saved safely on your machine.' 
-            : 'Enjoy offline-first AI resume tailoring, on-device LaTeX compilation, and document optimization.' 
-          }}
+          Offline-first AI resume tailoring, on-device LaTeX compilation, and document optimization.
         </span>
       </div>
 
@@ -89,6 +101,14 @@ const handleExit = async () => {
               spellcheck="false"
               :disabled="licenseStore.isActivating"
             />
+            <button
+              type="button"
+              class="paste-btn"
+              title="Paste from clipboard"
+              @click="handlePasteKey"
+            >
+              <ClipboardPaste :size="14" />
+            </button>
           </div>
         </div>
 
@@ -127,6 +147,10 @@ const handleExit = async () => {
           <ShieldCheck :size="12" />
           <span>Encrypted Local Storage • 7-Day Offline Grace Period</span>
         </div>
+        <button type="button" class="btn-exit" @click="handleCancelSubscriptionClick">
+          <ExternalLink :size="12" />
+          <span>Manage / Cancel Subscription</span>
+        </button>
         <button type="button" class="btn-exit" @click="handleExit">
           <Power :size="13" />
           <span>Quit Application</span>
@@ -184,11 +208,6 @@ const handleExit = async () => {
   margin-bottom: 4px;
 }
 
-.icon-badge.expired {
-  background: rgba(248, 81, 73, 0.15);
-  border-color: var(--warning, #f85149);
-  color: var(--warning, #f85149);
-}
 
 .card-title {
   font-size: 20px;
@@ -218,20 +237,12 @@ const handleExit = async () => {
   color: var(--muted, #c9d1d9);
 }
 
-.trial-banner.warning-banner {
-  background: rgba(248, 81, 73, 0.08);
-  border-color: rgba(248, 81, 73, 0.25);
-  color: var(--ink, #ffffff);
-}
 
 .banner-icon {
   color: var(--accent, #238636);
   shrink: 0;
 }
 
-.banner-icon.warning {
-  color: var(--warning, #f85149);
-}
 
 .activation-form {
   display: flex;
@@ -262,7 +273,7 @@ const handleExit = async () => {
 
 .license-input {
   width: 100%;
-  padding: 12px 14px;
+  padding: 12px 40px 12px 14px;
   background: var(--bg, #0d1117);
   border: 1px solid var(--line, #30363d);
   border-radius: 8px;
@@ -277,6 +288,29 @@ const handleExit = async () => {
 .license-input:focus {
   border-color: var(--accent, #238636);
   box-shadow: 0 0 0 2px var(--accent-soft, rgba(35, 134, 54, 0.2));
+}
+
+.paste-btn {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--muted, #8b949e);
+  cursor: pointer;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.paste-btn:hover {
+  color: var(--accent, #238636);
+  background: var(--accent-soft, rgba(35, 134, 54, 0.1));
 }
 
 .error-box {

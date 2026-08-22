@@ -1,17 +1,17 @@
 <script setup lang="ts">
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { ref, onMounted, onUnmounted, computed } from "vue";
-import { 
-  Sparkles, 
-  ShieldCheck, 
-  User, 
-  ChevronDown, 
-  Minus, 
-  Square, 
-  Maximize2, 
-  X, 
-  Settings, 
-  RefreshCw 
+import {
+  ShieldCheck,
+  Sparkles,
+  User,
+  ChevronDown,
+  Minus,
+  Square,
+  Maximize2,
+  X,
+  Settings,
+  RefreshCw
 } from '@lucide/vue';
 import { useLicenseStore } from "../store/license";
 import { useRouter } from "vue-router";
@@ -102,7 +102,7 @@ onUnmounted(() => {
 
     <!-- Right Section: Profile Badge & Window Controls -->
     <div class="titlebar-right">
-      <!-- License Profile Badge (Only shown when active/trial) -->
+      <!-- License Profile Badge (Only shown when licensed) -->
       <div 
         v-if="licenseStore.isLicensed" 
         ref="profileWrapperRef"
@@ -271,6 +271,7 @@ onUnmounted(() => {
   color: #fabd2f;
 }
 
+
 .badge-label {
   font-weight: 500;
   max-width: 140px;
@@ -379,6 +380,7 @@ onUnmounted(() => {
   background: rgba(250, 189, 47, 0.15);
   color: #fabd2f;
 }
+
 
 .dropdown-item {
   display: flex;
