@@ -16,6 +16,7 @@
     "stronghold:default",
     "clipboard-manager:default",
     "clipboard-manager:allow-write-text",
+    "clipboard-manager:allow-read-text",
     "fs:default",
     "fs:allow-appdata-read",
     "fs:allow-appdata-write",
