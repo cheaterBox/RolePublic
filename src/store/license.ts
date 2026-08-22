@@ -102,6 +102,17 @@ export const useLicenseStore = defineStore('license', () => {
 
   const settingsStore = useSettingsStore();
 
+  // Remove all license credentials from Stronghold, fully resetting the local license state.
+  const wipeLocalCredentials = async () => {
+    await settingsStore.saveSecret(KEY_LICENSE_KEY, '');
+    await settingsStore.saveSecret(KEY_INSTANCE_ID, '');
+    await settingsStore.saveSecret(KEY_LAST_VALIDATED, '');
+    await settingsStore.saveSecret(KEY_STATUS, '');
+    await settingsStore.saveSecret(KEY_EXPIRES_AT, '');
+    await settingsStore.saveSecret(KEY_CUSTOMER_EMAIL, '');
+    await settingsStore.saveSecret(KEY_CUSTOMER_NAME, '');
+  };
+
   /**
    * Check encrypted license credentials in the OS Stronghold vault.
    * Access requires an activated Lemon Squeezy license key (no free, unkeyed trial).
@@ -205,8 +216,20 @@ export const useLicenseStore = defineStore('license', () => {
             isLicensed.value = unlocked;
             return unlocked;
           } else {
+            // License is confirmed inactive/expired on Lemon Squeezy -> lock and fully reset.
             isLicensed.value = false;
-            licenseStatus.value = result;
+            await wipeLocalCredentials();
+            licenseStatus.value = build({
+              status: 'none',
+              activated: false,
+              valid: false,
+              expiresAt: null,
+              nowMs: now,
+              customer_name: null,
+              customer_email: null,
+              license_key: null,
+              instance_id: null,
+            });
             return false;
           }
         } catch (networkErr) {
@@ -337,13 +360,7 @@ export const useLicenseStore = defineStore('license', () => {
     }
 
     // Wipe all license entries from Stronghold on verified success
-    await settingsStore.saveSecret(KEY_LICENSE_KEY, '');
-    await settingsStore.saveSecret(KEY_INSTANCE_ID, '');
-    await settingsStore.saveSecret(KEY_LAST_VALIDATED, '');
-    await settingsStore.saveSecret(KEY_STATUS, '');
-    await settingsStore.saveSecret(KEY_EXPIRES_AT, '');
-    await settingsStore.saveSecret(KEY_CUSTOMER_EMAIL, '');
-    await settingsStore.saveSecret(KEY_CUSTOMER_NAME, '');
+    await wipeLocalCredentials();
 
     licenseStatus.value = null;
     isLicensed.value = false;
@@ -360,8 +377,10 @@ export const useLicenseStore = defineStore('license', () => {
       const licenseKey = await settingsStore.getSecret(KEY_LICENSE_KEY);
       const instanceId = await settingsStore.getSecret(KEY_INSTANCE_ID);
 
+      // No license credentials (key or machine/instance id) in the vault -> there is nothing
+      // to validate against Lemon Squeezy. Stay locked and do NOT hit the API.
       if (!licenseKey || !instanceId) {
-        return await checkLicense();
+        return false;
       }
 
       const result = await invoke<LicenseStatus>('validate_license_api', {
@@ -409,9 +428,8 @@ export const useLicenseStore = defineStore('license', () => {
       // Confirmed invalid (license deactivated/expired on Lemon Squeezy) -> lock immediately.
       onlineResponseReceived.value = true;
       isLicensed.value = false;
-      if (result) {
-        licenseStatus.value = result;
-      }
+      await wipeLocalCredentials();
+      licenseStatus.value = null;
       return false;
     } catch (e) {
       // Network error: keep the cached/offline grace rather than locking a legitimately
