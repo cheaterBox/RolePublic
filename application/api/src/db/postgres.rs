@@ -26,6 +26,28 @@ impl PgRepo {
     }
 
     async fn apply_ddl(&self) -> RepoResult<()> {
+        let doc_starred_type: Option<String> = sqlx::query_scalar(
+            "SELECT data_type FROM information_schema.columns WHERE table_name = 'documents' AND column_name = 'starred'"
+        )
+        .fetch_optional(&self.pool)
+        .await
+        .unwrap_or(None);
+
+        if let Some(t) = doc_starred_type {
+            if t != "boolean" {
+                sqlx::query("DROP INDEX IF EXISTS idx_documents_starred; ALTER TABLE documents ALTER COLUMN starred DROP DEFAULT; ALTER TABLE documents ALTER COLUMN starred TYPE BOOLEAN USING (starred::text IN ('1', 'true', 't')); ALTER TABLE documents ALTER COLUMN starred SET DEFAULT FALSE; CREATE INDEX IF NOT EXISTS idx_documents_starred ON documents(starred);")
+                    .execute(&self.pool)
+                    .await
+                    .ok();
+            }
+        }
+
+        // Ensure document_files.size_bytes is BIGINT
+        sqlx::query("ALTER TABLE document_files ALTER COLUMN size_bytes TYPE BIGINT")
+            .execute(&self.pool)
+            .await
+            .ok();
+
         sqlx::raw_sql(DDL).execute(&self.pool).await?;
         Ok(())
     }
@@ -66,6 +88,23 @@ impl Repository for PgRepo {
             if !cols.iter().any(|c| c == col) {
                 let sql = format!("ALTER TABLE jobs ADD COLUMN IF NOT EXISTS {} TEXT", col);
                 sqlx::query(&sql).execute(&self.pool).await.ok();
+            }
+        }
+
+        // Ensure documents.starred is BOOLEAN
+        let doc_starred_type: Option<String> = sqlx::query_scalar(
+            "SELECT data_type FROM information_schema.columns WHERE table_name = 'documents' AND column_name = 'starred'"
+        )
+        .fetch_optional(&self.pool)
+        .await
+        .unwrap_or(None);
+
+        if let Some(t) = doc_starred_type {
+            if t != "boolean" {
+                sqlx::query("ALTER TABLE documents ALTER COLUMN starred DROP DEFAULT, ALTER COLUMN starred TYPE BOOLEAN USING (starred::text IN ('1', 'true', 't')), ALTER COLUMN starred SET DEFAULT FALSE")
+                    .execute(&self.pool)
+                    .await
+                    .ok();
             }
         }
 
@@ -1072,7 +1111,10 @@ impl Repository for PgRepo {
             .map(|r| {
                 Ok(DocumentFileEntry {
                     rel_path: r.try_get("rel_path")?,
-                    size_bytes: r.try_get::<i64, _>("size_bytes")? as u64,
+                    size_bytes: r
+                        .try_get::<i64, _>("size_bytes")
+                        .or_else(|_| r.try_get::<i32, _>("size_bytes").map(|v| v as i64))
+                        .unwrap_or(0) as u64,
                     updated_at: r.try_get("updated_at")?,
                 })
             })
@@ -1324,7 +1366,10 @@ impl Repository for PgRepo {
                     doc_id: r.try_get("doc_id")?,
                     rel_path: r.try_get("rel_path")?,
                     content: r.try_get("content")?,
-                    size_bytes: r.try_get::<i64, _>("size_bytes")?,
+                    size_bytes: r
+                        .try_get::<i64, _>("size_bytes")
+                        .or_else(|_| r.try_get::<i32, _>("size_bytes").map(|v| v as i64))
+                        .unwrap_or(0),
                     updated_at: r.try_get("updated_at")?,
                 })
             })

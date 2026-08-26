@@ -159,7 +159,7 @@ CREATE TABLE IF NOT EXISTS documents (
     title            TEXT NOT NULL,
     description      TEXT NOT NULL DEFAULT '',
     tags             TEXT NOT NULL DEFAULT '',
-    starred          INTEGER NOT NULL DEFAULT 0,
+    starred          BOOLEAN NOT NULL DEFAULT FALSE,
     main_file        TEXT,
     last_compiled_at TEXT,
     compile_status   TEXT,
@@ -170,14 +170,14 @@ DROP TRIGGER IF EXISTS update_documents_modtime ON documents;
 CREATE TRIGGER update_documents_modtime
     BEFORE UPDATE ON documents
     FOR EACH ROW EXECUTE PROCEDURE roletect_set_updated_at();
-CREATE INDEX IF NOT EXISTS idx_documents_starred ON documents(starred) WHERE starred = 1;
+CREATE INDEX IF NOT EXISTS idx_documents_starred ON documents(starred);
 
 -- 10. Document Files
 CREATE TABLE IF NOT EXISTS document_files (
     doc_id     TEXT NOT NULL,
     rel_path   TEXT NOT NULL,
     content    TEXT NOT NULL,
-    size_bytes INTEGER NOT NULL,
+    size_bytes BIGINT NOT NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (doc_id, rel_path),
     FOREIGN KEY (doc_id) REFERENCES documents(id) ON DELETE CASCADE
