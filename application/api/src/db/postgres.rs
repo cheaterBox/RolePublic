@@ -26,26 +26,7 @@ impl PgRepo {
     }
 
     async fn apply_ddl(&self) -> RepoResult<()> {
-        // Schema is written idempotent (CREATE TABLE IF NOT EXISTS, DROP TRIGGER IF EXISTS).
-        // Splitting on ';' works for our DDL since none of the statements
-        // contain literal semicolons inside PL/pgSQL function bodies — we use
-        // split on `;\n` boundaries to avoid splitting inside the trigger function.
-        let mut current = String::new();
-        for raw_line in DDL.lines() {
-            let line = raw_line;
-            if line.trim_start().starts_with("--") {
-                continue;
-            }
-            current.push_str(line);
-            current.push('\n');
-            if line.trim_end().ends_with(';') {
-                let stmt = current.trim().to_string();
-                if !stmt.is_empty() {
-                    sqlx::query(&stmt).execute(&self.pool).await?;
-                }
-                current.clear();
-            }
-        }
+        sqlx::raw_sql(DDL).execute(&self.pool).await?;
         Ok(())
     }
 }
