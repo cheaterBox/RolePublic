@@ -89,7 +89,8 @@ export async function apiFetch<T>(
 export async function fetchHealth(): Promise<string> {
   const { getHealthUrl } = await import("../config/env");
   const url = getHealthUrl();
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) throw await parseError(res);
+  const res = await fetch(url, { cache: "no-store" }).catch(() => null);
+  if (!res || !res.ok)
+    throw new ApiError(res?.status ?? 503, "unavailable", "API engine offline");
   return res.text();
 }

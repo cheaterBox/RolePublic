@@ -1,9 +1,10 @@
 import type { NextConfig } from "next";
 
 const apiBackend =
+  process.env.INTERNAL_API_URL ||
   process.env.NEXT_PUBLIC_API_URL ||
   process.env.API_URL ||
-  "http://localhost:8080";
+  "http://127.0.0.1:8080";
 
 const nextConfig: NextConfig = {
   reactCompiler: true,
