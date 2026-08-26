@@ -2,83 +2,7 @@ name: roletect
 
 services:
   # ---------------------------------------------------------------------------
-  # 1. API — Axum Rust Backend (LaTeX engine + Multi-driver persistence + AI)
-  # ---------------------------------------------------------------------------
-  api:
-    build:
-      context: ./api
-      dockerfile: Dockerfile
-    container_name: roletect-api
-    restart: unless-stopped
-    ports:
-      - "${API_PORT:-8080}:8080"
-    environment:
-      - BIND_ADDR=0.0.0.0:8080
-      - DB_DRIVER=${DB_DRIVER:-postgres}
-      - DATABASE_URL=${DATABASE_URL:-postgres://roletect:roletect_secret_password@postgres:5432/roletect}
-      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
-      - ROLETECT_DATA_DIR=/data
-      - ROLETECT_THEMES_PATH=/app/themes.toml
-      - ROLETECT_API_TOKEN=${ROLETECT_API_TOKEN:-roletect_vps_master_token_2026}
-      - REQUIRE_TOKEN=${REQUIRE_TOKEN:-true}
-      - RATE_LIMIT_RPM=${RATE_LIMIT_RPM:-1200}
-      - LOG_FORMAT=${LOG_FORMAT:-json}
-      - RUST_LOG=${RUST_LOG:-info,roletect_api=debug}
-      # S3 / MinIO Cloud Storage Configuration
-      - S3_ENDPOINT=${S3_ENDPOINT:-http://minio:9000}
-      - S3_BUCKET=${S3_BUCKET:-roletect-backups}
-      - S3_REGION=${S3_REGION:-us-east-1}
-      - S3_ACCESS_KEY=${S3_ACCESS_KEY:-minioadmin}
-      - S3_SECRET_KEY=${S3_SECRET_KEY:-minioadmin}
-      - S3_FORCE_PATH_STYLE=${S3_FORCE_PATH_STYLE:-true}
-    volumes:
-      - api_data:/data
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      minio:
-        condition: service_started
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/health || exit 1"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    networks:
-      - roletect-network
-
-  # ---------------------------------------------------------------------------
-  # 2. Web Frontend — Next.js Standalone Interface
-  # ---------------------------------------------------------------------------
-  web:
-    build:
-      context: ./web-frontend
-      dockerfile: Dockerfile
-    container_name: roletect-web
-    restart: unless-stopped
-    ports:
-      - "${WEB_PORT:-3000}:3000"
-    environment:
-      - NODE_ENV=production
-      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8080}
-      - NEXT_PUBLIC_API_TOKEN=${ROLETECT_API_TOKEN:-roletect_vps_master_token_2026}
-      - PORT=3000
-    depends_on:
-      api:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://127.0.0.1:3000/ || exit 1"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 15s
-    networks:
-      - roletect-network
-
-  # ---------------------------------------------------------------------------
-  # 3. PostgreSQL Database — Relational Storage with Row-Level Triggers
+  # 1. PostgreSQL Database — Relational Storage with Row-Level Triggers
   # ---------------------------------------------------------------------------
   postgres:
     image: postgres:16-alpine
@@ -95,15 +19,15 @@ services:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-roletect} -d ${PG_DB:-roletect}"]
-      interval: 10s
-      timeout: 5s
+      interval: 5s
+      timeout: 3s
       retries: 5
-      start_period: 5s
+      start_period: 2s
     networks:
       - roletect-network
 
   # ---------------------------------------------------------------------------
-  # 4. Redis — In-Memory Pub/Sub for Presence, Lock Manager & Rate Limiting
+  # 2. Redis — In-Memory Pub/Sub for Presence, Lock Manager & Rate Limiting
   # ---------------------------------------------------------------------------
   redis:
     image: redis:7-alpine
@@ -121,15 +45,15 @@ services:
       - redis_data:/data
     healthcheck:
       test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
-      interval: 10s
+      interval: 5s
       timeout: 3s
       retries: 5
-      start_period: 3s
+      start_period: 2s
     networks:
       - roletect-network
 
   # ---------------------------------------------------------------------------
-  # 5. MinIO — S3 Compatible Storage for Cross-Device Backup Cloud Testing
+  # 3. MinIO — S3 Compatible Storage for Cross-Device Backup Cloud Testing
   # ---------------------------------------------------------------------------
   minio:
     image: minio/minio:latest
@@ -163,6 +87,28 @@ services:
       echo 'MinIO Backup Bucket Initialized!';
       exit 0;
       "
+    networks:
+      - roletect-network
+
+  # ---------------------------------------------------------------------------
+  # 4. Web Frontend (Real-time Live Hot-Reloading with Bun)
+  # ---------------------------------------------------------------------------
+  web:
+    image: oven/bun:1-alpine
+    container_name: roletect-web
+    working_dir: /app
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8080}
+      - NEXT_PUBLIC_API_TOKEN=${ROLETECT_API_TOKEN:-roletect_vps_master_token_2026}
+      - PORT=3000
+    volumes:
+      - ./web-frontend:/app
+      - /app/.next
+    command: ["sh", "-c", "bun install && bun run dev --hostname 0.0.0.0 --port 3000"]
     networks:
       - roletect-network
 
