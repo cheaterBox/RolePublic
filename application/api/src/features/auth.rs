@@ -14,10 +14,17 @@ use crate::security::auth::{create_jwt, hash_password, verify_password, AuthUser
 use crate::state::AppState;
 
 pub fn routes() -> Router<AppState> {
+    protected_routes()
+}
+
+pub fn public_routes() -> Router<AppState> {
     Router::new()
         .route("/register", post(register_handler_pub))
         .route("/login", post(login_handler_pub))
-        .route("/me", get(me_handler))
+}
+
+pub fn protected_routes() -> Router<AppState> {
+    Router::new().route("/me", get(me_handler))
 }
 
 pub async fn register_handler_pub(

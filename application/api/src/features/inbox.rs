@@ -25,8 +25,8 @@ pub fn routes() -> Router<AppState> {
         .route("/inbox", get(list_inbox))
         .route("/inbox/all", delete(delete_all_inbox))
         .route("/inbox/ingest", post(ingest))
-        .route("/inbox/:id", get(get_inbox).delete(delete_inbox))
-        .route("/inbox/:id/process", post(mark_processed))
+        .route("/inbox/{id}", get(get_inbox).delete(delete_inbox))
+        .route("/inbox/{id}/process", post(mark_processed))
 }
 
 async fn list_inbox(State(state): State<AppState>) -> AppResult<Json<Vec<InboxJob>>> {

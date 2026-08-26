@@ -29,18 +29,18 @@ pub fn routes() -> Router<AppState> {
         .route("/resumes", get(list_resumes).post(create_resume))
         .route("/resumes/tailor", post(tailor_resume))
         .route(
-            "/resumes/tailored/job/:job_id/latest",
+            "/resumes/tailored/job/{job_id}/latest",
             get(get_latest_tailored),
         )
         .route(
-            "/resumes/tailored/:id",
+            "/resumes/tailored/{id}",
             get(get_tailored).put(update_tailored),
         )
         .route(
-            "/resumes/:id",
+            "/resumes/{id}",
             get(get_resume).put(update_resume).delete(delete_resume),
         )
-        .route("/resumes/:id/usage", get(get_usage))
+        .route("/resumes/{id}/usage", get(get_usage))
 }
 
 async fn list_resumes(State(state): State<AppState>) -> AppResult<Json<Vec<ResumeItem>>> {

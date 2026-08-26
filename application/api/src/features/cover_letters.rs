@@ -21,18 +21,18 @@ pub fn routes() -> Router<AppState> {
         .route("/cover_letters", get(list).post(create))
         .route("/cover_letters/tailor", post(tailor))
         .route(
-            "/cover_letters/tailored/job/:job_id/latest",
+            "/cover_letters/tailored/job/{job_id}/latest",
             get(get_latest_tailored),
         )
         .route(
-            "/cover_letters/tailored/:id",
+            "/cover_letters/tailored/{id}",
             get(get_tailored).put(update_tailored),
         )
         .route(
-            "/cover_letters/:id",
+            "/cover_letters/{id}",
             get(get_one).put(update).delete(delete_one),
         )
-        .route("/cover_letters/:id/usage", get(get_usage))
+        .route("/cover_letters/{id}/usage", get(get_usage))
 }
 
 async fn list(State(state): State<AppState>) -> AppResult<Json<Vec<CoverLetterItem>>> {

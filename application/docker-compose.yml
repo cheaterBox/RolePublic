@@ -100,8 +100,11 @@ services:
     restart: unless-stopped
     ports:
       - "${WEB_PORT:-3000}:3000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       - NODE_ENV=development
+      - INTERNAL_API_URL=${INTERNAL_API_URL:-http://host.docker.internal:8080}
       - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8080}
       - NEXT_PUBLIC_API_TOKEN=${ROLETECT_API_TOKEN:-roletect_vps_master_token_2026}
       - PORT=3000

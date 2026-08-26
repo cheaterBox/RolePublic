@@ -80,47 +80,47 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         // Collaborators & RBAC
         .route(
-            "/documents/:id/collaborators",
+            "/documents/{id}/collaborators",
             get(list_collaborators_handler).post(add_collaborator_handler),
         )
         .route(
-            "/documents/:id/collaborators/:user_id",
+            "/documents/{id}/collaborators/{user_id}",
             put(update_collaborator_role_handler).delete(remove_collaborator_handler),
         )
         // Checkpoint Revisions
         .route(
-            "/documents/:id/revisions",
+            "/documents/{id}/revisions",
             get(list_revisions_handler).post(create_revision_handler),
         )
         .route(
-            "/documents/:id/revisions/:rev_id/restore",
+            "/documents/{id}/revisions/{rev_id}/restore",
             post(restore_revision_handler),
         )
         // Granular Audit & Change History ("Who edited what")
-        .route("/documents/:id/history", get(list_history_handler))
+        .route("/documents/{id}/history", get(list_history_handler))
         .route(
-            "/documents/:id/history/file",
+            "/documents/{id}/history/file",
             get(list_file_history_handler),
         )
         .route(
-            "/documents/:id/files/write_tracked",
+            "/documents/{id}/files/write_tracked",
             post(write_file_tracked_handler),
         )
         // Margin Comments & Collaborative Review
         .route(
-            "/documents/:id/comments",
+            "/documents/{id}/comments",
             get(list_comments_handler).post(create_comment_handler),
         )
         .route(
-            "/documents/:id/comments/:comment_id/resolve",
+            "/documents/{id}/comments/{comment_id}/resolve",
             put(resolve_comment_handler),
         )
         .route(
-            "/documents/:id/comments/:comment_id",
+            "/documents/{id}/comments/{comment_id}",
             delete(delete_comment_handler),
         )
         // Real-Time WebSocket Gateway
-        .route("/documents/:id/ws", get(ws_collaboration_handler))
+        .route("/documents/{id}/ws", get(ws_collaboration_handler))
 }
 
 // -----------------------------------------------------------------------------

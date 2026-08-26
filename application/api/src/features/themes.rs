@@ -21,7 +21,7 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/themes", get(list).post(save))
         .route("/themes/active", get(get_active).post(set_active))
-        .route("/themes/:id", delete(delete_one))
+        .route("/themes/{id}", delete(delete_one))
 }
 
 async fn list(State(state): State<AppState>) -> AppResult<Json<Vec<Theme>>> {

@@ -78,10 +78,11 @@ pub fn build_router(state: AppState) -> Router {
             enforce,
         ));
 
+    let api_router = public_auth.merge(protected_api);
+
     Router::new()
         .merge(health)
-        .nest("/api", public_auth)
-        .nest("/api", protected_api)
+        .nest("/api", api_router)
         .layer(TraceLayer::new_for_http())
         .layer(cors)
         .with_state(state)

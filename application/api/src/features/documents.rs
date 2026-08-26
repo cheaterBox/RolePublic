@@ -33,16 +33,16 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/documents", get(list).post(create))
         .route("/documents/batch", post(delete_batch))
-        .route("/documents/:id/main", get(get_main).post(set_main))
-        .route("/documents/:id/files", get(list_files))
-        .route("/documents/:id/files/read", post(read_file))
-        .route("/documents/:id/files/write", post(write_file))
-        .route("/documents/:id/files/create", post(create_file))
-        .route("/documents/:id/files/delete", post(delete_file))
-        .route("/documents/:id/files/rename", post(rename_file))
-        .route("/documents/:id/files/exists", post(file_exists))
+        .route("/documents/{id}/main", get(get_main).post(set_main))
+        .route("/documents/{id}/files", get(list_files))
+        .route("/documents/{id}/files/read", post(read_file))
+        .route("/documents/{id}/files/write", post(write_file))
+        .route("/documents/{id}/files/create", post(create_file))
+        .route("/documents/{id}/files/delete", post(delete_file))
+        .route("/documents/{id}/files/rename", post(rename_file))
+        .route("/documents/{id}/files/exists", post(file_exists))
         .route(
-            "/documents/:id",
+            "/documents/{id}",
             get(get_one).put(update_one).delete(delete_one),
         )
 }

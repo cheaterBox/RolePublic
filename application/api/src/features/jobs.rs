@@ -29,10 +29,10 @@ pub fn routes() -> Router<AppState> {
         .route("/jobs/all", delete(delete_all))
         .route("/jobs/batch", post(delete_batch))
         .route("/jobs/parse", post(parse_jd))
-        .route("/jobs/:id", get(get_job).delete(delete_job))
-        .route("/jobs/:id/status", post(update_status))
-        .route("/jobs/:id/metadata", post(update_metadata))
-        .route("/jobs/:id/jd", get(get_jd))
+        .route("/jobs/{id}", get(get_job).delete(delete_job))
+        .route("/jobs/{id}/status", post(update_status))
+        .route("/jobs/{id}/metadata", post(update_metadata))
+        .route("/jobs/{id}/jd", get(get_jd))
 }
 
 async fn list_jobs(State(state): State<AppState>) -> AppResult<Json<Vec<JobPayload>>> {
