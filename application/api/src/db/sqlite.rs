@@ -1196,14 +1196,22 @@ impl Repository for SqliteRepo {
     // ===== Backup / Export =====
     async fn export_all(&self) -> RepoResult<FullBackup> {
         // Pull everything into memory. For large DBs this would need streaming.
-        // Backs up only safe content (no API keys). The AI key is intentionally NOT exported.
-        let settings = sqlx::query("SELECT key, value FROM app_settings WHERE key != 'ai_api_key'")
+        // Backs up only safe content (no API keys, tokens, or credentials).
+        let settings = sqlx::query("SELECT key, value FROM app_settings")
             .fetch_all(&self.pool)
             .await?;
-        let app_settings = settings
+        let app_settings: Vec<SettingExport> = settings
             .into_iter()
-            .map(|r| Ok::<_, sqlx::Error>((r.try_get("key")?, r.try_get("value")?)))
-            .collect::<Result<Vec<_>, _>>()?;
+            .filter_map(|r| {
+                let key: String = r.try_get("key").ok()?;
+                let value: String = r.try_get("value").ok()?;
+                if is_sensitive_key(&key) {
+                    None
+                } else {
+                    Some(SettingExport { key, value })
+                }
+            })
+            .collect();
 
         let resume_rows = sqlx::query(
             "SELECT id, name, category, latex_content, created_at, updated_at FROM base_resumes",
@@ -1245,14 +1253,13 @@ impl Repository for SqliteRepo {
         let tailored_resume_rows = sqlx::query(
             "SELECT id, job_id, base_resume_id, final_latex_content, is_active, created_at, updated_at FROM tailored_resumes"
         ).fetch_all(&self.pool).await?;
-        let tailored_resumes: Vec<TailoredRow> = tailored_resume_rows
+        let tailored_resumes: Vec<TailoredResumeExport> = tailored_resume_rows
             .into_iter()
             .map(|r| {
-                Ok::<TailoredRow, sqlx::Error>(TailoredRow {
+                Ok::<TailoredResumeExport, sqlx::Error>(TailoredResumeExport {
                     id: r.try_get("id")?,
                     job_id: r.try_get("job_id")?,
                     base_resume_id: r.try_get("base_resume_id")?,
-                    base_cl_id: String::new(),
                     final_latex_content: r.try_get("final_latex_content")?,
                     is_active: r
                         .try_get::<i64, _>("is_active")
@@ -1267,13 +1274,12 @@ impl Repository for SqliteRepo {
         let tailored_cl_rows = sqlx::query(
             "SELECT id, job_id, base_cl_id, final_latex_content, is_active, created_at, updated_at FROM tailored_cover_letters"
         ).fetch_all(&self.pool).await?;
-        let tailored_cover_letters: Vec<TailoredRow> = tailored_cl_rows
+        let tailored_cover_letters: Vec<TailoredCoverLetterExport> = tailored_cl_rows
             .into_iter()
             .map(|r| {
-                Ok::<TailoredRow, sqlx::Error>(TailoredRow {
+                Ok::<TailoredCoverLetterExport, sqlx::Error>(TailoredCoverLetterExport {
                     id: r.try_get("id")?,
                     job_id: r.try_get("job_id")?,
-                    base_resume_id: String::new(),
                     base_cl_id: r.try_get("base_cl_id")?,
                     final_latex_content: r.try_get("final_latex_content")?,
                     is_active: r
@@ -1286,9 +1292,32 @@ impl Repository for SqliteRepo {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        let compiler_state = Some(self.get_compiler_state().await?);
+        let compiler_state: Option<String> =
+            sqlx::query_scalar("SELECT latex_content FROM compiler_state WHERE id = 1")
+                .fetch_optional(&self.pool)
+                .await?;
+
         let downloads = self.list_downloads().await?;
-        let themes = self.list_themes().await?;
+
+        let theme_rows = sqlx::query("SELECT id, name, config, is_builtin, created_at FROM themes")
+            .fetch_all(&self.pool)
+            .await?;
+        let themes: Vec<ThemeExport> = theme_rows
+            .into_iter()
+            .map(|r| {
+                Ok::<ThemeExport, sqlx::Error>(ThemeExport {
+                    id: r.try_get("id")?,
+                    name: r.try_get("name")?,
+                    config: r.try_get("config")?,
+                    is_builtin: r
+                        .try_get::<i64, _>("is_builtin")
+                        .map(|v| v != 0)
+                        .unwrap_or(false),
+                    created_at: r.try_get("created_at").ok(),
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
         let inbox_jobs = self.list_inbox().await?;
         let documents = self.list_documents().await?;
 
@@ -1297,32 +1326,32 @@ impl Repository for SqliteRepo {
         )
         .fetch_all(&self.pool)
         .await?;
-        let document_files: Vec<DocumentFileRow> = df_rows
+        let document_files: Vec<DocumentFileExport> = df_rows
             .into_iter()
             .map(|r| {
-                Ok::<DocumentFileRow, sqlx::Error>(DocumentFileRow {
+                Ok::<DocumentFileExport, sqlx::Error>(DocumentFileExport {
                     doc_id: r.try_get("doc_id")?,
                     rel_path: r.try_get("rel_path")?,
                     content: r.try_get("content")?,
-                    size_bytes: r.try_get::<i64, _>("size_bytes")? as u64,
+                    size_bytes: r.try_get::<i64, _>("size_bytes")?,
                     updated_at: r.try_get("updated_at")?,
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(FullBackup {
-            version: 1,
-            created_at: chrono::Utc::now().to_rfc3339(),
-            app_settings,
+            version: Some(1),
+            exported_at: chrono::Local::now().to_rfc3339(),
+            jobs,
             base_resumes,
             base_cover_letters,
-            jobs,
             tailored_resumes,
             tailored_cover_letters,
-            compiler_state,
             downloads,
             themes,
+            app_settings,
             inbox_jobs,
+            compiler_state,
             documents,
             document_files,
         })
@@ -1330,7 +1359,25 @@ impl Repository for SqliteRepo {
 
     async fn import_all(&self, backup: &FullBackup) -> RepoResult<()> {
         let mut tx = self.pool.begin().await?;
-        // Clear existing rows (children first)
+
+        // Pre-snapshot local sensitive settings so they survive imports
+        let sensitive_rows = sqlx::query("SELECT key, value FROM app_settings")
+            .fetch_all(&mut *tx)
+            .await?;
+        let sensitive_snapshot: Vec<(String, String)> = sensitive_rows
+            .into_iter()
+            .filter_map(|r| {
+                let k: String = r.try_get("key").ok()?;
+                let v: String = r.try_get("value").ok()?;
+                if is_sensitive_key(&k) {
+                    Some((k, v))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        // Clear existing rows (children first for foreign key integrity)
         sqlx::query("DELETE FROM document_files")
             .execute(&mut *tx)
             .await?;
@@ -1360,26 +1407,44 @@ impl Repository for SqliteRepo {
             .execute(&mut *tx)
             .await?;
 
-        for (k, v) in &backup.app_settings {
-            Self::upsert_kv_tx(&mut tx, k, v).await?;
+        // 1. Settings (filter out any incoming sensitive keys)
+        for s in &backup.app_settings {
+            if is_sensitive_key(&s.key) {
+                continue;
+            }
+            Self::upsert_kv_tx(&mut tx, &s.key, &s.value).await?;
         }
+
+        // 2. Base Resumes
         for r in &backup.base_resumes {
-            sqlx::query("INSERT INTO base_resumes (id, name, category, latex_content, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)")
+            sqlx::query("INSERT INTO base_resumes (id, name, category, latex_content, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+                         ON CONFLICT(id) DO UPDATE SET name=excluded.name, category=excluded.category, latex_content=excluded.latex_content, updated_at=excluded.updated_at")
                 .bind(&r.id).bind(&r.name).bind(&r.category).bind(&r.latex_content).bind(&r.created_at).bind(&r.updated_at)
                 .execute(&mut *tx).await?;
         }
+
+        // 2b. Base Cover Letters
         for r in &backup.base_cover_letters {
-            sqlx::query("INSERT INTO base_cover_letters (id, name, category, latex_content, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)")
+            sqlx::query("INSERT INTO base_cover_letters (id, name, category, latex_content, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+                         ON CONFLICT(id) DO UPDATE SET name=excluded.name, category=excluded.category, latex_content=excluded.latex_content, updated_at=excluded.updated_at")
                 .bind(&r.id).bind(&r.name).bind(&r.category).bind(&r.latex_content).bind(&r.created_at).bind(&r.updated_at)
                 .execute(&mut *tx).await?;
         }
+
+        // 3. Jobs
         for j in &backup.jobs {
             sqlx::query(
                 "INSERT INTO jobs (id, company_name, job_title, work_model, employment_type, status, raw_jd,
                     requirements, core_responsibilities, custom_instruction, reference_name, reference_email,
                     social_link, job_url, base_resume_id, base_cl_id, salary, applied_date, interview_date,
                     offer_date, rejected_date, joining_date, created_at, updated_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24)",
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24)
+                 ON CONFLICT(id) DO UPDATE SET company_name=excluded.company_name, job_title=excluded.job_title, work_model=excluded.work_model,
+                    employment_type=excluded.employment_type, status=excluded.status, raw_jd=excluded.raw_jd, requirements=excluded.requirements,
+                    core_responsibilities=excluded.core_responsibilities, custom_instruction=excluded.custom_instruction, reference_name=excluded.reference_name,
+                    reference_email=excluded.reference_email, social_link=excluded.social_link, job_url=excluded.job_url, base_resume_id=excluded.base_resume_id,
+                    base_cl_id=excluded.base_cl_id, salary=excluded.salary, applied_date=excluded.applied_date, interview_date=excluded.interview_date,
+                    offer_date=excluded.offer_date, rejected_date=excluded.rejected_date, joining_date=excluded.joining_date, updated_at=excluded.updated_at",
             )
             .bind(&j.id).bind(&j.company_name).bind(&j.job_title).bind(&j.work_model).bind(&j.employment_type)
             .bind(&j.status).bind(&j.raw_jd).bind(&j.requirements).bind(&j.core_responsibilities)
@@ -1389,75 +1454,107 @@ impl Repository for SqliteRepo {
             .bind(&j.joining_date).bind(&j.created_at).bind(&j.updated_at)
             .execute(&mut *tx).await.ok();
         }
+
+        // 4. Tailored Resumes
         for t in &backup.tailored_resumes {
             sqlx::query(
                 "INSERT INTO tailored_resumes (id, job_id, base_resume_id, final_latex_content, is_active, created_at, updated_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+                 ON CONFLICT(id) DO UPDATE SET final_latex_content=excluded.final_latex_content, is_active=excluded.is_active, updated_at=excluded.updated_at",
             )
             .bind(&t.id).bind(&t.job_id).bind(&t.base_resume_id).bind(&t.final_latex_content)
             .bind(t.is_active as i64).bind(&t.created_at).bind(&t.updated_at)
             .execute(&mut *tx).await.ok();
         }
+
+        // 4b. Tailored Cover Letters
         for t in &backup.tailored_cover_letters {
             sqlx::query(
                 "INSERT INTO tailored_cover_letters (id, job_id, base_cl_id, final_latex_content, is_active, created_at, updated_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+                 ON CONFLICT(id) DO UPDATE SET final_latex_content=excluded.final_latex_content, is_active=excluded.is_active, updated_at=excluded.updated_at",
             )
             .bind(&t.id).bind(&t.job_id).bind(&t.base_cl_id).bind(&t.final_latex_content)
             .bind(t.is_active as i64).bind(&t.created_at).bind(&t.updated_at)
             .execute(&mut *tx).await.ok();
         }
-        if let Some(cs) = &backup.compiler_state {
+
+        // 5. Compiler State
+        if let Some(content) = &backup.compiler_state {
             sqlx::query(
-                "INSERT OR REPLACE INTO compiler_state (id, latex_content, updated_at) VALUES (1, ?1, CURRENT_TIMESTAMP)",
-            ).bind(&cs.latex_content).execute(&mut *tx).await?;
+                "INSERT INTO compiler_state (id, latex_content, updated_at) VALUES (1, ?1, CURRENT_TIMESTAMP)
+                 ON CONFLICT(id) DO UPDATE SET latex_content=excluded.latex_content, updated_at=CURRENT_TIMESTAMP",
+            ).bind(content).execute(&mut *tx).await?;
         }
+
+        // 6. Downloads
         for d in &backup.downloads {
-            sqlx::query("INSERT INTO downloads (id, filename, download_type, job_id, content_id, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)")
+            sqlx::query("INSERT INTO downloads (id, filename, download_type, job_id, content_id, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+                         ON CONFLICT(id) DO NOTHING")
                 .bind(&d.id).bind(&d.filename).bind(&d.download_type).bind(&d.job_id).bind(&d.content_id).bind(&d.created_at)
                 .execute(&mut *tx).await.ok();
         }
+
+        // 7. Custom Themes
         for t in &backup.themes {
-            if !t.is_builtin {
-                sqlx::query(
-                    "INSERT INTO themes (id, name, config, is_builtin) VALUES (?1, ?2, ?3, 0)",
-                )
-                .bind(&t.id)
-                .bind(&t.name)
-                .bind(&t.config)
-                .execute(&mut *tx)
-                .await
-                .ok();
+            if t.is_builtin {
+                continue;
             }
+            sqlx::query(
+                "INSERT INTO themes (id, name, config, is_builtin) VALUES (?1, ?2, ?3, 0)
+                 ON CONFLICT(id) DO UPDATE SET name=excluded.name, config=excluded.config",
+            )
+            .bind(&t.id)
+            .bind(&t.name)
+            .bind(&t.config)
+            .execute(&mut *tx)
+            .await
+            .ok();
         }
+
+        // 8. Inbox Jobs
         for j in &backup.inbox_jobs {
-            sqlx::query("INSERT INTO inbox_jobs (id, url, raw_description, status, created_at) VALUES (?1, ?2, ?3, ?4, ?5)")
+            sqlx::query("INSERT INTO inbox_jobs (id, url, raw_description, status, created_at) VALUES (?1, ?2, ?3, ?4, ?5)
+                         ON CONFLICT(id) DO UPDATE SET url=excluded.url, raw_description=excluded.raw_description, status=excluded.status")
                 .bind(&j.id).bind(&j.url).bind(&j.raw_description).bind(&j.status).bind(&j.created_at)
                 .execute(&mut *tx).await.ok();
         }
+
+        // 9. Documents
         for d in &backup.documents {
             sqlx::query(
                 "INSERT INTO documents (id, title, description, tags, starred, main_file, last_compiled_at, compile_status, created_at, updated_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+                 ON CONFLICT(id) DO UPDATE SET title=excluded.title, description=excluded.description, tags=excluded.tags, starred=excluded.starred,
+                    main_file=excluded.main_file, last_compiled_at=excluded.last_compiled_at, compile_status=excluded.compile_status, updated_at=excluded.updated_at",
             )
             .bind(&d.id).bind(&d.title).bind(&d.description).bind(&d.tags).bind(d.starred as i64)
             .bind(&d.main_file).bind(&d.last_compiled_at).bind(&d.compile_status).bind(&d.created_at).bind(&d.updated_at)
             .execute(&mut *tx).await.ok();
         }
+
+        // 10. Document Files
         for f in &backup.document_files {
             sqlx::query(
                 "INSERT INTO document_files (doc_id, rel_path, content, size_bytes, updated_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                 VALUES (?1, ?2, ?3, ?4, ?5)
+                 ON CONFLICT(doc_id, rel_path) DO NOTHING",
             )
             .bind(&f.doc_id)
             .bind(&f.rel_path)
             .bind(&f.content)
-            .bind(f.size_bytes as i64)
+            .bind(f.size_bytes)
             .bind(&f.updated_at)
             .execute(&mut *tx)
             .await
             .ok();
         }
+
+        // Restore local sensitive settings that were snapshotted before the wipe
+        for (k, v) in &sensitive_snapshot {
+            Self::upsert_kv_tx(&mut tx, k, v).await?;
+        }
+
         tx.commit().await?;
         Ok(())
     }

@@ -437,32 +437,30 @@ pub struct ScoreResumeResult {
 }
 
 // ===========================================================================
-// Full backup (S3 round-trip)
+// Full backup (Canonical Cross-Backup Schema: Tauri Desktop <-> Axum VPS <-> S3)
 // ===========================================================================
 
-#[derive(Debug, Serialize, Deserialize, Default)]
-pub struct FullBackup {
-    pub version: u32,
-    pub created_at: String,
-    pub app_settings: Vec<(String, String)>,
-    pub base_resumes: Vec<ResumeDetail>,
-    pub base_cover_letters: Vec<CoverLetterDetail>,
-    pub jobs: Vec<JobPayload>,
-    pub tailored_resumes: Vec<TailoredRow>,
-    pub tailored_cover_letters: Vec<TailoredRow>,
-    pub compiler_state: Option<CompilerState>,
-    pub downloads: Vec<DownloadRecord>,
-    pub themes: Vec<Theme>,
-    pub inbox_jobs: Vec<InboxJob>,
-    pub documents: Vec<DocumentSummary>,
-    pub document_files: Vec<DocumentFileRow>,
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct SettingExport {
+    pub key: String,
+    pub value: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct TailoredRow {
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct TailoredResumeExport {
     pub id: String,
     pub job_id: String,
     pub base_resume_id: String,
+    pub final_latex_content: String,
+    pub is_active: bool,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct TailoredCoverLetterExport {
+    pub id: String,
+    pub job_id: String,
     pub base_cl_id: String,
     pub final_latex_content: String,
     pub is_active: bool,
@@ -470,11 +468,77 @@ pub struct TailoredRow {
     pub updated_at: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct DocumentFileRow {
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct ThemeExport {
+    pub id: String,
+    pub name: String,
+    pub config: String,
+    pub is_builtin: bool,
+    #[serde(default)]
+    pub created_at: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct DocumentFileExport {
     pub doc_id: String,
     pub rel_path: String,
     pub content: String,
-    pub size_bytes: u64,
+    pub size_bytes: i64,
     pub updated_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct FullBackup {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version: Option<u32>,
+    #[serde(alias = "created_at")]
+    pub exported_at: String,
+    pub jobs: Vec<JobPayload>,
+    pub base_resumes: Vec<ResumeDetail>,
+    pub base_cover_letters: Vec<CoverLetterDetail>,
+    pub tailored_resumes: Vec<TailoredResumeExport>,
+    pub tailored_cover_letters: Vec<TailoredCoverLetterExport>,
+    pub downloads: Vec<DownloadRecord>,
+    pub themes: Vec<ThemeExport>,
+    pub app_settings: Vec<SettingExport>,
+    pub inbox_jobs: Vec<InboxJob>,
+    pub compiler_state: Option<String>,
+    #[serde(default)]
+    pub documents: Vec<DocumentSummary>,
+    #[serde(default)]
+    pub document_files: Vec<DocumentFileExport>,
+}
+
+pub const SENSITIVE_EXACT_KEYS: &[&str] = &[
+    "extension_secret",
+    "active_server_port",
+    "ai_provider",
+    "ai_model",
+];
+
+pub const SENSITIVE_PREFIXES: &[&str] = &["s3_", "aws_", "cloud_"];
+
+pub const SENSITIVE_SUBSTRINGS: &[&str] = &[
+    "api_key",
+    "secret",
+    "token",
+    "password",
+    "credential",
+    "bucket",
+    "custom_base_url",
+    "custom_model",
+];
+
+pub fn is_sensitive_key(key: &str) -> bool {
+    let lower = key.to_lowercase();
+    if SENSITIVE_EXACT_KEYS.iter().any(|k| lower == *k) {
+        return true;
+    }
+    if SENSITIVE_PREFIXES.iter().any(|p| lower.starts_with(p)) {
+        return true;
+    }
+    if SENSITIVE_SUBSTRINGS.iter().any(|s| lower.contains(s)) {
+        return true;
+    }
+    false
 }
