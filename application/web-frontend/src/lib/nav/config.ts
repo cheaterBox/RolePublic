@@ -12,8 +12,10 @@ export const navItems: NavItem[] = [
   { label: "CL Templates", href: "/cover-letters", iconName: "Mail" },
   { label: "Documents", href: "/documents", iconName: "Files" },
   { label: "Compiler", href: "/compiler", iconName: "Cpu" },
+  { label: "Diagrams", href: "/diagrams", iconName: "Share2" },
   { label: "Themes", href: "/themes", iconName: "Palette" },
   { label: "Cloud Backup", href: "/cloud", iconName: "Cloud" },
   { label: "Downloads", href: "/downloads", iconName: "Download" },
   { label: "Settings", href: "/settings", iconName: "Settings" },
+  { label: "About", href: "/about", iconName: "Info" },
 ];

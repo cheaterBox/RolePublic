@@ -11,10 +11,12 @@ import {
   FileText,
   Home,
   Inbox,
+  Info,
   Mail,
   Menu,
   Palette,
   Settings,
+  Share2,
   ShieldCheck,
   User,
   X,
@@ -33,10 +35,12 @@ const iconMap: Record<string, typeof Home> = {
   Mail,
   Files,
   Cpu,
+  Share2,
   Palette,
   Cloud,
   Download,
   Settings,
+  Info,
 };
 
 export function Shell({ children }: { children: React.ReactNode }) {
