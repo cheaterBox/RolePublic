@@ -105,6 +105,44 @@ restart: ## Restart all containers
 ps: ## List running containers and health status
 	docker compose -f $(COMPOSE_FILE) ps
 
+.PHONY: status health
+status: ## Check live health and port connectivity of all services
+	@echo -e "\n$(BOLD)$(CYAN)=== RoleTect Stack Health Check ===$(RESET)\n"
+	@printf "  %-22s" "API (Axum :8080):"
+	@if curl -s -f http://localhost:8080/health >/dev/null 2>&1; then \
+		echo -e "$(GREEN)[ONLINE] (200 OK)$(RESET)"; \
+	else \
+		echo -e "$(RED)[OFFLINE]$(RESET)"; \
+	fi
+	@printf "  %-22s" "Web (Next.js :3000):"
+	@if curl -s -f http://localhost:3000/health >/dev/null 2>&1; then \
+		echo -e "$(GREEN)[ONLINE] (200 OK)$(RESET)"; \
+	else \
+		echo -e "$(RED)[OFFLINE]$(RESET)"; \
+	fi
+	@printf "  %-22s" "PostgreSQL (:5432):"
+	@if docker compose -f $(COMPOSE_FILE) exec -T postgres pg_isready -U roletect -d roletect >/dev/null 2>&1; then \
+		echo -e "$(GREEN)[ONLINE] (Ready)$(RESET)"; \
+	else \
+		echo -e "$(RED)[OFFLINE]$(RESET)"; \
+	fi
+	@printf "  %-22s" "Redis (:6379):"
+	@if docker compose -f $(COMPOSE_FILE) exec -T redis redis-cli ping 2>/dev/null | grep -q PONG; then \
+		echo -e "$(GREEN)[ONLINE] (PONG)$(RESET)"; \
+	else \
+		echo -e "$(RED)[OFFLINE]$(RESET)"; \
+	fi
+	@printf "  %-22s" "MinIO S3 (:9000):"
+	@if curl -s -f http://localhost:9000/minio/health/live >/dev/null 2>&1; then \
+		echo -e "$(GREEN)[ONLINE] (200 OK)$(RESET)"; \
+	else \
+		echo -e "$(RED)[OFFLINE]$(RESET)"; \
+	fi
+	@echo ""
+	@docker compose -f $(COMPOSE_FILE) ps
+
+health: status ## Alias for make status
+
 .PHONY: logs
 logs: ## Follow live logs from all containers
 	docker compose -f $(COMPOSE_FILE) logs -f
