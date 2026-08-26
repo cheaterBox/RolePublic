@@ -79,12 +79,22 @@ up: ## Start all containerized services (Web Bun container + DB + Redis + MinIO)
 	@echo -e "  $(BOLD)Redis:$(RESET)         localhost:6379"
 
 .PHONY: down
-down: ## Stop and remove all containers and network resources
+down: ## Stop and remove all containers and network resources (preserves volumes)
 	@echo -e "$(YELLOW)Stopping all containers...$(RESET)"
 	docker compose -f $(COMPOSE_FILE) down --remove-orphans
 
 .PHONY: stop
 stop: down ## Alias for make down
+
+.PHONY: wipe docker-delete docker-wipe dokcer-delete
+wipe: ## Completely wipe all Docker containers, networks, and persistent data volumes
+	@echo -e "$(RED)$(BOLD)Wiping all RoleTect containers, networks, and persistent data volumes...$(RESET)"
+	docker compose -f $(COMPOSE_FILE) down -v --remove-orphans
+	@echo -e "$(GREEN)All RoleTect containers, networks, and persistent volumes wiped clean.$(RESET)"
+
+docker-delete: wipe ## Alias for make wipe (complete container, network & volume wipe)
+docker-wipe: wipe ## Alias for make wipe (complete container, network & volume wipe)
+dokcer-delete: wipe ## Convenience typo alias for make docker-delete
 
 .PHONY: restart
 restart: ## Restart all containers
