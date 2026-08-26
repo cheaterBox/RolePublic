@@ -324,3 +324,112 @@ export type ApiErrorBody = {
   message: string;
   details?: unknown;
 };
+
+// Users & Auth
+export type UserSummary = {
+  id: string;
+  email: string;
+  full_name: string;
+  avatar_url?: string | null;
+  role: string;
+};
+
+export type AuthResponse = {
+  token: string;
+  user: UserSummary;
+};
+
+// Document Collaborators & RBAC
+export type CollaboratorRole =
+  | "Owner"
+  | "Admin"
+  | "Editor"
+  | "Commenter"
+  | "Viewer";
+
+export type DocumentCollaboratorEntry = {
+  id: string;
+  doc_id: string;
+  user_id: string;
+  email: string;
+  full_name: string;
+  avatar_url?: string | null;
+  role: CollaboratorRole | string;
+  invited_by?: string | null;
+  created_at: string;
+};
+
+// Version History Checkpoints
+export type DocumentRevisionEntry = {
+  id: string;
+  doc_id: string;
+  version_number: number;
+  title: string;
+  created_by_name?: string | null;
+  created_at: string;
+};
+
+// Granular Edit History & Who Edited What
+export type DocumentChangeEntry = {
+  id: string;
+  doc_id: string;
+  rel_path: string;
+  user_id?: string | null;
+  user_name: string;
+  change_type: string;
+  diff_patch: string;
+  summary?: string | null;
+  created_at: string;
+};
+
+// Margin Comments & Review
+export type DocumentCommentEntry = {
+  id: string;
+  doc_id: string;
+  rel_path: string;
+  user_id?: string | null;
+  user_name: string;
+  line_number: number;
+  selected_text?: string | null;
+  content: string;
+  resolved: boolean;
+  resolved_by?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+// Real-Time Presence
+export type CursorPosition = {
+  line: number;
+  column: number;
+};
+
+export type UserPresence = {
+  user_id: string;
+  user_name: string;
+  avatar_url?: string | null;
+  color: string;
+  active_file?: string | null;
+  cursor?: CursorPosition | null;
+  last_seen_epoch_ms: number;
+};
+
+export type WsServerMessage =
+  | { type: "presence_list"; users: UserPresence[] }
+  | { type: "user_joined"; presence: UserPresence }
+  | { type: "user_left"; user_id: string }
+  | {
+      type: "user_moved";
+      user_id: string;
+      active_file?: string | null;
+      cursor?: CursorPosition | null;
+    }
+  | {
+      type: "file_updated";
+      rel_path: string;
+      user_id: string;
+      user_name: string;
+      diff_patch: string;
+    }
+  | { type: "pong" }
+  | { type: "error"; message: string };

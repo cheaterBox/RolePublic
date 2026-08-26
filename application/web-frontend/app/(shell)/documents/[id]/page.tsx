@@ -7,17 +7,29 @@ import {
   Download,
   FileCode,
   Hammer,
+  History,
   Loader2,
+  MessageSquare,
   Plus,
   RotateCw,
   Save,
   Trash2,
+  Users,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
+import { writeTrackedFile } from "@/features/documents/api";
+import { CollaboratorsModal } from "@/features/documents/components/CollaboratorsModal";
+import { CommentsSidebar } from "@/features/documents/components/CommentsSidebar";
+import { HistoryDrawer } from "@/features/documents/components/HistoryDrawer";
 import { apiFetch } from "@/lib/api/client";
-import type { DocumentFileEntry, DocumentSummary } from "@/lib/api/types";
+import type {
+  DocumentFileEntry,
+  DocumentSummary,
+  UserPresence,
+  WsServerMessage,
+} from "@/lib/api/types";
 import { buildApiUrl, getApiToken } from "@/lib/config/env";
 
 export default function DocumentDetailPage({
@@ -45,6 +57,15 @@ export default function DocumentDetailPage({
   const [compilationError, setCompilationError] = useState<string | null>(null);
   const [isSaved, setIsSaved] = useState(false);
 
+  // Collaboration Drawers & Modals
+  const [showCollaborators, setShowCollaborators] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [showComments, setShowComments] = useState(false);
+  const [activePresence, setActivePresence] = useState<UserPresence[]>([]);
+
+  // WebSocket reference
+  const wsRef = useRef<WebSocket | null>(null);
+
   const loadDoc = async () => {
     setLoading(true);
     try {
@@ -63,7 +84,7 @@ export default function DocumentDetailPage({
         setActiveFileRel(defaultFile);
       }
     } catch (err) {
-      console.error(err);
+      console.error("Failed to load document:", err);
     } finally {
       setLoading(false);
     }
@@ -72,6 +93,55 @@ export default function DocumentDetailPage({
   useEffect(() => {
     void loadDoc();
   }, [id]);
+
+  // Connect WebSocket for live collaboration & presence
+  useEffect(() => {
+    const token = getApiToken();
+    const wsProto = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const wsHost =
+      window.location.hostname === "localhost"
+        ? "localhost:8080"
+        : window.location.host;
+    const wsUrl = `${wsProto}//${wsHost}/api/documents/${id}/ws?token=${encodeURIComponent(token)}`;
+
+    const ws = new WebSocket(wsUrl);
+    wsRef.current = ws;
+
+    ws.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data) as WsServerMessage;
+        if (msg.type === "presence_list") {
+          setActivePresence(msg.users);
+        } else if (msg.type === "user_joined") {
+          setActivePresence((prev) => [
+            ...prev.filter((u) => u.user_id !== msg.presence.user_id),
+            msg.presence,
+          ]);
+        } else if (msg.type === "user_left") {
+          setActivePresence((prev) =>
+            prev.filter((u) => u.user_id !== msg.user_id),
+          );
+        } else if (msg.type === "file_updated") {
+          // If remote user updated the file currently open, optionally refresh or notify
+          if (msg.rel_path === activeFileRel) {
+            void apiFetch<{ content: string }>(`/documents/${id}/files/read`, {
+              method: "POST",
+              body: { rel_path: msg.rel_path },
+            }).then((res) => {
+              if (res.content) setFileContent(res.content);
+            });
+          }
+        }
+      } catch (e) {
+        console.error("WebSocket message error:", e);
+      }
+    };
+
+    return () => {
+      ws.close();
+      wsRef.current = null;
+    };
+  }, [id, activeFileRel]);
 
   useEffect(() => {
     if (activeFileRel) {
@@ -95,17 +165,11 @@ export default function DocumentDetailPage({
   const handleSaveFile = async () => {
     if (!activeFileRel) return;
     try {
-      await apiFetch(`/documents/${id}/files/write`, {
-        method: "POST",
-        body: {
-          rel_path: activeFileRel,
-          content: fileContent,
-        },
-      });
+      await writeTrackedFile(id, activeFileRel, fileContent);
       setIsSaved(true);
       setTimeout(() => setIsSaved(false), 2000);
     } catch (err) {
-      console.error(err);
+      console.error("Save error:", err);
     }
   };
 
@@ -158,12 +222,8 @@ export default function DocumentDetailPage({
     setIsCompiling(true);
     setCompilationError(null);
     try {
-      // Save current file first
       if (activeFileRel) {
-        await apiFetch(`/documents/${id}/files/write`, {
-          method: "POST",
-          body: { rel_path: activeFileRel, content: fileContent },
-        });
+        await writeTrackedFile(id, activeFileRel, fileContent);
       }
 
       const token = getApiToken();
@@ -210,14 +270,14 @@ export default function DocumentDetailPage({
     return (
       <div className="flex items-center justify-center h-full p-20 text-xs text-[var(--muted)]">
         <Loader2 className="h-6 w-6 animate-spin text-[var(--accent)] mr-2" />
-        <span>Loading workspace…</span>
+        <span>Loading collaborative workspace…</span>
       </div>
     );
   }
 
   return (
     <div className="flex flex-col h-full bg-[var(--bg)] animate-in fade-in-50 duration-150">
-      {/* Top Header */}
+      {/* Top Collaboration Header */}
       <header className="h-12 flex items-center justify-between px-4 bg-[var(--bg-accent)] border-b border-[var(--line)] shrink-0 select-none z-20">
         <div className="flex items-center gap-3 min-w-0">
           <Link
@@ -236,21 +296,74 @@ export default function DocumentDetailPage({
               Main: {mainFile || "None"}
             </span>
           </div>
+
+          {/* Live Online Collaborators Avatars */}
+          {activePresence.length > 0 && (
+            <div className="flex items-center -space-x-1.5 pl-2 border-l border-[var(--line)]">
+              {activePresence.map((u) => (
+                <div
+                  key={u.user_id}
+                  style={{ borderColor: u.color }}
+                  className="w-6 h-6 rounded-full bg-[var(--surface)] border-2 flex items-center justify-center text-[10px] font-bold text-[var(--ink)] shadow-xs"
+                  title={`${u.user_name} is active`}
+                >
+                  {u.user_name.charAt(0).toUpperCase()}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
+        {/* Action Controls */}
         <div className="flex items-center gap-2">
+          {/* Collaborators Button */}
+          <button
+            type="button"
+            onClick={() => setShowCollaborators(true)}
+            className="flex items-center gap-1.5 h-8 px-2.5 rounded bg-[var(--surface-soft)] border border-[var(--line)] text-xs font-bold text-[var(--ink)] hover:border-[var(--muted)] transition-colors"
+            title="Manage Team & Permissions"
+          >
+            <Users className="h-3.5 w-3.5 text-[var(--accent)]" />
+            <span className="hidden sm:inline">Collaborate</span>
+          </button>
+
+          {/* Version History & Audit Button */}
+          <button
+            type="button"
+            onClick={() => setShowHistory(true)}
+            className="flex items-center gap-1.5 h-8 px-2.5 rounded bg-[var(--surface-soft)] border border-[var(--line)] text-xs font-bold text-[var(--ink)] hover:border-[var(--muted)] transition-colors"
+            title="Tracked Changes & Checkpoints"
+          >
+            <History className="h-3.5 w-3.5 text-blue-400" />
+            <span className="hidden sm:inline">History</span>
+          </button>
+
+          {/* Margin Comments Button */}
+          <button
+            type="button"
+            onClick={() => setShowComments(true)}
+            className="flex items-center gap-1.5 h-8 px-2.5 rounded bg-[var(--surface-soft)] border border-[var(--line)] text-xs font-bold text-[var(--ink)] hover:border-[var(--muted)] transition-colors"
+            title="Review & Line Comments"
+          >
+            <MessageSquare className="h-3.5 w-3.5 text-emerald-400" />
+            <span className="hidden sm:inline">Review</span>
+          </button>
+
+          <div className="h-4 w-px bg-[var(--line)] mx-0.5" />
+
+          {/* Compile Project */}
           <button
             type="button"
             onClick={handleCompile}
             disabled={isCompiling}
-            className="flex items-center gap-1.5 h-8 px-3 rounded bg-[var(--accent)] text-white text-xs font-bold hover:opacity-90 disabled:opacity-50"
+            className="flex items-center gap-1.5 h-8 px-3 rounded bg-[var(--accent)] text-white text-xs font-bold hover:opacity-90 disabled:opacity-50 transition-opacity"
           >
             {isCompiling ? (
               <RotateCw className="h-3.5 w-3.5 animate-spin" />
             ) : (
               <Hammer className="h-3.5 w-3.5" />
             )}
-            <span>Compile Project</span>
+            <span>Compile</span>
           </button>
 
           {pdfBlobUrl && (
@@ -268,10 +381,10 @@ export default function DocumentDetailPage({
             type="button"
             onClick={handleSaveFile}
             className="flex items-center gap-1 h-8 px-2.5 rounded bg-[var(--surface-soft)] border border-[var(--line)] text-xs font-bold text-[var(--ink)] hover:border-[var(--muted)]"
-            title="Save File"
+            title="Save & Record Changes"
           >
             {isSaved ? (
-              <Check className="h-3.5 w-3.5 text-[var(--accent)]" />
+              <Check className="h-3.5 w-3.5 text-emerald-400" />
             ) : (
               <Save className="h-3.5 w-3.5" />
             )}
@@ -297,7 +410,7 @@ export default function DocumentDetailPage({
       )}
 
       {/* 3-Pane Body */}
-      <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden">
+      <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden relative">
         {/* Left: File Tree Explorer */}
         <div className="w-full lg:w-64 bg-[var(--bg-accent)] border-b lg:border-b-0 lg:border-r border-[var(--line)] p-3 flex flex-col gap-2 overflow-y-auto shrink-0">
           <div className="flex items-center justify-between px-1 pb-1 border-b border-[var(--line)]">
@@ -321,7 +434,7 @@ export default function DocumentDetailPage({
                 value={newFileName}
                 onChange={(e) => setNewFileName(e.target.value)}
                 placeholder="filename.tex"
-                className="w-full bg-[var(--surface-soft)] border border-[var(--line)] rounded px-2 py-1 text-xs font-mono text-[var(--ink)] focus:outline-none"
+                className="w-full bg-[var(--surface-soft)] border border-[var(--line)] rounded px-2 py-1 text-xs font-mono text-[var(--ink)] focus:outline-hidden"
               />
               <div className="flex justify-end gap-1 text-[10px]">
                 <button
@@ -411,7 +524,7 @@ export default function DocumentDetailPage({
             value={fileContent}
             onChange={(e) => setFileContent(e.target.value)}
             spellCheck={false}
-            className="flex-1 w-full bg-[#0d0f14] p-4 font-mono text-xs text-[#e6edf3] border-0 resize-none focus:outline-none leading-relaxed select-text overflow-y-auto"
+            className="flex-1 w-full bg-[#0d0f14] p-4 font-mono text-xs text-[#e6edf3] border-0 resize-none focus:outline-hidden leading-relaxed select-text overflow-y-auto"
           />
         </div>
 
@@ -436,11 +549,32 @@ export default function DocumentDetailPage({
             ) : (
               <div className="text-center p-6 space-y-2 text-[var(--muted)]">
                 <FileCode className="h-8 w-8 mx-auto opacity-40" />
-                <p className="text-xs">Click Compile Project to build PDF.</p>
+                <p className="text-xs">Click Compile to build project PDF.</p>
               </div>
             )}
           </div>
         </div>
+
+        {/* Side Drawers and Modals */}
+        <CollaboratorsModal
+          docId={id}
+          isOpen={showCollaborators}
+          onClose={() => setShowCollaborators(false)}
+        />
+
+        <HistoryDrawer
+          docId={id}
+          isOpen={showHistory}
+          onClose={() => setShowHistory(false)}
+          onRestoreComplete={() => void loadDoc()}
+        />
+
+        <CommentsSidebar
+          docId={id}
+          activeFileRel={activeFileRel}
+          isOpen={showComments}
+          onClose={() => setShowComments(false)}
+        />
       </div>
     </div>
   );
