@@ -5,6 +5,7 @@ describe("env", () => {
   test("buildApiUrl uses relative /api when base empty", () => {
     delete process.env.NEXT_PUBLIC_API_BASE;
     expect(buildApiUrl("/jobs")).toBe("/api/jobs");
+    expect(buildApiUrl("/api/jobs")).toBe("/api/jobs");
     expect(buildApiUrl("/themes/active")).toBe("/api/themes/active");
   });
 

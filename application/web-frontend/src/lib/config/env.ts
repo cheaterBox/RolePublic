@@ -30,7 +30,7 @@ export function buildApiUrl(path: string): string {
   const base = getApiBase();
   const p = path.startsWith("/") ? path : `/${path}`;
   // If base is empty, use relative /api prefix (Next rewrites or same-origin).
-  if (!base) return `/api${p}`;
+  if (!base) return p.startsWith("/api/") || p === "/api" ? p : `/api${p}`;
   // Base already includes host; ensure /api prefix.
   if (p.startsWith("/api/")) return `${base}${p}`;
   return `${base}/api${p}`;
