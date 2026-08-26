@@ -41,6 +41,7 @@ potential_features.txt
 *.tsbuildinfo
 next-env.d.ts
 application/api/roletect.db
+application/api/data/
 src-tauri/texput.pdf
 
 # Flatpak & Packaging Artifacts

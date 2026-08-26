@@ -18,7 +18,7 @@ export function getApiBase(): string {
 }
 
 export function getApiToken(): string {
-  return requireEnv("NEXT_PUBLIC_API_TOKEN", "");
+  return requireEnv("NEXT_PUBLIC_API_TOKEN", "roletect_vps_master_token_2026");
 }
 
 export function getHealthUrl(): string {
