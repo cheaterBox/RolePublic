@@ -12,6 +12,7 @@ application/mobile/roletect/.dart_tool/
 # Environment & Secrets
 *.local
 .env*
+!.env.example
 .DS_Store
 *.key
 *.key.pub
