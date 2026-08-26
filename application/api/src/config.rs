@@ -125,7 +125,12 @@ impl Config {
 
         let url = match driver {
             DbDriver::Sqlite => {
-                let path = env::var("DATABASE_URL").unwrap_or_else(|_| "/data/roletect.db".into());
+                let default_path = if std::path::Path::new("/.dockerenv").exists() {
+                    "/data/roletect.db"
+                } else {
+                    "./data/roletect.db"
+                };
+                let path = env::var("DATABASE_URL").unwrap_or_else(|_| default_path.into());
                 if path.starts_with("sqlite:") || path.starts_with("sqlite://") {
                     path
                 } else {
@@ -145,8 +150,13 @@ impl Config {
             ));
         }
 
-        let data_dir =
-            PathBuf::from(env::var("ROLETECT_DATA_DIR").unwrap_or_else(|_| "/data".into()));
+        let data_dir = PathBuf::from(env::var("ROLETECT_DATA_DIR").unwrap_or_else(|_| {
+            if std::path::Path::new("/.dockerenv").exists() {
+                "/data".into()
+            } else {
+                "./data".into()
+            }
+        }));
         let tectonic_cache_dir = PathBuf::from(
             env::var("TECTONIC_CACHE_DIR")
                 .unwrap_or_else(|_| format!("{}/tectonic-cache", data_dir.display())),

@@ -24,7 +24,7 @@ use crate::telemetry;
 pub async fn build_state(config: Config) -> Result<AppState, AppError> {
     // Derive master key from API token. This is what encrypts AI keys at rest.
     let master_key = load_or_create_master(&config.data_dir, config.auth.api_token.expose())
-        .map_err(|_e| AppError::Internal(anyhow::anyhow!("master key setup failed")))?;
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("master key setup failed: {}", e)))?;
 
     let repo: Arc<dyn Repository> = crate::db::build_repository(&config)
         .await

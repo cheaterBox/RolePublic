@@ -47,9 +47,14 @@ dev: db redis s3 ## Start backing services in Docker + run API & Web in real-tim
 	@echo -e "$(CYAN)Launch Web in another terminal: $(YELLOW)make web$(CYAN)$(RESET)"
 
 .PHONY: api
-api: db redis s3 ## Start Axum API locally (hot compilation with native speed)
-	@echo -e "$(CYAN)Starting Axum API server...$(RESET)"
-	cd $(API_DIR) && cargo run
+api: db redis s3 ## Start Axum API locally in dev mode
+	@echo -e "$(CYAN)Starting Axum API server in dev mode...$(RESET)"
+	@mkdir -p $(API_DIR)/data
+	cd $(API_DIR) && ROLETECT_DATA_DIR=$${ROLETECT_DATA_DIR:-./data} \
+		ROLETECT_API_TOKEN=$${ROLETECT_API_TOKEN:-roletect_vps_master_token_2026} \
+		DATABASE_URL=$${DATABASE_URL:-postgres://roletect:roletect_secret_password@localhost:5432/roletect} \
+		DB_DRIVER=$${DB_DRIVER:-postgres} \
+		cargo run
 
 .PHONY: web
 web: ## Start Next.js Web Frontend locally with Bun
