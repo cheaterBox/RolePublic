@@ -62,21 +62,21 @@ body {
   margin: 0;
   padding: 0;
   width: 100%;
-  min-width: 300px;
+  min-width: 320px;
   min-height: 100%;
   background-color: var(--bg);
   color: var(--ink);
   font-family: var(--font-sans);
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: 14.5px;
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 /* Scrollbar Styles */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
@@ -92,16 +92,16 @@ body {
 
 /* Polished Tag & Badge Styles */
 .status-badge {
-  padding: 3px 8px;
-  border-radius: 6px;
-  font-size: 0.7rem;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  line-height: 1.2;
+  gap: 5px;
+  line-height: 1.25;
   white-space: nowrap;
 }
 .status-badge.drafting,
@@ -136,33 +136,33 @@ body {
 .tag-pill {
   display: inline-flex;
   align-items: center;
-  padding: 2px 7px;
-  border-radius: 5px;
-  font-size: 0.7rem;
+  padding: 3px 9px;
+  border-radius: 6px;
+  font-size: 0.75rem;
   font-weight: 600;
   background-color: var(--surface-soft);
   color: var(--muted);
   border: 1px solid var(--line);
-  line-height: 1.3;
+  line-height: 1.35;
   white-space: nowrap;
 }
 
 .tag-pill-accent {
-  background-color: rgba(56, 139, 253, 0.1);
+  background-color: rgba(56, 139, 253, 0.12);
   color: var(--accent-blue);
-  border: 1px solid rgba(56, 139, 253, 0.25);
+  border: 1px solid rgba(56, 139, 253, 0.3);
 }
 
 .tag-pill-success {
-  background-color: rgba(35, 134, 54, 0.12);
-  color: var(--accent);
-  border: 1px solid rgba(35, 134, 54, 0.25);
+  background-color: rgba(35, 134, 54, 0.15);
+  color: #3fb950;
+  border: 1px solid rgba(35, 134, 54, 0.3);
 }
 
 .tag-pill-warning {
-  background-color: rgba(248, 81, 73, 0.12);
+  background-color: rgba(248, 81, 73, 0.15);
   color: var(--warning);
-  border: 1px solid rgba(248, 81, 73, 0.25);
+  border: 1px solid rgba(248, 81, 73, 0.3);
 }
 
 /* Form Inputs */
@@ -170,12 +170,12 @@ input,
 textarea,
 select {
   font-family: inherit;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   background-color: var(--surface);
   color: var(--ink);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
-  padding: 7px 10px;
+  padding: 8px 12px;
   transition: border-color 0.15s ease;
 }
 
@@ -191,9 +191,9 @@ select {
   -webkit-appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%238b949e'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 8px center;
+  background-position: right 10px center;
   background-size: 14px;
-  padding-right: 26px;
+  padding-right: 32px;
 }
 
 select option {

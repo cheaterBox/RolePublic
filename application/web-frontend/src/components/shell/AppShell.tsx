@@ -89,29 +89,32 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-[var(--bg)] text-[var(--ink)] select-none">
-      {/* TOP DESKTOP TITLEBAR (36px, matching Titlebar.vue) */}
-      <header className="h-9 shrink-0 bg-[var(--bg-accent)] border-b border-[var(--line)] flex items-center justify-between px-3.5 z-40 select-none backdrop-blur-md">
+      {/* TOP DESKTOP HEADER (52px, web-proportioned) */}
+      <header className="h-13 shrink-0 bg-[var(--bg-accent)] border-b border-[var(--line)] flex items-center justify-between px-4 z-40 select-none backdrop-blur-md">
         {/* Left: Logo & Branding */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={() => setMobileOpen(true)}
-            className="md:hidden p-1 rounded text-[var(--muted)] hover:text-[var(--ink)]"
+            className="md:hidden p-1.5 rounded-lg text-[var(--muted)] hover:text-[var(--ink)] hover:bg-[var(--surface-soft)]"
           >
-            <Menu className="h-3.5 w-3.5" />
+            <Menu className="h-4 w-4" />
           </button>
-          <div className="h-1.5 w-1.5 rounded-full bg-[var(--accent)] shadow-[0_0_8px_var(--accent)]" />
+          <div className="h-2 w-2 rounded-full bg-[var(--accent)] shadow-[0_0_10px_var(--accent)]" />
           <Link
             href="/"
-            className="text-[11px] font-extrabold tracking-widest uppercase text-[var(--muted)] hover:text-[var(--ink)] transition-colors"
+            className="text-xs sm:text-sm font-extrabold tracking-widest uppercase text-[var(--muted)] hover:text-[var(--ink)] transition-colors flex items-center gap-1.5"
           >
-            RoleTect
+            <span>RoleTect</span>
+            <span className="text-[10px] font-mono font-normal text-[var(--accent)] bg-[var(--accent-soft)] px-1.5 py-0.2 rounded-sm border border-[var(--accent)]/30">
+              PRO
+            </span>
           </Link>
         </div>
 
         {/* Center: Current Workspace Context */}
-        <div className="hidden sm:flex items-center gap-2 text-[11px] font-mono text-[var(--muted)]">
-          <span className="opacity-60">/</span>
+        <div className="hidden sm:flex items-center gap-2 text-xs font-mono text-[var(--muted)]">
+          <span className="opacity-40">/</span>
           <span className="text-[var(--ink)] font-semibold">
             {navItems.find(
               (i) =>
@@ -122,12 +125,14 @@ export function Shell({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Right: Engine Status & Profile Dropdown */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           {/* Status Indicator */}
-          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[var(--surface-soft)] border border-[var(--line)] text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider">
+          <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-[var(--surface-soft)] border border-[var(--line)] text-[11px] font-bold text-[var(--muted)] uppercase tracking-wider">
             <span
-              className={`h-1.5 w-1.5 rounded-full ${
-                apiConnected ? "bg-[var(--accent)]" : "bg-amber-400"
+              className={`h-2 w-2 rounded-full ${
+                apiConnected
+                  ? "bg-[var(--accent)] shadow-[0_0_6px_var(--accent)]"
+                  : "bg-amber-400"
               }`}
             />
             <span className="hidden sm:inline">
@@ -143,24 +148,24 @@ export function Shell({ children }: { children: React.ReactNode }) {
                 e.stopPropagation();
                 setShowProfileMenu(!showProfileMenu);
               }}
-              className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[var(--surface-soft)] border border-[var(--line)] text-[11px] font-medium text-[var(--ink)] hover:border-[var(--accent)] transition-colors"
+              className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-[var(--surface-soft)] border border-[var(--line)] text-xs font-medium text-[var(--ink)] hover:border-[var(--accent)] transition-colors cursor-pointer"
             >
-              <ShieldCheck className="h-3 w-3 text-[var(--accent)]" />
+              <ShieldCheck className="h-3.5 w-3.5 text-[var(--accent)]" />
               <span className="hidden md:inline font-bold">Pro Member</span>
-              <ChevronDown className="h-2.5 w-2.5 text-[var(--muted)]" />
+              <ChevronDown className="h-3 w-3 text-[var(--muted)]" />
             </button>
 
             {showProfileMenu && (
-              <div className="absolute right-0 top-8 w-56 bg-[var(--surface)] border border-[var(--line)] rounded-xl p-2.5 shadow-2xl z-50 flex flex-col gap-1.5 animate-in fade-in-50 zoom-in-95 duration-100">
-                <div className="flex items-center gap-2.5 p-1.5">
-                  <div className="w-7 h-7 rounded-full bg-[var(--accent-soft)] border border-[var(--accent)] text-[var(--accent)] flex items-center justify-center text-xs font-bold shrink-0">
-                    <User className="h-3.5 w-3.5" />
+              <div className="absolute right-0 top-10 w-60 bg-[var(--surface)] border border-[var(--line)] rounded-xl p-3 shadow-2xl z-50 flex flex-col gap-1.5 animate-in fade-in-50 zoom-in-95 duration-100">
+                <div className="flex items-center gap-3 p-1.5">
+                  <div className="w-8 h-8 rounded-full bg-[var(--accent-soft)] border border-[var(--accent)] text-[var(--accent)] flex items-center justify-center text-xs font-bold shrink-0">
+                    <User className="h-4 w-4" />
                   </div>
                   <div className="min-w-0">
                     <div className="text-xs font-bold text-[var(--ink)] truncate">
                       Staff Engineer
                     </div>
-                    <div className="text-[10px] font-mono text-[var(--muted)] truncate">
+                    <div className="text-[11px] font-mono text-[var(--muted)] truncate">
                       pro@roletect.io
                     </div>
                   </div>
@@ -168,9 +173,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
                 <div className="h-px bg-[var(--line)] my-1" />
 
-                <div className="flex items-center justify-between px-1.5 py-1 text-[11px]">
+                <div className="flex items-center justify-between px-2 py-1 text-xs">
                   <span className="text-[var(--muted)]">Plan</span>
-                  <span className="tag-pill tag-pill-success text-[10px]">
+                  <span className="tag-pill tag-pill-success text-[11px]">
                     Enterprise / Lifetime
                   </span>
                 </div>
@@ -180,18 +185,18 @@ export function Shell({ children }: { children: React.ReactNode }) {
                 <Link
                   href="/settings"
                   onClick={() => setShowProfileMenu(false)}
-                  className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-[var(--ink)] hover:bg-[var(--surface-soft)] hover:text-[var(--accent)] transition-colors"
+                  className="flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs font-medium text-[var(--ink)] hover:bg-[var(--surface-soft)] hover:text-[var(--accent)] transition-colors"
                 >
-                  <Settings className="h-3.5 w-3.5" />
+                  <Settings className="h-4 w-4" />
                   <span>Settings & API Keys</span>
                 </Link>
 
                 <Link
                   href="/cloud"
                   onClick={() => setShowProfileMenu(false)}
-                  className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-[var(--ink)] hover:bg-[var(--surface-soft)] hover:text-[var(--accent)] transition-colors"
+                  className="flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs font-medium text-[var(--ink)] hover:bg-[var(--surface-soft)] hover:text-[var(--accent)] transition-colors"
                 >
-                  <Cloud className="h-3.5 w-3.5" />
+                  <Cloud className="h-4 w-4" />
                   <span>Cloud Backup & Sync</span>
                 </Link>
               </div>
@@ -200,11 +205,11 @@ export function Shell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      {/* BODY (Slim 48px Sidebar + Main Content) */}
+      {/* BODY (Web Sidebar + Main Viewport) */}
       <div className="flex flex-1 overflow-hidden">
-        {/* SIDEBAR - Desktop Icon Bar (48px matching Desktop App.vue) */}
-        <aside className="hidden md:flex w-12 flex-col items-center justify-between border-r border-[var(--line)] bg-[var(--bg-accent)] py-2.5 shrink-0 select-none z-30">
-          <nav className="flex flex-col items-center gap-1 w-full">
+        {/* SIDEBAR - Desktop Icon Bar (56px-60px for web clickability) */}
+        <aside className="hidden md:flex w-14 lg:w-15 flex-col items-center justify-between border-r border-[var(--line)] bg-[var(--bg-accent)] py-3 shrink-0 select-none z-30">
+          <nav className="flex flex-col items-center gap-1.5 w-full">
             {navItems.map((item) => {
               const Icon = iconMap[item.iconName] || FileText;
               const isActive =
@@ -220,24 +225,24 @@ export function Shell({ children }: { children: React.ReactNode }) {
                 >
                   <Link
                     href={item.href}
-                    className={`relative flex h-9 w-9 items-center justify-center rounded-lg transition-all ${
+                    className={`relative flex h-10 w-10 items-center justify-center rounded-xl transition-all ${
                       isActive
                         ? "text-[var(--accent)] bg-[var(--surface-soft)] font-bold shadow-xs"
                         : "text-[var(--muted)] hover:text-[var(--ink)] hover:bg-[var(--surface-soft)]"
                     }`}
                   >
                     {isActive && (
-                      <span className="absolute left-0 top-1.5 bottom-1.5 w-[2px] bg-[var(--accent)] rounded-r" />
+                      <span className="absolute left-0 top-2 bottom-2 w-[2.5px] bg-[var(--accent)] rounded-r" />
                     )}
                     <Icon
-                      className="h-4 w-4"
+                      className="h-4.5 w-4.5"
                       strokeWidth={isActive ? 2.2 : 1.8}
                     />
                   </Link>
 
-                  {/* Flying Tooltip (matching App.vue .sidebar-tooltip) */}
+                  {/* Flying Tooltip */}
                   {activeTooltip === item.label && (
-                    <div className="absolute left-full ml-3 z-50 rounded-md bg-[var(--bg-accent)] border border-[var(--line)] px-2.5 py-1 text-[10px] font-bold text-[var(--ink)] whitespace-nowrap shadow-2xl pointer-events-none animate-in fade-in-50 zoom-in-95 duration-100">
+                    <div className="absolute left-full ml-3.5 z-50 rounded-lg bg-[var(--bg-accent)] border border-[var(--line)] px-3 py-1.5 text-xs font-bold text-[var(--ink)] whitespace-nowrap shadow-2xl pointer-events-none animate-in fade-in-50 zoom-in-95 duration-100">
                       {item.label}
                     </div>
                   )}
@@ -247,15 +252,15 @@ export function Shell({ children }: { children: React.ReactNode }) {
           </nav>
 
           {/* Bottom External Links */}
-          <div className="flex flex-col items-center gap-2 w-full pt-2 border-t border-[var(--line)]">
+          <div className="flex flex-col items-center gap-2 w-full pt-2.5 border-t border-[var(--line)]">
             <a
               href="https://github.com/AhmedTrooper/roletect-app"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--muted)] hover:text-[var(--accent)] hover:bg-[var(--surface-soft)] transition-colors"
+              className="flex h-9 w-9 items-center justify-center rounded-xl text-[var(--muted)] hover:text-[var(--accent)] hover:bg-[var(--surface-soft)] transition-colors"
               title="GitHub Community"
             >
-              <Code className="h-3.5 w-3.5" />
+              <Code className="h-4 w-4" />
             </a>
           </div>
         </aside>
