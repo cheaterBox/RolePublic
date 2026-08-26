@@ -33,7 +33,7 @@ endif
 help: ## Show this interactive help menu
 	@echo -e "$(BOLD)$(CYAN)RoleTect Application Real-Time Control Panel$(RESET)"
 	@echo -e "Usage: $(YELLOW)make <target>$(RESET)\n"
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  $(GREEN)%-20s$(RESET) %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9_-]+:.*?## / {printf "  $(GREEN)%-20s$(RESET) %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 # -----------------------------------------------------------------------------
 # 2. INSTANT REAL-TIME DEVELOPMENT
@@ -113,10 +113,42 @@ logs: ## Follow live logs from all containers
 # 4. SINGLE SERVICE CONTROLS
 # -----------------------------------------------------------------------------
 
+.PHONY: web-up
+web-up: ## Start only Web frontend container in Docker
+	@echo -e "$(CYAN)Starting Web frontend container...$(RESET)"
+	docker compose -f $(COMPOSE_FILE) up -d web
+
+.PHONY: web-down web-stop
+web-down: ## Stop and remove Web frontend container
+	@echo -e "$(YELLOW)Stopping Web frontend container...$(RESET)"
+	docker compose -f $(COMPOSE_FILE) stop web
+	docker compose -f $(COMPOSE_FILE) rm -f web
+
+web-stop: web-down ## Alias for make web-down
+
+.PHONY: kill-web
+kill-web: ## Kill any local Bun dev process running on port 3000
+	@echo -e "$(YELLOW)Killing local processes on port 3000...$(RESET)"
+	@fuser -k 3000/tcp 2>/dev/null || true
+
+.PHONY: kill-api api-stop
+kill-api: ## Kill any local Axum API process running on port 8080
+	@echo -e "$(YELLOW)Killing local API processes on port 8080...$(RESET)"
+	@fuser -k 8080/tcp 2>/dev/null || true
+
+api-stop: kill-api ## Alias for make kill-api
+
 .PHONY: db
 db: ## Start only PostgreSQL database container
 	@echo -e "$(CYAN)Starting PostgreSQL container...$(RESET)"
 	docker compose -f $(COMPOSE_FILE) up -d postgres
+
+.PHONY: db-down db-stop
+db-down: ## Stop PostgreSQL database container
+	@echo -e "$(YELLOW)Stopping PostgreSQL container...$(RESET)"
+	docker compose -f $(COMPOSE_FILE) stop postgres
+
+db-stop: db-down ## Alias for make db-down
 
 .PHONY: db-psql
 db-psql: ## Open an interactive psql shell inside the database container
@@ -136,6 +168,13 @@ redis: ## Start only Redis cache/pubsub container
 	@echo -e "$(CYAN)Starting Redis container...$(RESET)"
 	docker compose -f $(COMPOSE_FILE) up -d redis
 
+.PHONY: redis-down redis-stop
+redis-down: ## Stop Redis container
+	@echo -e "$(YELLOW)Stopping Redis container...$(RESET)"
+	docker compose -f $(COMPOSE_FILE) stop redis
+
+redis-stop: redis-down ## Alias for make redis-down
+
 .PHONY: redis-cli
 redis-cli: ## Open an interactive redis-cli shell
 	docker compose -f $(COMPOSE_FILE) exec redis redis-cli
@@ -149,6 +188,13 @@ s3: ## Start MinIO S3 object storage container and auto-provision backup bucket
 	@echo -e "$(CYAN)Starting MinIO S3 container & auto-provisioner...$(RESET)"
 	docker compose -f $(COMPOSE_FILE) up -d minio minio-init
 	@echo -e "$(GREEN)MinIO S3 API: http://localhost:9000 | Console: http://localhost:9001$(RESET)"
+
+.PHONY: s3-down s3-stop
+s3-down: ## Stop MinIO S3 containers
+	@echo -e "$(YELLOW)Stopping MinIO S3 containers...$(RESET)"
+	docker compose -f $(COMPOSE_FILE) stop minio minio-init
+
+s3-stop: s3-down ## Alias for make s3-down
 
 # -----------------------------------------------------------------------------
 # 5. QUALITY ASSURANCE, LINTING & TESTING
