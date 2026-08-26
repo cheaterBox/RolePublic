@@ -168,4 +168,84 @@ CREATE TABLE IF NOT EXISTS document_files (
     FOREIGN KEY (doc_id) REFERENCES documents(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_document_files_doc ON document_files(doc_id);
+
+-- 11. Users
+CREATE TABLE IF NOT EXISTS users (
+    id            TEXT PRIMARY KEY,
+    email         TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    full_name     TEXT NOT NULL,
+    avatar_url    TEXT,
+    role          TEXT NOT NULL DEFAULT 'User',
+    created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TRIGGER IF NOT EXISTS update_users_modtime
+    AFTER UPDATE ON users
+    BEGIN UPDATE users SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id; END;
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+
+-- 12. Document Collaborators (RBAC: Owner, Admin, Editor, Commenter, Viewer)
+CREATE TABLE IF NOT EXISTS document_collaborators (
+    id         TEXT PRIMARY KEY,
+    doc_id     TEXT NOT NULL,
+    user_id    TEXT NOT NULL,
+    role       TEXT NOT NULL DEFAULT 'Editor',
+    invited_by TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (doc_id, user_id),
+    FOREIGN KEY (doc_id) REFERENCES documents(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_doc_collab_doc ON document_collaborators(doc_id);
+CREATE INDEX IF NOT EXISTS idx_doc_collab_user ON document_collaborators(user_id);
+
+-- 13. Document Revisions (Checkpoints & Snapshots)
+CREATE TABLE IF NOT EXISTS document_revisions (
+    id             TEXT PRIMARY KEY,
+    doc_id         TEXT NOT NULL,
+    version_number INTEGER NOT NULL,
+    title          TEXT NOT NULL,
+    snapshot       TEXT NOT NULL,
+    created_by     TEXT,
+    created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (doc_id, version_number),
+    FOREIGN KEY (doc_id) REFERENCES documents(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_doc_rev_doc ON document_revisions(doc_id);
+
+-- 14. Document Changes (Granular Audit & Who Edited What)
+CREATE TABLE IF NOT EXISTS document_changes (
+    id          TEXT PRIMARY KEY,
+    doc_id      TEXT NOT NULL,
+    rel_path    TEXT NOT NULL,
+    user_id     TEXT,
+    user_name   TEXT NOT NULL DEFAULT 'Anonymous',
+    change_type TEXT NOT NULL DEFAULT 'Edit',
+    diff_patch  TEXT NOT NULL,
+    summary     TEXT,
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (doc_id) REFERENCES documents(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_doc_changes_doc ON document_changes(doc_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_doc_changes_file ON document_changes(doc_id, rel_path);
+
+-- 15. Document Margin Comments & Collaborative Review
+CREATE TABLE IF NOT EXISTS document_comments (
+    id            TEXT PRIMARY KEY,
+    doc_id        TEXT NOT NULL,
+    rel_path      TEXT NOT NULL,
+    user_id       TEXT,
+    user_name     TEXT NOT NULL,
+    line_number   INTEGER NOT NULL,
+    selected_text TEXT,
+    content       TEXT NOT NULL,
+    resolved      INTEGER DEFAULT 0,
+    resolved_by   TEXT,
+    created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (doc_id) REFERENCES documents(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_doc_comments_doc ON document_comments(doc_id);
 "#;

@@ -44,7 +44,7 @@ pub async fn build_state(config: Config) -> Result<AppState, AppError> {
 
 /// Build the Axum router with all middleware applied.
 pub fn build_router(state: AppState) -> Router {
-    let auth_state = AuthState::new(state.config.auth.clone());
+    let auth_state = AuthState::new(state.config.auth.clone(), state.master_key.clone());
     let rate_limiter = RateLimiter::new(state.config.rate_limit_rpm);
 
     let cors = CorsLayer::new()
@@ -56,8 +56,19 @@ pub fn build_router(state: AppState) -> Router {
     // Public health endpoint (no auth, no rate limit).
     let health = Router::new().route("/health", axum::routing::get(health_handler));
 
-    // /api/* — protected.
-    let api = features::all_routes()
+    // Public auth endpoints (/api/auth/register, /api/auth/login)
+    let public_auth = Router::new()
+        .route(
+            "/auth/register",
+            axum::routing::post(crate::features::auth::register_handler_pub),
+        )
+        .route(
+            "/auth/login",
+            axum::routing::post(crate::features::auth::login_handler_pub),
+        );
+
+    // Protected /api/* endpoints.
+    let protected_api = features::all_routes()
         .layer(axum::middleware::from_fn_with_state(
             auth_state.clone(),
             require_bearer_token,
@@ -69,7 +80,8 @@ pub fn build_router(state: AppState) -> Router {
 
     Router::new()
         .merge(health)
-        .nest("/api", api)
+        .nest("/api", public_auth)
+        .nest("/api", protected_api)
         .layer(TraceLayer::new_for_http())
         .layer(cors)
         .with_state(state)

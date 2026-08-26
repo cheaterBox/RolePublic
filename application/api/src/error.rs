@@ -146,6 +146,17 @@ impl IntoResponse for AppError {
     }
 }
 
+impl From<crate::db::RepoError> for AppError {
+    fn from(e: crate::db::RepoError) -> Self {
+        match e {
+            crate::db::RepoError::NotFound => AppError::NotFound,
+            crate::db::RepoError::Conflict(msg) => AppError::Conflict(msg),
+            crate::db::RepoError::Invalid(msg) => AppError::Validation(msg),
+            other => AppError::Internal(anyhow::anyhow!(other)),
+        }
+    }
+}
+
 impl From<rusqlite_like::Error> for AppError {
     fn from(_: rusqlite_like::Error) -> Self {
         AppError::Internal(anyhow::anyhow!("driver-specific error"))

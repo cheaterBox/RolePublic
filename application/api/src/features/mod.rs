@@ -1,13 +1,11 @@
 //! Feature modules.
 //!
 //! Each module exposes a `routes(router) -> Router` function that the
-//! `bootstrap` layer mounts under the `/api/*` prefix. Features are
-//! self-contained: they own their DTOs, services, and route handlers.
-//!
-//! Cross-feature dependencies go through the `AppState` (repository,
-//! master key, config) — features never reach into each other's modules.
+//! `bootstrap` layer mounts under the `/api/*` prefix.
 
+pub mod auth;
 pub mod cloud;
+pub mod collaboration;
 pub mod compiler;
 pub mod cover_letters;
 pub mod data;
@@ -23,11 +21,12 @@ pub mod themes;
 
 use axum::Router;
 
-/// Aggregates all feature routers. The caller (bootstrap) is responsible
-/// for adding the auth + rate-limit middleware layers.
+/// Aggregates all protected feature routers.
 pub fn all_routes() -> Router<crate::AppState> {
     Router::new()
+        .nest("/auth", auth::routes())
         .merge(cloud::routes())
+        .merge(collaboration::routes())
         .merge(compiler::routes())
         .merge(cover_letters::routes())
         .merge(data::routes())
@@ -40,4 +39,9 @@ pub fn all_routes() -> Router<crate::AppState> {
         .merge(scoring::routes())
         .merge(settings::routes())
         .merge(themes::routes())
+}
+
+/// Public routes that do not require an existing Bearer token (register, login).
+pub fn public_auth_routes() -> Router<crate::AppState> {
+    auth::routes()
 }

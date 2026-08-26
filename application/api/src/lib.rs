@@ -173,4 +173,92 @@ mod tests {
         assert_eq!(reparsed.jobs[0].id, "job_1");
         assert_eq!(reparsed.app_settings[0].key, "active_theme");
     }
+
+    #[test]
+    fn test_password_hashing_and_verification() {
+        let password = "SuperSecretSecurePassword2026!";
+        let hash = crate::security::auth::hash_password(password)
+            .expect("Password hashing should succeed");
+
+        assert!(hash.starts_with("$argon2id$"));
+        assert!(crate::security::auth::verify_password(&hash, password));
+        assert!(!crate::security::auth::verify_password(
+            &hash,
+            "WrongPassword"
+        ));
+    }
+
+    #[test]
+    fn test_jwt_claims_creation_and_decoding() {
+        let user = crate::models::User {
+            id: "user_faang_123".to_string(),
+            email: "engineer@roletect.io".to_string(),
+            password_hash: "hash".to_string(),
+            full_name: "Staff Engineer".to_string(),
+            avatar_url: None,
+            role: "User".to_string(),
+            created_at: "2026-08-27T00:00:00Z".to_string(),
+            updated_at: "2026-08-27T00:00:00Z".to_string(),
+        };
+
+        let secret = b"01234567890123456789012345678901";
+        let token = crate::security::auth::create_jwt(&user, secret)
+            .expect("JWT generation should succeed");
+
+        let claims =
+            crate::security::auth::decode_jwt(&token, secret).expect("JWT decoding should succeed");
+
+        assert_eq!(claims.sub, "user_faang_123");
+        assert_eq!(claims.email, "engineer@roletect.io");
+        assert_eq!(claims.name, "Staff Engineer");
+        assert_eq!(claims.role, "User");
+    }
+
+    #[test]
+    fn test_rbac_permissions_matrix() {
+        use crate::models::CollaboratorRole::*;
+
+        // Owner: full access
+        assert!(Owner.can_edit());
+        assert!(Owner.can_comment());
+        assert!(Owner.can_manage_collaborators());
+        assert!(Owner.can_delete_document());
+
+        // Admin: manage & edit, but cannot delete doc
+        assert!(Admin.can_edit());
+        assert!(Admin.can_comment());
+        assert!(Admin.can_manage_collaborators());
+        assert!(!Admin.can_delete_document());
+
+        // Editor: edit & comment only
+        assert!(Editor.can_edit());
+        assert!(Editor.can_comment());
+        assert!(!Editor.can_manage_collaborators());
+        assert!(!Editor.can_delete_document());
+
+        // Commenter: comment only
+        assert!(!Commenter.can_edit());
+        assert!(Commenter.can_comment());
+        assert!(!Commenter.can_manage_collaborators());
+        assert!(!Commenter.can_delete_document());
+
+        // Viewer: read only
+        assert!(!Viewer.can_edit());
+        assert!(!Viewer.can_comment());
+        assert!(!Viewer.can_manage_collaborators());
+        assert!(!Viewer.can_delete_document());
+    }
+
+    #[test]
+    fn test_granular_diff_patch_generation() {
+        let old_content = "\\section{Introduction}\nThis is the draft text.\n";
+        let new_content =
+            "\\section{Introduction}\nThis is the refined publication text by Alice.\n";
+
+        let diff = similar::TextDiff::from_lines(old_content, new_content);
+        let patch = diff.unified_diff().context_radius(1).to_string();
+
+        assert!(patch.contains("-This is the draft text."));
+        assert!(patch.contains("+This is the refined publication text by Alice."));
+    }
 }

@@ -1558,6 +1558,501 @@ impl Repository for SqliteRepo {
         tx.commit().await?;
         Ok(())
     }
+
+    // =========================================================================
+    // Users & Authentication
+    // =========================================================================
+
+    async fn create_user(
+        &self,
+        email: &str,
+        password_hash: &str,
+        full_name: &str,
+    ) -> RepoResult<User> {
+        let id = nanoid::nanoid!(16);
+        let row = sqlx::query(
+            "INSERT INTO users (id, email, password_hash, full_name, role)
+             VALUES (?1, ?2, ?3, ?4, 'User')
+             RETURNING id, email, password_hash, full_name, avatar_url, role,
+                       strftime('%Y-%m-%dT%H:%M:%SZ', created_at) as created_at,
+                       strftime('%Y-%m-%dT%H:%M:%SZ', updated_at) as updated_at",
+        )
+        .bind(&id)
+        .bind(email)
+        .bind(password_hash)
+        .bind(full_name)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(User {
+            id: row.try_get("id")?,
+            email: row.try_get("email")?,
+            password_hash: row.try_get("password_hash")?,
+            full_name: row.try_get("full_name")?,
+            avatar_url: row.try_get("avatar_url").ok(),
+            role: row.try_get("role")?,
+            created_at: row.try_get("created_at")?,
+            updated_at: row.try_get("updated_at")?,
+        })
+    }
+
+    async fn get_user_by_email(&self, email: &str) -> RepoResult<Option<User>> {
+        let row = sqlx::query(
+            "SELECT id, email, password_hash, full_name, avatar_url, role,
+                    strftime('%Y-%m-%dT%H:%M:%SZ', created_at) as created_at,
+                    strftime('%Y-%m-%dT%H:%M:%SZ', updated_at) as updated_at
+             FROM users WHERE lower(email) = lower(?1)",
+        )
+        .bind(email)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(row.map(|r| User {
+            id: r.try_get("id").unwrap_or_default(),
+            email: r.try_get("email").unwrap_or_default(),
+            password_hash: r.try_get("password_hash").unwrap_or_default(),
+            full_name: r.try_get("full_name").unwrap_or_default(),
+            avatar_url: r.try_get("avatar_url").ok(),
+            role: r.try_get("role").unwrap_or_default(),
+            created_at: r.try_get("created_at").unwrap_or_default(),
+            updated_at: r.try_get("updated_at").unwrap_or_default(),
+        }))
+    }
+
+    async fn get_user_by_id(&self, id: &str) -> RepoResult<Option<User>> {
+        let row = sqlx::query(
+            "SELECT id, email, password_hash, full_name, avatar_url, role,
+                    strftime('%Y-%m-%dT%H:%M:%SZ', created_at) as created_at,
+                    strftime('%Y-%m-%dT%H:%M:%SZ', updated_at) as updated_at
+             FROM users WHERE id = ?1",
+        )
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(row.map(|r| User {
+            id: r.try_get("id").unwrap_or_default(),
+            email: r.try_get("email").unwrap_or_default(),
+            password_hash: r.try_get("password_hash").unwrap_or_default(),
+            full_name: r.try_get("full_name").unwrap_or_default(),
+            avatar_url: r.try_get("avatar_url").ok(),
+            role: r.try_get("role").unwrap_or_default(),
+            created_at: r.try_get("created_at").unwrap_or_default(),
+            updated_at: r.try_get("updated_at").unwrap_or_default(),
+        }))
+    }
+
+    // =========================================================================
+    // Document Collaborators (RBAC)
+    // =========================================================================
+
+    async fn list_document_collaborators(
+        &self,
+        doc_id: &str,
+    ) -> RepoResult<Vec<DocumentCollaboratorEntry>> {
+        let rows = sqlx::query(
+            "SELECT c.id, c.doc_id, c.user_id, u.email, u.full_name, u.avatar_url, c.role, c.invited_by,
+                    strftime('%Y-%m-%dT%H:%M:%SZ', c.created_at) as created_at
+             FROM document_collaborators c
+             JOIN users u ON c.user_id = u.id
+             WHERE c.doc_id = ?1
+             ORDER BY c.created_at ASC",
+        )
+        .bind(doc_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        rows.into_iter()
+            .map(|r| {
+                Ok(DocumentCollaboratorEntry {
+                    id: r.try_get("id")?,
+                    doc_id: r.try_get("doc_id")?,
+                    user_id: r.try_get("user_id")?,
+                    email: r.try_get("email")?,
+                    full_name: r.try_get("full_name")?,
+                    avatar_url: r.try_get("avatar_url").ok(),
+                    role: r.try_get("role")?,
+                    invited_by: r.try_get("invited_by").ok(),
+                    created_at: r.try_get("created_at")?,
+                })
+            })
+            .collect()
+    }
+
+    async fn add_document_collaborator(
+        &self,
+        doc_id: &str,
+        user_id: &str,
+        role: &str,
+        invited_by: Option<&str>,
+    ) -> RepoResult<()> {
+        let id = nanoid::nanoid!(16);
+        sqlx::query(
+            "INSERT INTO document_collaborators (id, doc_id, user_id, role, invited_by)
+             VALUES (?1, ?2, ?3, ?4, ?5)
+             ON CONFLICT(doc_id, user_id) DO UPDATE SET role = excluded.role, updated_at = CURRENT_TIMESTAMP",
+        )
+        .bind(id)
+        .bind(doc_id)
+        .bind(user_id)
+        .bind(role)
+        .bind(invited_by)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn update_document_collaborator_role(
+        &self,
+        doc_id: &str,
+        user_id: &str,
+        role: &str,
+    ) -> RepoResult<()> {
+        sqlx::query(
+            "UPDATE document_collaborators SET role = ?1, updated_at = CURRENT_TIMESTAMP
+             WHERE doc_id = ?2 AND user_id = ?3",
+        )
+        .bind(role)
+        .bind(doc_id)
+        .bind(user_id)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn remove_document_collaborator(&self, doc_id: &str, user_id: &str) -> RepoResult<()> {
+        sqlx::query("DELETE FROM document_collaborators WHERE doc_id = ?1 AND user_id = ?2")
+            .bind(doc_id)
+            .bind(user_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    async fn get_user_doc_role(
+        &self,
+        doc_id: &str,
+        user_id: &str,
+    ) -> RepoResult<Option<CollaboratorRole>> {
+        let role_str: Option<String> = sqlx::query_scalar(
+            "SELECT role FROM document_collaborators WHERE doc_id = ?1 AND user_id = ?2",
+        )
+        .bind(doc_id)
+        .bind(user_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(role_str.as_deref().map(CollaboratorRole::parse))
+    }
+
+    // =========================================================================
+    // Document Revisions (Checkpoints & Snapshots)
+    // =========================================================================
+
+    async fn list_document_revisions(
+        &self,
+        doc_id: &str,
+    ) -> RepoResult<Vec<DocumentRevisionEntry>> {
+        let rows = sqlx::query(
+            "SELECT r.id, r.doc_id, r.version_number, r.title, u.full_name as created_by_name,
+                    strftime('%Y-%m-%dT%H:%M:%SZ', r.created_at) as created_at
+             FROM document_revisions r
+             LEFT JOIN users u ON r.created_by = u.id
+             WHERE r.doc_id = ?1
+             ORDER BY r.version_number DESC",
+        )
+        .bind(doc_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        rows.into_iter()
+            .map(|r| {
+                Ok(DocumentRevisionEntry {
+                    id: r.try_get("id")?,
+                    doc_id: r.try_get("doc_id")?,
+                    version_number: r.try_get("version_number")?,
+                    title: r.try_get("title")?,
+                    created_by_name: r.try_get("created_by_name").ok(),
+                    created_at: r.try_get("created_at")?,
+                })
+            })
+            .collect()
+    }
+
+    async fn create_document_revision(
+        &self,
+        doc_id: &str,
+        title: &str,
+        created_by: Option<&str>,
+    ) -> RepoResult<DocumentRevisionEntry> {
+        let id = nanoid::nanoid!(16);
+        let next_ver: i64 = sqlx::query_scalar(
+            "SELECT COALESCE(MAX(version_number), 0) + 1 FROM document_revisions WHERE doc_id = ?1",
+        )
+        .bind(doc_id)
+        .fetch_one(&self.pool)
+        .await?;
+
+        let files = self.list_document_files(doc_id).await?;
+        let mut file_exports = Vec::new();
+        for f in files {
+            if let Some(content) = self.read_document_file(doc_id, &f.rel_path).await? {
+                file_exports.push(DocumentFileExport {
+                    doc_id: doc_id.to_string(),
+                    rel_path: f.rel_path,
+                    content,
+                    size_bytes: f.size_bytes as i64,
+                    updated_at: f.updated_at,
+                });
+            }
+        }
+        let snapshot = serde_json::to_string(&file_exports).unwrap_or_else(|_| "[]".to_string());
+
+        let row = sqlx::query(
+            "INSERT INTO document_revisions (id, doc_id, version_number, title, snapshot, created_by)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+             RETURNING id, doc_id, version_number, title,
+                       strftime('%Y-%m-%dT%H:%M:%SZ', created_at) as created_at",
+        )
+        .bind(&id)
+        .bind(doc_id)
+        .bind(next_ver)
+        .bind(title)
+        .bind(&snapshot)
+        .bind(created_by)
+        .fetch_one(&self.pool)
+        .await?;
+
+        let creator_name: Option<String> = if let Some(uid) = created_by {
+            sqlx::query_scalar("SELECT full_name FROM users WHERE id = ?1")
+                .bind(uid)
+                .fetch_optional(&self.pool)
+                .await?
+        } else {
+            None
+        };
+
+        Ok(DocumentRevisionEntry {
+            id: row.try_get("id")?,
+            doc_id: row.try_get("doc_id")?,
+            version_number: row.try_get("version_number")?,
+            title: row.try_get("title")?,
+            created_by_name: creator_name,
+            created_at: row.try_get("created_at")?,
+        })
+    }
+
+    async fn get_document_revision_snapshot(
+        &self,
+        doc_id: &str,
+        revision_id: &str,
+    ) -> RepoResult<Option<String>> {
+        let snap: Option<String> = sqlx::query_scalar(
+            "SELECT snapshot FROM document_revisions WHERE doc_id = ?1 AND (id = ?2 OR version_number = CAST(?2 AS INTEGER))",
+        )
+        .bind(doc_id)
+        .bind(revision_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(snap)
+    }
+
+    // =========================================================================
+    // Granular Edit History & Audit ("Who edited what")
+    // =========================================================================
+
+    async fn record_document_change(
+        &self,
+        params: crate::models::RecordChangeParams<'_>,
+    ) -> RepoResult<()> {
+        let id = nanoid::nanoid!(16);
+        sqlx::query(
+            "INSERT INTO document_changes (id, doc_id, rel_path, user_id, user_name, change_type, diff_patch, summary)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        )
+        .bind(id)
+        .bind(params.doc_id)
+        .bind(params.rel_path)
+        .bind(params.user_id)
+        .bind(params.user_name)
+        .bind(params.change_type)
+        .bind(params.diff_patch)
+        .bind(params.summary)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn list_document_changes(
+        &self,
+        doc_id: &str,
+        limit: i64,
+    ) -> RepoResult<Vec<DocumentChangeEntry>> {
+        let rows = sqlx::query(
+            "SELECT id, doc_id, rel_path, user_id, user_name, change_type, diff_patch, summary,
+                    strftime('%Y-%m-%dT%H:%M:%SZ', created_at) as created_at
+             FROM document_changes
+             WHERE doc_id = ?1
+             ORDER BY created_at DESC
+             LIMIT ?2",
+        )
+        .bind(doc_id)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await?;
+
+        rows.into_iter()
+            .map(|r| {
+                Ok(DocumentChangeEntry {
+                    id: r.try_get("id")?,
+                    doc_id: r.try_get("doc_id")?,
+                    rel_path: r.try_get("rel_path")?,
+                    user_id: r.try_get("user_id").ok(),
+                    user_name: r.try_get("user_name")?,
+                    change_type: r.try_get("change_type")?,
+                    diff_patch: r.try_get("diff_patch")?,
+                    summary: r.try_get("summary").ok(),
+                    created_at: r.try_get("created_at")?,
+                })
+            })
+            .collect()
+    }
+
+    async fn list_file_changes(
+        &self,
+        doc_id: &str,
+        rel_path: &str,
+    ) -> RepoResult<Vec<DocumentChangeEntry>> {
+        let rows = sqlx::query(
+            "SELECT id, doc_id, rel_path, user_id, user_name, change_type, diff_patch, summary,
+                    strftime('%Y-%m-%dT%H:%M:%SZ', created_at) as created_at
+             FROM document_changes
+             WHERE doc_id = ?1 AND rel_path = ?2
+             ORDER BY created_at DESC
+             LIMIT 100",
+        )
+        .bind(doc_id)
+        .bind(rel_path)
+        .fetch_all(&self.pool)
+        .await?;
+
+        rows.into_iter()
+            .map(|r| {
+                Ok(DocumentChangeEntry {
+                    id: r.try_get("id")?,
+                    doc_id: r.try_get("doc_id")?,
+                    rel_path: r.try_get("rel_path")?,
+                    user_id: r.try_get("user_id").ok(),
+                    user_name: r.try_get("user_name")?,
+                    change_type: r.try_get("change_type")?,
+                    diff_patch: r.try_get("diff_patch")?,
+                    summary: r.try_get("summary").ok(),
+                    created_at: r.try_get("created_at")?,
+                })
+            })
+            .collect()
+    }
+
+    // =========================================================================
+    // Document Margin Comments & Annotations
+    // =========================================================================
+
+    async fn list_document_comments(
+        &self,
+        doc_id: &str,
+        rel_path: Option<&str>,
+    ) -> RepoResult<Vec<DocumentCommentEntry>> {
+        let sql = if rel_path.is_some() {
+            "SELECT id, doc_id, rel_path, user_id, user_name, line_number, selected_text, content, resolved, resolved_by,
+                    strftime('%Y-%m-%dT%H:%M:%SZ', created_at) as created_at,
+                    strftime('%Y-%m-%dT%H:%M:%SZ', updated_at) as updated_at
+             FROM document_comments
+             WHERE doc_id = ?1 AND rel_path = ?2
+             ORDER BY line_number ASC, created_at ASC"
+        } else {
+            "SELECT id, doc_id, rel_path, user_id, user_name, line_number, selected_text, content, resolved, resolved_by,
+                    strftime('%Y-%m-%dT%H:%M:%SZ', created_at) as created_at,
+                    strftime('%Y-%m-%dT%H:%M:%SZ', updated_at) as updated_at
+             FROM document_comments
+             WHERE doc_id = ?1
+             ORDER BY rel_path ASC, line_number ASC, created_at ASC"
+        };
+
+        let mut q = sqlx::query(sql).bind(doc_id);
+        if let Some(rp) = rel_path {
+            q = q.bind(rp);
+        }
+        let rows = q.fetch_all(&self.pool).await?;
+
+        rows.into_iter()
+            .map(|r| {
+                let res_int: i64 = r.try_get("resolved").unwrap_or(0);
+                Ok(DocumentCommentEntry {
+                    id: r.try_get("id")?,
+                    doc_id: r.try_get("doc_id")?,
+                    rel_path: r.try_get("rel_path")?,
+                    user_id: r.try_get("user_id").ok(),
+                    user_name: r.try_get("user_name")?,
+                    line_number: r.try_get("line_number")?,
+                    selected_text: r.try_get("selected_text").ok(),
+                    content: r.try_get("content")?,
+                    resolved: res_int != 0,
+                    resolved_by: r.try_get("resolved_by").ok(),
+                    created_at: r.try_get("created_at")?,
+                    updated_at: r.try_get("updated_at")?,
+                })
+            })
+            .collect()
+    }
+
+    async fn create_document_comment(
+        &self,
+        params: crate::models::CreateCommentParams<'_>,
+    ) -> RepoResult<String> {
+        let id = nanoid::nanoid!(16);
+        sqlx::query(
+            "INSERT INTO document_comments (id, doc_id, rel_path, user_id, user_name, line_number, selected_text, content, resolved)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 0)",
+        )
+        .bind(&id)
+        .bind(params.doc_id)
+        .bind(params.rel_path)
+        .bind(params.user_id)
+        .bind(params.user_name)
+        .bind(params.line_number)
+        .bind(params.selected_text)
+        .bind(params.content)
+        .execute(&self.pool)
+        .await?;
+        Ok(id)
+    }
+
+    async fn resolve_document_comment(
+        &self,
+        comment_id: &str,
+        resolved: bool,
+        resolved_by: Option<&str>,
+    ) -> RepoResult<()> {
+        sqlx::query(
+            "UPDATE document_comments SET resolved = ?1, resolved_by = ?2, updated_at = CURRENT_TIMESTAMP
+             WHERE id = ?3",
+        )
+        .bind(if resolved { 1i64 } else { 0i64 })
+        .bind(resolved_by)
+        .bind(comment_id)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn delete_document_comment(&self, comment_id: &str) -> RepoResult<()> {
+        sqlx::query("DELETE FROM document_comments WHERE id = ?1")
+            .bind(comment_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
 }
 
 // ===== helpers =====

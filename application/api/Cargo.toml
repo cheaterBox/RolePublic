@@ -6,16 +6,17 @@ description = "Roletect VPS API — Axum HTTP server with multi-driver SQLx pers
 
 [dependencies]
 # Web
-axum = { version = "0.8", features = ["macros"] }
+axum = { version = "0.8", features = ["macros", "ws"] }
 tokio = { version = "1", features = ["full"] }
 tower = "0.5"
 tower-http = { version = "0.6", features = ["cors", "fs", "trace"] }
+futures-util = "0.3"
 
 # Serialization
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
-# Database
+# Database & Cache
 sqlx = { version = "0.8", default-features = false, features = [
     "runtime-tokio",
     "sqlite",
@@ -24,6 +25,7 @@ sqlx = { version = "0.8", default-features = false, features = [
     "chrono",
     "migrate",
 ] }
+redis = { version = "0.27", features = ["tokio-comp", "aio", "connection-manager"] }
 
 # AI
 rig = { version = "0.38", features = ["gemini-grpc"] }
@@ -34,9 +36,12 @@ aws-sdk-bedrockruntime = "1"
 # S3 (for backup feature)
 aws-sdk-s3 = "1"
 
-# Auth / crypto
+# Auth / crypto / diff
 aes-gcm = "0.10"
 argon2 = "0.5"
+password-hash = "0.5"
+jsonwebtoken = "9"
+similar = { version = "2", features = ["text"] }
 rand = "0.8"
 base64 = "0.22"
 zeroize = { version = "1.7", features = ["zeroize_derive"] }

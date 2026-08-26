@@ -542,3 +542,295 @@ pub fn is_sensitive_key(key: &str) -> bool {
     }
     false
 }
+
+// ===========================================================================
+// Multi-User Authentication & Identity Models
+// ===========================================================================
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct User {
+    pub id: String,
+    pub email: String,
+    #[serde(skip_serializing)]
+    pub password_hash: String,
+    pub full_name: String,
+    pub avatar_url: Option<String>,
+    pub role: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct UserSummary {
+    pub id: String,
+    pub email: String,
+    pub full_name: String,
+    pub avatar_url: Option<String>,
+    pub role: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RegisterRequest {
+    pub email: String,
+    pub password: String,
+    pub full_name: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct LoginRequest {
+    pub email: String,
+    pub password: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct AuthResponse {
+    pub token: String,
+    pub user: UserSummary,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Claims {
+    pub sub: String, // user_id
+    pub email: String,
+    pub name: String,
+    pub role: String,
+    pub exp: usize, // expiration timestamp (seconds)
+}
+
+// ===========================================================================
+// Document RBAC & Multi-User Collaboration Models
+// ===========================================================================
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+pub enum CollaboratorRole {
+    Owner,
+    Admin,
+    Editor,
+    Commenter,
+    Viewer,
+}
+
+impl CollaboratorRole {
+    pub fn parse(s: &str) -> Self {
+        match s.trim().to_lowercase().as_str() {
+            "owner" => Self::Owner,
+            "admin" => Self::Admin,
+            "commenter" => Self::Commenter,
+            "viewer" => Self::Viewer,
+            _ => Self::Editor,
+        }
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Owner => "Owner",
+            Self::Admin => "Admin",
+            Self::Editor => "Editor",
+            Self::Commenter => "Commenter",
+            Self::Viewer => "Viewer",
+        }
+    }
+
+    pub fn can_edit(&self) -> bool {
+        matches!(self, Self::Owner | Self::Admin | Self::Editor)
+    }
+
+    pub fn can_comment(&self) -> bool {
+        matches!(
+            self,
+            Self::Owner | Self::Admin | Self::Editor | Self::Commenter
+        )
+    }
+
+    pub fn can_manage_collaborators(&self) -> bool {
+        matches!(self, Self::Owner | Self::Admin)
+    }
+
+    pub fn can_delete_document(&self) -> bool {
+        matches!(self, Self::Owner)
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct DocumentCollaboratorEntry {
+    pub id: String,
+    pub doc_id: String,
+    pub user_id: String,
+    pub email: String,
+    pub full_name: String,
+    pub avatar_url: Option<String>,
+    pub role: String,
+    pub invited_by: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AddCollaboratorRequest {
+    pub email: String,
+    #[serde(default = "default_collaborator_role")]
+    pub role: String,
+}
+
+fn default_collaborator_role() -> String {
+    "Editor".to_string()
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateCollaboratorRoleRequest {
+    pub role: String,
+}
+
+// ===========================================================================
+// Granular Edit History & Checkpoint Revisions ("Who edited what")
+// ===========================================================================
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct DocumentRevisionEntry {
+    pub id: String,
+    pub doc_id: String,
+    pub version_number: i64,
+    pub title: String,
+    pub created_by_name: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateRevisionRequest {
+    pub title: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct DocumentChangeEntry {
+    pub id: String,
+    pub doc_id: String,
+    pub rel_path: String,
+    pub user_id: Option<String>,
+    pub user_name: String,
+    pub change_type: String,
+    pub diff_patch: String,
+    pub summary: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct FileDiffHunk {
+    pub line_number: usize,
+    pub line_type: String, // "added" | "removed" | "context"
+    pub content: String,
+}
+
+// ===========================================================================
+// Document Comments & Collaborative Annotations
+// ===========================================================================
+
+#[derive(Debug, Clone)]
+pub struct RecordChangeParams<'a> {
+    pub doc_id: &'a str,
+    pub rel_path: &'a str,
+    pub user_id: Option<&'a str>,
+    pub user_name: &'a str,
+    pub change_type: &'a str,
+    pub diff_patch: &'a str,
+    pub summary: Option<&'a str>,
+}
+
+#[derive(Debug, Clone)]
+pub struct CreateCommentParams<'a> {
+    pub doc_id: &'a str,
+    pub rel_path: &'a str,
+    pub user_id: Option<&'a str>,
+    pub user_name: &'a str,
+    pub line_number: i64,
+    pub selected_text: Option<&'a str>,
+    pub content: &'a str,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct DocumentCommentEntry {
+    pub id: String,
+    pub doc_id: String,
+    pub rel_path: String,
+    pub user_id: Option<String>,
+    pub user_name: String,
+    pub line_number: i64,
+    pub selected_text: Option<String>,
+    pub content: String,
+    pub resolved: bool,
+    pub resolved_by: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateCommentRequest {
+    pub rel_path: String,
+    pub line_number: i64,
+    pub selected_text: Option<String>,
+    pub content: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ResolveCommentRequest {
+    pub resolved: bool,
+}
+
+// ===========================================================================
+// Real-Time Presence & Cursor Tracking
+// ===========================================================================
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CursorPosition {
+    pub line: usize,
+    pub column: usize,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct UserPresence {
+    pub user_id: String,
+    pub user_name: String,
+    pub avatar_url: Option<String>,
+    pub color: String,
+    pub active_file: Option<String>,
+    pub cursor: Option<CursorPosition>,
+    pub last_seen_epoch_ms: u64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(tag = "type")]
+pub enum WsClientMessage {
+    #[serde(rename = "presence")]
+    Presence {
+        active_file: Option<String>,
+        cursor: Option<CursorPosition>,
+    },
+    #[serde(rename = "file_change")]
+    FileChange { rel_path: String, content: String },
+    #[serde(rename = "ping")]
+    Ping,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(tag = "type")]
+pub enum WsServerMessage {
+    #[serde(rename = "presence_list")]
+    PresenceList { users: Vec<UserPresence> },
+    #[serde(rename = "user_joined")]
+    UserJoined { presence: UserPresence },
+    #[serde(rename = "user_moved")]
+    UserMoved {
+        user_id: String,
+        active_file: Option<String>,
+        cursor: Option<CursorPosition>,
+    },
+    #[serde(rename = "user_left")]
+    UserLeft { user_id: String },
+    #[serde(rename = "file_updated")]
+    FileUpdated {
+        rel_path: String,
+        user_id: String,
+        user_name: String,
+        diff_patch: String,
+    },
+    #[serde(rename = "pong")]
+    Pong,
+}

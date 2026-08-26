@@ -217,6 +217,90 @@ pub trait Repository: Send + Sync {
         name: &str,
     ) -> RepoResult<bool>;
 
+    // ----- users & auth -----
+    async fn create_user(
+        &self,
+        email: &str,
+        password_hash: &str,
+        full_name: &str,
+    ) -> RepoResult<User>;
+    async fn get_user_by_email(&self, email: &str) -> RepoResult<Option<User>>;
+    async fn get_user_by_id(&self, id: &str) -> RepoResult<Option<User>>;
+
+    // ----- document collaborators (RBAC) -----
+    async fn list_document_collaborators(
+        &self,
+        doc_id: &str,
+    ) -> RepoResult<Vec<DocumentCollaboratorEntry>>;
+    async fn add_document_collaborator(
+        &self,
+        doc_id: &str,
+        user_id: &str,
+        role: &str,
+        invited_by: Option<&str>,
+    ) -> RepoResult<()>;
+    async fn update_document_collaborator_role(
+        &self,
+        doc_id: &str,
+        user_id: &str,
+        role: &str,
+    ) -> RepoResult<()>;
+    async fn remove_document_collaborator(&self, doc_id: &str, user_id: &str) -> RepoResult<()>;
+    async fn get_user_doc_role(
+        &self,
+        doc_id: &str,
+        user_id: &str,
+    ) -> RepoResult<Option<CollaboratorRole>>;
+
+    // ----- document revisions (checkpoints) -----
+    async fn list_document_revisions(&self, doc_id: &str)
+        -> RepoResult<Vec<DocumentRevisionEntry>>;
+    async fn create_document_revision(
+        &self,
+        doc_id: &str,
+        title: &str,
+        created_by: Option<&str>,
+    ) -> RepoResult<DocumentRevisionEntry>;
+    async fn get_document_revision_snapshot(
+        &self,
+        doc_id: &str,
+        revision_id: &str,
+    ) -> RepoResult<Option<String>>;
+
+    // ----- granular edit history & audit trail ("who edited what") -----
+    async fn record_document_change(
+        &self,
+        params: crate::models::RecordChangeParams<'_>,
+    ) -> RepoResult<()>;
+    async fn list_document_changes(
+        &self,
+        doc_id: &str,
+        limit: i64,
+    ) -> RepoResult<Vec<DocumentChangeEntry>>;
+    async fn list_file_changes(
+        &self,
+        doc_id: &str,
+        rel_path: &str,
+    ) -> RepoResult<Vec<DocumentChangeEntry>>;
+
+    // ----- document margin comments & annotations -----
+    async fn list_document_comments(
+        &self,
+        doc_id: &str,
+        rel_path: Option<&str>,
+    ) -> RepoResult<Vec<DocumentCommentEntry>>;
+    async fn create_document_comment(
+        &self,
+        params: crate::models::CreateCommentParams<'_>,
+    ) -> RepoResult<String>;
+    async fn resolve_document_comment(
+        &self,
+        comment_id: &str,
+        resolved: bool,
+        resolved_by: Option<&str>,
+    ) -> RepoResult<()>;
+    async fn delete_document_comment(&self, comment_id: &str) -> RepoResult<()>;
+
     // ----- backup/export -----
     async fn export_all(&self) -> RepoResult<FullBackup>;
     async fn import_all(&self, backup: &FullBackup) -> RepoResult<()>;
