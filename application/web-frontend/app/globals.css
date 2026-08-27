@@ -203,35 +203,31 @@ select option {
   color: var(--ink);
 }
 
-/* Tab Navigation Utilities */
-.tab-pill {
+/* Underline Navigation Tabs (GitHub / Vercel Standard) */
+.nav-tab {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.45rem 0.9rem;
-  border-radius: 0.6rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  border: 1px solid var(--line);
-  background-color: var(--surface);
+  padding: 0.75rem 0.25rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  border-bottom: 2px solid transparent;
   color: var(--muted);
   transition: all 0.15s ease;
   cursor: pointer;
   white-space: nowrap;
+  margin-bottom: -1px;
 }
 
-.tab-pill:hover {
-  border-color: var(--muted);
+.nav-tab:hover {
   color: var(--ink);
-  background-color: var(--surface-soft);
+  border-bottom-color: var(--line-strong);
 }
 
-.tab-pill.active {
-  border-color: var(--accent);
-  background-color: rgba(35, 134, 54, 0.18);
-  color: #3fb950;
-  font-weight: 700;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+.nav-tab.active {
+  color: var(--ink);
+  font-weight: 600;
+  border-bottom-color: var(--accent);
 }
 
 /* Number Spinner Reset */

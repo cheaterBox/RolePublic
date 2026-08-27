@@ -528,15 +528,15 @@ export default function SettingsPage() {
         </div>
       </header>
 
-      {/* 2. Navigation Tabs */}
-      <div className="px-4 sm:px-6 py-2.5 bg-[var(--bg-accent)] border-b border-[var(--line)] flex items-center gap-2 shrink-0 overflow-x-auto select-none no-scrollbar">
+      {/* 2. Navigation Tabs (Clean Underline Tabs) */}
+      <div className="px-6 bg-[var(--surface)] border-b border-[var(--line)] flex items-center gap-6 shrink-0 overflow-x-auto select-none no-scrollbar">
         <button
           type="button"
           onClick={() => setActiveTab("ai")}
-          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+          className={`flex items-center gap-2 py-3 text-xs font-medium border-b-2 transition-all cursor-pointer -mb-px shrink-0 ${
             activeTab === "ai"
-              ? "bg-[var(--accent)]/15 text-[var(--ink)] font-bold border-[var(--accent)] ring-1 ring-[var(--accent)]/40 shadow-sm"
-              : "bg-[var(--surface)] text-[var(--muted)] border-[var(--line)] hover:text-[var(--ink)] hover:border-[var(--muted)] hover:bg-[var(--surface-soft)] shadow-2xs"
+              ? "border-[var(--accent)] text-[var(--ink)] font-bold"
+              : "border-transparent text-[var(--muted)] hover:text-[var(--ink)] hover:border-[var(--muted)]"
           }`}
         >
           <Key
@@ -555,10 +555,10 @@ export default function SettingsPage() {
             setActiveTab("s3");
             if (s3Backups.length === 0) void handleListS3Backups();
           }}
-          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+          className={`flex items-center gap-2 py-3 text-xs font-medium border-b-2 transition-all cursor-pointer -mb-px shrink-0 ${
             activeTab === "s3"
-              ? "bg-[var(--accent)]/15 text-[var(--ink)] font-bold border-[var(--accent)] ring-1 ring-[var(--accent)]/40 shadow-sm"
-              : "bg-[var(--surface)] text-[var(--muted)] border-[var(--line)] hover:text-[var(--ink)] hover:border-[var(--muted)] hover:bg-[var(--surface-soft)] shadow-2xs"
+              ? "border-[var(--accent)] text-[var(--ink)] font-bold"
+              : "border-transparent text-[var(--muted)] hover:text-[var(--ink)] hover:border-[var(--muted)]"
           }`}
         >
           <Cloud
@@ -574,10 +574,10 @@ export default function SettingsPage() {
         <button
           type="button"
           onClick={() => setActiveTab("engine")}
-          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+          className={`flex items-center gap-2 py-3 text-xs font-medium border-b-2 transition-all cursor-pointer -mb-px shrink-0 ${
             activeTab === "engine"
-              ? "bg-[var(--accent)]/15 text-[var(--ink)] font-bold border-[var(--accent)] ring-1 ring-[var(--accent)]/40 shadow-sm"
-              : "bg-[var(--surface)] text-[var(--muted)] border-[var(--line)] hover:text-[var(--ink)] hover:border-[var(--muted)] hover:bg-[var(--surface-soft)] shadow-2xs"
+              ? "border-[var(--accent)] text-[var(--ink)] font-bold"
+              : "border-transparent text-[var(--muted)] hover:text-[var(--ink)] hover:border-[var(--muted)]"
           }`}
         >
           <Cpu
@@ -593,10 +593,10 @@ export default function SettingsPage() {
         <button
           type="button"
           onClick={() => setActiveTab("data")}
-          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+          className={`flex items-center gap-2 py-3 text-xs font-medium border-b-2 transition-all cursor-pointer -mb-px shrink-0 ${
             activeTab === "data"
-              ? "bg-[var(--accent)]/15 text-[var(--ink)] font-bold border-[var(--accent)] ring-1 ring-[var(--accent)]/40 shadow-sm"
-              : "bg-[var(--surface)] text-[var(--muted)] border-[var(--line)] hover:text-[var(--ink)] hover:border-[var(--muted)] hover:bg-[var(--surface-soft)] shadow-2xs"
+              ? "border-[var(--accent)] text-[var(--ink)] font-bold"
+              : "border-transparent text-[var(--muted)] hover:text-[var(--ink)] hover:border-[var(--muted)]"
           }`}
         >
           <Database
@@ -612,10 +612,10 @@ export default function SettingsPage() {
         <button
           type="button"
           onClick={() => setActiveTab("extension")}
-          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+          className={`flex items-center gap-2 py-3 text-xs font-medium border-b-2 transition-all cursor-pointer -mb-px shrink-0 ${
             activeTab === "extension"
-              ? "bg-[var(--accent)]/15 text-[var(--ink)] font-bold border-[var(--accent)] ring-1 ring-[var(--accent)]/40 shadow-sm"
-              : "bg-[var(--surface)] text-[var(--muted)] border-[var(--line)] hover:text-[var(--ink)] hover:border-[var(--muted)] hover:bg-[var(--surface-soft)] shadow-2xs"
+              ? "border-[var(--accent)] text-[var(--ink)] font-bold"
+              : "border-transparent text-[var(--muted)] hover:text-[var(--ink)] hover:border-[var(--muted)]"
           }`}
         >
           <ShieldCheck
