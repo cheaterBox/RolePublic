@@ -159,23 +159,6 @@ const PROVIDER_OPTIONS = [
     placeholder: "AWS Bedrock Credentials",
     docs: "https://aws.amazon.com/bedrock/",
   },
-  {
-    id: "ollama",
-    name: "Ollama (Local Engine)",
-    defaultModel: "deepseek-r1:7b",
-    models: [
-      "deepseek-r1:7b",
-      "deepseek-r1:8b",
-      "deepseek-r1:1.5b",
-      "llama3.3",
-      "llama3.2",
-      "qwen2.5-coder",
-      "mistral",
-      "codellama",
-    ],
-    placeholder: "Local Engine (No key needed)",
-    docs: "https://ollama.com/",
-  },
 ];
 
 export default function SettingsPage() {
@@ -711,17 +694,14 @@ export default function SettingsPage() {
 
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold uppercase text-[var(--muted)]">
-                    Custom Base URL (For Ollama / Self-Hosted Proxy)
+                    Custom Base URL (Optional - For custom proxy or enterprise
+                    gateway)
                   </label>
                   <input
                     type="text"
                     value={customBaseUrl}
                     onChange={(e) => setCustomBaseUrl(e.target.value)}
-                    placeholder={
-                      provider === "ollama"
-                        ? "http://localhost:11434"
-                        : "e.g. https://api.deepseek.com/v1"
-                    }
+                    placeholder="e.g. https://api.deepseek.com/v1"
                     className="w-full bg-[var(--surface-soft)] border border-[var(--line)] focus:border-[var(--accent)] rounded px-3 py-2 text-xs font-mono text-[var(--ink)] focus:outline-none"
                   />
                 </div>
@@ -731,9 +711,7 @@ export default function SettingsPage() {
               <div className="space-y-1.5 pt-2 border-t border-[var(--line)]">
                 <div className="flex items-center justify-between">
                   <label className="text-[10px] font-bold uppercase text-[var(--muted)]">
-                    {provider === "ollama"
-                      ? "Ollama Auth Token (Optional)"
-                      : "Secret API Key"}
+                    Secret API Key
                   </label>
                   <button
                     type="button"

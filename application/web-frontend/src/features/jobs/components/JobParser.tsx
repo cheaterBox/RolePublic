@@ -149,11 +149,12 @@ export function JobParser({
                 onChange={(e) => setProvider(e.target.value)}
                 className="w-full rounded-xl border border-border/70 bg-background px-3 py-2 text-xs font-semibold text-foreground focus:border-primary focus:outline-none"
               >
-                <option value="gemini">Google Gemini</option>
+                <option value="deepseek">DeepSeek</option>
+                <option value="openrouter">OpenRouter</option>
                 <option value="openai">OpenAI</option>
-                <option value="claude">Anthropic Claude</option>
+                <option value="gemini">Google Gemini</option>
+                <option value="anthropic">Anthropic Claude</option>
                 <option value="groq">Groq</option>
-                <option value="ollama">Ollama (Local)</option>
               </select>
             </div>
 

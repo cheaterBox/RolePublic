@@ -1,11 +1,10 @@
 export type AiProvider =
-  | "gemini"
-  | "openai"
+  | "deepseek"
   | "openrouter"
+  | "openai"
+  | "gemini"
   | "anthropic"
   | "groq"
-  | "ollama"
-  | "deepseek"
   | "bedrock";
 
 export const AI_PROVIDERS: {
@@ -13,13 +12,12 @@ export const AI_PROVIDERS: {
   label: string;
   needsKey: boolean;
 }[] = [
-  { id: "gemini", label: "Gemini", needsKey: true },
-  { id: "openai", label: "OpenAI", needsKey: true },
+  { id: "deepseek", label: "DeepSeek", needsKey: true },
   { id: "openrouter", label: "OpenRouter", needsKey: true },
+  { id: "openai", label: "OpenAI", needsKey: true },
+  { id: "gemini", label: "Gemini", needsKey: true },
   { id: "anthropic", label: "Anthropic", needsKey: true },
   { id: "groq", label: "Groq", needsKey: true },
-  { id: "ollama", label: "Ollama", needsKey: false },
-  { id: "deepseek", label: "DeepSeek", needsKey: true },
   { id: "bedrock", label: "Bedrock (AWS)", needsKey: true },
 ];
 
