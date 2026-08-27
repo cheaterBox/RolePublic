@@ -427,14 +427,14 @@ export default function JobDetailPage({
         </div>
 
         {/* Center: Mode Switcher (Resume vs CL) */}
-        <div className="flex items-center bg-[var(--surface)] border border-[var(--line)] rounded-lg p-0.5">
+        <div className="flex items-center bg-[var(--surface)] border border-[var(--line)] rounded-xl p-1 gap-1 shadow-2xs">
           <button
             type="button"
             onClick={() => setActiveMode("resume")}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded text-xs font-bold transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border cursor-pointer ${
               activeMode === "resume"
-                ? "bg-[var(--surface-soft)] text-[var(--ink)] shadow"
-                : "text-[var(--muted)] hover:text-[var(--ink)]"
+                ? "bg-[var(--accent)] text-white border-[var(--accent)] shadow-xs"
+                : "bg-transparent text-[var(--muted)] border-transparent hover:text-[var(--ink)] hover:bg-[var(--surface-soft)]"
             }`}
           >
             <FileText className="h-3.5 w-3.5" />
@@ -443,14 +443,14 @@ export default function JobDetailPage({
           <button
             type="button"
             onClick={() => setActiveMode("cl")}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded text-xs font-bold transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border cursor-pointer ${
               activeMode === "cl"
-                ? "bg-[var(--surface-soft)] text-[var(--ink)] shadow"
-                : "text-[var(--muted)] hover:text-[var(--ink)]"
+                ? "bg-[var(--accent)] text-white border-[var(--accent)] shadow-xs"
+                : "bg-transparent text-[var(--muted)] border-transparent hover:text-[var(--ink)] hover:bg-[var(--surface-soft)]"
             }`}
           >
             <Mail className="h-3.5 w-3.5" />
-            <span>CL</span>
+            <span>Cover Letter</span>
           </button>
         </div>
 
@@ -460,7 +460,7 @@ export default function JobDetailPage({
           <button
             type="button"
             onClick={handleScore}
-            className="flex items-center gap-1 h-8 px-2.5 rounded bg-[var(--surface-soft)] border border-[var(--line)] text-xs font-bold text-[var(--ink)] hover:border-[var(--muted)] transition-colors"
+            className="flex items-center gap-1.5 h-8 px-2.5 rounded-xl bg-[var(--surface-soft)] border border-[var(--line)] text-xs font-bold text-[var(--ink)] hover:border-[var(--muted)] transition-colors shadow-2xs cursor-pointer"
             title="Evaluate ATS Match"
           >
             <Gauge className="h-3.5 w-3.5 text-amber-400" />
@@ -472,7 +472,7 @@ export default function JobDetailPage({
             type="button"
             onClick={handleCompile}
             disabled={isCompiling}
-            className="flex items-center gap-1.5 h-8 px-3 rounded bg-[var(--accent)] text-white text-xs font-bold hover:opacity-90 disabled:opacity-50 transition-opacity"
+            className="flex items-center gap-1.5 h-8.5 px-3.5 rounded-xl bg-[var(--accent)] text-white text-xs font-bold hover:opacity-90 disabled:opacity-50 border border-[var(--accent)] shadow-sm transition-all active:scale-[0.98] cursor-pointer"
             title="Compile LaTeX with Tectonic"
           >
             {isCompiling ? (
@@ -488,7 +488,7 @@ export default function JobDetailPage({
             <a
               href={pdfBlobUrl}
               download={`${job.company_name}_${activeMode}.pdf`}
-              className="flex items-center gap-1 h-8 px-2.5 rounded bg-[var(--surface-soft)] border border-[var(--line)] text-xs font-bold text-[var(--ink)] hover:border-[var(--muted)] transition-colors"
+              className="flex items-center gap-1.5 h-8 px-2.5 rounded-xl bg-[var(--surface-soft)] border border-[var(--line)] text-xs font-bold text-[var(--ink)] hover:border-[var(--muted)] transition-colors shadow-2xs cursor-pointer"
               title="Download PDF"
             >
               <Download className="h-3.5 w-3.5" />
@@ -499,7 +499,7 @@ export default function JobDetailPage({
           <button
             type="button"
             onClick={handleSave}
-            className="flex items-center gap-1 h-8 px-2.5 rounded bg-[var(--surface-soft)] border border-[var(--line)] text-xs font-bold text-[var(--ink)] hover:border-[var(--muted)] transition-colors"
+            className="flex items-center gap-1.5 h-8 px-2.5 rounded-xl bg-[var(--surface-soft)] border border-[var(--line)] text-xs font-bold text-[var(--ink)] hover:border-[var(--muted)] transition-colors shadow-2xs cursor-pointer"
             title="Save LaTeX Document"
           >
             {isSaved ? (

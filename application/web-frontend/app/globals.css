@@ -10,7 +10,8 @@
   --surface-soft: #1d222e;
   --ink: #e6edf3;
   --muted: #8b949e;
-  --line: #30363d;
+  --line: #383e4a;
+  --line-strong: #4f5866;
   --accent: #238636;
   --accent-soft: rgba(35, 134, 54, 0.15);
   --accent-blue: #388bfd;
@@ -28,7 +29,7 @@
   --card-foreground: var(--ink);
   --popover: var(--surface);
   --popover-foreground: var(--ink);
-  --primary: var(--accent-blue);
+  --primary: var(--accent);
   --primary-foreground: #ffffff;
   --secondary: var(--surface-soft);
   --secondary-foreground: var(--muted);
@@ -183,7 +184,8 @@ input:focus,
 textarea:focus,
 select:focus {
   outline: none;
-  border-color: #484f58;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
 }
 
 select {
@@ -199,6 +201,37 @@ select {
 select option {
   background-color: #161b22;
   color: var(--ink);
+}
+
+/* Tab Navigation Utilities */
+.tab-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.9rem;
+  border-radius: 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: 1px solid var(--line);
+  background-color: var(--surface);
+  color: var(--muted);
+  transition: all 0.15s ease;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tab-pill:hover {
+  border-color: var(--muted);
+  color: var(--ink);
+  background-color: var(--surface-soft);
+}
+
+.tab-pill.active {
+  border-color: var(--accent);
+  background-color: rgba(35, 134, 54, 0.18);
+  color: #3fb950;
+  font-weight: 700;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
 }
 
 /* Number Spinner Reset */

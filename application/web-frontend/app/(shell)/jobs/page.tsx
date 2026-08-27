@@ -4,7 +4,6 @@ import {
   ArrowUpDown,
   Check,
   ChevronRight,
-  Filter,
   FolderOpen,
   Plus,
   Search,
@@ -278,50 +277,72 @@ export default function JobsPage() {
 
         {/* Filters Bar (Matching JobsTab.vue) */}
         {!isSelectionMode && (
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 p-2.5 bg-[var(--surface)] border border-[var(--line)] rounded-xl">
-            {/* Search Box */}
-            <div className="flex-1 flex items-center bg-[var(--surface-soft)] border border-[var(--line)] rounded-lg px-2.5 py-1.5">
-              <Search className="h-4 w-4 text-[var(--muted)] shrink-0 mr-2" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search by title or company..."
-                className="w-full bg-transparent border-0 p-0 text-xs text-[var(--ink)] placeholder:text-[var(--muted)] focus:outline-none"
-              />
-            </div>
-
-            <div className="flex items-center gap-2">
-              {/* Status Filter */}
-              <div className="flex-1 sm:flex-none flex items-center bg-[var(--surface-soft)] border border-[var(--line)] rounded-lg px-2 py-1 gap-1.5">
-                <Filter className="h-3.5 w-3.5 text-[var(--muted)] shrink-0" />
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="bg-transparent border-0 p-0 text-xs font-bold text-[var(--ink)] focus:outline-none cursor-pointer"
-                >
-                  {statuses.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
+          <div className="space-y-3">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 p-2.5 bg-[var(--surface)] border border-[var(--line)] rounded-xl shadow-xs">
+              {/* Search Box */}
+              <div className="flex-1 flex items-center bg-[var(--surface-soft)] border border-[var(--line)] rounded-lg px-3 py-2 focus-within:border-[var(--accent)] transition-colors">
+                <Search className="h-4 w-4 text-[var(--muted)] shrink-0 mr-2" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search by title, role, or company..."
+                  className="w-full bg-transparent border-0 p-0 text-xs text-[var(--ink)] placeholder:text-[var(--muted)] focus:outline-none"
+                />
               </div>
 
               {/* Sort Order */}
-              <div className="flex-1 sm:flex-none flex items-center bg-[var(--surface-soft)] border border-[var(--line)] rounded-lg px-2 py-1 gap-1.5">
+              <div className="flex items-center bg-[var(--surface-soft)] border border-[var(--line)] rounded-lg px-3 py-1.5 gap-2">
                 <ArrowUpDown className="h-3.5 w-3.5 text-[var(--muted)] shrink-0" />
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value)}
                   className="bg-transparent border-0 p-0 text-xs font-bold text-[var(--ink)] focus:outline-none cursor-pointer"
                 >
-                  <option value="date-desc">Newest</option>
-                  <option value="date-asc">Oldest</option>
-                  <option value="title">Title</option>
-                  <option value="company">Company</option>
+                  <option value="date-desc">Newest First</option>
+                  <option value="date-asc">Oldest First</option>
+                  <option value="title">Title (A-Z)</option>
+                  <option value="company">Company (A-Z)</option>
                 </select>
               </div>
+            </div>
+
+            {/* Status Tabs with Counts */}
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+              {statuses.map((s) => {
+                const count =
+                  s === "All"
+                    ? allJobs.length
+                    : allJobs.filter(
+                        (j) =>
+                          (j.status || "Drafting").toLowerCase() ===
+                          s.toLowerCase(),
+                      ).length;
+                const isActive = statusFilter === s;
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setStatusFilter(s)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
+                      isActive
+                        ? "bg-[var(--accent)] text-white border-[var(--accent)] shadow-xs"
+                        : "bg-[var(--surface)] text-[var(--muted)] border-[var(--line)] hover:text-[var(--ink)] hover:border-[var(--muted)] hover:bg-[var(--surface-soft)]"
+                    }`}
+                  >
+                    <span>{s}</span>
+                    <span
+                      className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                        isActive
+                          ? "bg-white/20 text-white"
+                          : "bg-[var(--surface-soft)] text-[var(--muted)] border border-[var(--line)]"
+                      }`}
+                    >
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}

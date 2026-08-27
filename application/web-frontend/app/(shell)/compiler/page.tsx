@@ -462,14 +462,14 @@ export default function CompilerPage() {
         </div>
 
         {/* Center / Mobile View Switcher */}
-        <div className="flex md:hidden items-center bg-[var(--surface)] p-0.5 rounded-lg border border-[var(--line)] shrink-0">
+        <div className="flex md:hidden items-center bg-[var(--surface)] p-1 rounded-xl border border-[var(--line)] shrink-0 gap-1">
           <button
             type="button"
             onClick={() => setMobileTab("editor")}
-            className={`px-2.5 py-1 rounded text-[11px] font-bold transition-colors ${
+            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all border cursor-pointer ${
               mobileTab === "editor"
-                ? "bg-[var(--accent)] text-white shadow-xs"
-                : "text-[var(--muted)] hover:text-[var(--ink)]"
+                ? "bg-[var(--accent)] text-white border-[var(--accent)] shadow-xs"
+                : "bg-transparent text-[var(--muted)] border-transparent hover:text-[var(--ink)]"
             }`}
           >
             Code
@@ -477,10 +477,10 @@ export default function CompilerPage() {
           <button
             type="button"
             onClick={() => setMobileTab("preview")}
-            className={`px-2.5 py-1 rounded text-[11px] font-bold transition-colors ${
+            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all border cursor-pointer ${
               mobileTab === "preview"
-                ? "bg-[var(--accent)] text-white shadow-xs"
-                : "text-[var(--muted)] hover:text-[var(--ink)]"
+                ? "bg-[var(--accent)] text-white border-[var(--accent)] shadow-xs"
+                : "bg-transparent text-[var(--muted)] border-transparent hover:text-[var(--ink)]"
             }`}
           >
             PDF
@@ -493,10 +493,10 @@ export default function CompilerPage() {
           <button
             type="button"
             onClick={() => setShowRefineBar(!showRefineBar)}
-            className={`flex items-center gap-1.5 h-8 px-2.5 sm:px-3 rounded text-xs font-semibold border transition-colors ${
+            className={`flex items-center gap-1.5 h-8 px-2.5 sm:px-3 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
               showRefineBar
-                ? "bg-[var(--accent)]/10 text-[var(--accent)] border-[var(--accent)]/30"
-                : "bg-[var(--surface-soft)] text-[var(--ink)] border-[var(--line)] hover:border-[var(--muted)]"
+                ? "bg-[var(--accent)]/15 text-[var(--accent)] border-[var(--accent)] ring-1 ring-[var(--accent)]/30"
+                : "bg-[var(--surface-soft)] text-[var(--ink)] border-[var(--line)] hover:border-[var(--muted)] shadow-2xs"
             }`}
           >
             <Sparkles className="h-3.5 w-3.5 text-[var(--accent)]" />
@@ -507,7 +507,7 @@ export default function CompilerPage() {
           <button
             type="button"
             onClick={handleCopySource}
-            className="flex items-center gap-1.5 h-8 px-2.5 rounded bg-[var(--surface-soft)] border border-[var(--line)] text-xs font-medium text-[var(--ink)] hover:border-[var(--muted)] transition-colors"
+            className="flex items-center gap-1.5 h-8 px-2.5 rounded-xl bg-[var(--surface-soft)] border border-[var(--line)] text-xs font-medium text-[var(--ink)] hover:border-[var(--muted)] transition-colors shadow-2xs cursor-pointer"
             title="Copy LaTeX source"
           >
             {copied ? (
@@ -525,7 +525,7 @@ export default function CompilerPage() {
             type="button"
             onClick={handleCompile}
             disabled={isCompiling}
-            className="flex items-center gap-1.5 sm:gap-2 h-8.5 px-3 sm:px-4 rounded bg-[var(--accent)] text-white text-xs font-bold hover:opacity-90 disabled:opacity-50 shadow-sm transition-all active:scale-[0.98]"
+            className="flex items-center gap-1.5 sm:gap-2 h-8.5 px-3.5 sm:px-4 rounded-xl bg-[var(--accent)] text-white text-xs font-bold hover:opacity-90 disabled:opacity-50 border border-[var(--accent)] shadow-sm transition-all active:scale-[0.98] cursor-pointer"
             title="Compile to PDF (Ctrl+Enter)"
           >
             {isCompiling ? (
@@ -534,7 +534,7 @@ export default function CompilerPage() {
               <Hammer className="h-3.5 w-3.5" />
             )}
             <span>Compile</span>
-            <kbd className="hidden sm:inline-block px-1 py-0.2 rounded bg-black/20 text-[10px] font-mono">
+            <kbd className="hidden sm:inline-block px-1.5 py-0.2 rounded bg-black/25 text-[10px] font-mono">
               Ctrl+Enter
             </kbd>
           </button>

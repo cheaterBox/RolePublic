@@ -70,91 +70,94 @@ export default function ThemesPage() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto p-6 sm:p-10 space-y-6 animate-in fade-in-50 duration-200">
-      {/* Header */}
-      <header className="border-b border-[var(--line)] pb-5">
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[var(--ink)]">
-          Themes Gallery
-        </h1>
-        <p className="text-xs sm:text-sm text-[var(--muted)] mt-1">
-          ATS-tested LaTeX resume typography packages ready for 1-click cloning.
-        </p>
-      </header>
+    <div className="flex-1 w-full h-full overflow-y-auto p-4 sm:p-8 md:p-10 animate-in fade-in-50 duration-200">
+      <div className="max-w-5xl mx-auto space-y-6">
+        {/* Header */}
+        <header className="border-b border-[var(--line)] pb-5">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[var(--ink)]">
+            Themes Gallery
+          </h1>
+          <p className="text-xs sm:text-sm text-[var(--muted)] mt-1">
+            ATS-tested LaTeX resume typography packages ready for 1-click
+            cloning.
+          </p>
+        </header>
 
-      {/* Themes Grid */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {themes.map((theme) => {
-          const isActive = activeThemeId === theme.id;
-          const isCloned = cloneSuccess === theme.id;
+        {/* Themes Grid */}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {themes.map((theme) => {
+            const isActive = activeThemeId === theme.id;
+            const isCloned = cloneSuccess === theme.id;
 
-          return (
-            <div
-              key={theme.id}
-              className={`rounded-xl border p-5 flex flex-col justify-between space-y-4 shadow-md transition-all ${
-                isActive
-                  ? "border-[var(--accent)] bg-[rgba(35,134,54,0.08)] ring-1 ring-[var(--accent)]"
-                  : "border-[var(--line)] bg-[var(--surface)] hover:border-[var(--accent)]"
-              }`}
-            >
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--surface-soft)] text-[var(--accent-blue)] border border-[var(--line)]">
-                    <Layout className="h-4 w-4" />
+            return (
+              <div
+                key={theme.id}
+                className={`rounded-xl border p-5 flex flex-col justify-between space-y-4 shadow-md transition-all ${
+                  isActive
+                    ? "border-[var(--accent)] bg-[rgba(35,134,54,0.08)] ring-1 ring-[var(--accent)]"
+                    : "border-[var(--line)] bg-[var(--surface)] hover:border-[var(--accent)]"
+                }`}
+              >
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--surface-soft)] text-[var(--accent-blue)] border border-[var(--line)]">
+                      <Layout className="h-4 w-4" />
+                    </div>
+                    {isActive && (
+                      <span className="tag-pill tag-pill-success font-mono font-bold">
+                        ACTIVE
+                      </span>
+                    )}
                   </div>
-                  {isActive && (
-                    <span className="tag-pill tag-pill-success font-mono font-bold">
-                      ACTIVE
-                    </span>
-                  )}
+
+                  <div className="space-y-1">
+                    <h3 className="text-base font-bold text-[var(--ink)]">
+                      {theme.name}
+                    </h3>
+                    <p className="text-xs text-[var(--muted)] leading-relaxed">
+                      {themeDescriptions[theme.id] ||
+                        "Clean typography with structured columns and ATS optimization."}
+                    </p>
+                  </div>
                 </div>
 
-                <div className="space-y-1">
-                  <h3 className="text-base font-bold text-[var(--ink)]">
-                    {theme.name}
-                  </h3>
-                  <p className="text-xs text-[var(--muted)] leading-relaxed">
-                    {themeDescriptions[theme.id] ||
-                      "Clean typography with structured columns and ATS optimization."}
-                  </p>
+                {/* Action Buttons */}
+                <div className="border-t border-[var(--line)] pt-3 flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleSetActive(theme.id)}
+                    className={`rounded px-3 py-1 text-xs font-bold transition-colors ${
+                      isActive
+                        ? "bg-[var(--accent)] text-white"
+                        : "bg-[var(--surface-soft)] text-[var(--muted)] hover:text-[var(--ink)]"
+                    }`}
+                  >
+                    {isActive ? "Selected" : "Set Active"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleCloneToResumes(theme)}
+                    disabled={cloningId === theme.id}
+                    className="flex items-center gap-1.5 rounded border border-[var(--line)] bg-[var(--surface-soft)] px-3 py-1 text-xs font-bold text-[var(--ink)] hover:border-[var(--muted)] transition-all"
+                  >
+                    {isCloned ? (
+                      <>
+                        <CheckCircle2 className="h-3.5 w-3.5 text-[var(--accent)]" />
+                        <span className="text-[var(--accent)]">Cloned!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-3.5 w-3.5 text-[var(--muted)]" />
+                        <span>Clone to Resumes</span>
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
-
-              {/* Action Buttons */}
-              <div className="border-t border-[var(--line)] pt-3 flex items-center justify-between gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleSetActive(theme.id)}
-                  className={`rounded px-3 py-1 text-xs font-bold transition-colors ${
-                    isActive
-                      ? "bg-[var(--accent)] text-white"
-                      : "bg-[var(--surface-soft)] text-[var(--muted)] hover:text-[var(--ink)]"
-                  }`}
-                >
-                  {isActive ? "Selected" : "Set Active"}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleCloneToResumes(theme)}
-                  disabled={cloningId === theme.id}
-                  className="flex items-center gap-1.5 rounded border border-[var(--line)] bg-[var(--surface-soft)] px-3 py-1 text-xs font-bold text-[var(--ink)] hover:border-[var(--muted)] transition-all"
-                >
-                  {isCloned ? (
-                    <>
-                      <CheckCircle2 className="h-3.5 w-3.5 text-[var(--accent)]" />
-                      <span className="text-[var(--accent)]">Cloned!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="h-3.5 w-3.5 text-[var(--muted)]" />
-                      <span>Clone to Resumes</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
     </div>
   );

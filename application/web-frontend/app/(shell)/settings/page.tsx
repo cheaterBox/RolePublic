@@ -529,17 +529,23 @@ export default function SettingsPage() {
       </header>
 
       {/* 2. Navigation Tabs */}
-      <div className="h-10 px-6 bg-[var(--surface-soft)] border-b border-[var(--line)] flex items-center gap-1 shrink-0 overflow-x-auto select-none no-scrollbar">
+      <div className="px-4 sm:px-6 py-2.5 bg-[var(--bg-accent)] border-b border-[var(--line)] flex items-center gap-2 shrink-0 overflow-x-auto select-none no-scrollbar">
         <button
           type="button"
           onClick={() => setActiveTab("ai")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
             activeTab === "ai"
-              ? "bg-[var(--accent)]/10 text-[var(--accent)] font-bold border border-[var(--accent)]/30"
-              : "text-[var(--muted)] hover:text-[var(--ink)] hover:bg-[var(--surface)]"
+              ? "bg-[var(--accent)]/15 text-[var(--ink)] font-bold border-[var(--accent)] ring-1 ring-[var(--accent)]/40 shadow-sm"
+              : "bg-[var(--surface)] text-[var(--muted)] border-[var(--line)] hover:text-[var(--ink)] hover:border-[var(--muted)] hover:bg-[var(--surface-soft)] shadow-2xs"
           }`}
         >
-          <Key className="h-3.5 w-3.5" />
+          <Key
+            className={`h-4 w-4 ${
+              activeTab === "ai"
+                ? "text-[var(--accent)]"
+                : "text-[var(--muted)]"
+            }`}
+          />
           <span>AI Intelligence (BYOK)</span>
         </button>
 
@@ -549,52 +555,76 @@ export default function SettingsPage() {
             setActiveTab("s3");
             if (s3Backups.length === 0) void handleListS3Backups();
           }}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
             activeTab === "s3"
-              ? "bg-[var(--accent)]/10 text-[var(--accent)] font-bold border border-[var(--accent)]/30"
-              : "text-[var(--muted)] hover:text-[var(--ink)] hover:bg-[var(--surface)]"
+              ? "bg-[var(--accent)]/15 text-[var(--ink)] font-bold border-[var(--accent)] ring-1 ring-[var(--accent)]/40 shadow-sm"
+              : "bg-[var(--surface)] text-[var(--muted)] border-[var(--line)] hover:text-[var(--ink)] hover:border-[var(--muted)] hover:bg-[var(--surface-soft)] shadow-2xs"
           }`}
         >
-          <Cloud className="h-3.5 w-3.5" />
+          <Cloud
+            className={`h-4 w-4 ${
+              activeTab === "s3"
+                ? "text-[var(--accent)]"
+                : "text-[var(--muted)]"
+            }`}
+          />
           <span>S3 Cloud Storage</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab("engine")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
             activeTab === "engine"
-              ? "bg-[var(--accent)]/10 text-[var(--accent)] font-bold border border-[var(--accent)]/30"
-              : "text-[var(--muted)] hover:text-[var(--ink)] hover:bg-[var(--surface)]"
+              ? "bg-[var(--accent)]/15 text-[var(--ink)] font-bold border-[var(--accent)] ring-1 ring-[var(--accent)]/40 shadow-sm"
+              : "bg-[var(--surface)] text-[var(--muted)] border-[var(--line)] hover:text-[var(--ink)] hover:border-[var(--muted)] hover:bg-[var(--surface-soft)] shadow-2xs"
           }`}
         >
-          <Cpu className="h-3.5 w-3.5" />
+          <Cpu
+            className={`h-4 w-4 ${
+              activeTab === "engine"
+                ? "text-[var(--accent)]"
+                : "text-[var(--muted)]"
+            }`}
+          />
           <span>Tectonic LaTeX Engine</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab("data")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
             activeTab === "data"
-              ? "bg-[var(--accent)]/10 text-[var(--accent)] font-bold border border-[var(--accent)]/30"
-              : "text-[var(--muted)] hover:text-[var(--ink)] hover:bg-[var(--surface)]"
+              ? "bg-[var(--accent)]/15 text-[var(--ink)] font-bold border-[var(--accent)] ring-1 ring-[var(--accent)]/40 shadow-sm"
+              : "bg-[var(--surface)] text-[var(--muted)] border-[var(--line)] hover:text-[var(--ink)] hover:border-[var(--muted)] hover:bg-[var(--surface-soft)] shadow-2xs"
           }`}
         >
-          <Database className="h-3.5 w-3.5" />
+          <Database
+            className={`h-4 w-4 ${
+              activeTab === "data"
+                ? "text-[var(--accent)]"
+                : "text-[var(--muted)]"
+            }`}
+          />
           <span>Data & Backups</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab("extension")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
             activeTab === "extension"
-              ? "bg-[var(--accent)]/10 text-[var(--accent)] font-bold border border-[var(--accent)]/30"
-              : "text-[var(--muted)] hover:text-[var(--ink)] hover:bg-[var(--surface)]"
+              ? "bg-[var(--accent)]/15 text-[var(--ink)] font-bold border-[var(--accent)] ring-1 ring-[var(--accent)]/40 shadow-sm"
+              : "bg-[var(--surface)] text-[var(--muted)] border-[var(--line)] hover:text-[var(--ink)] hover:border-[var(--muted)] hover:bg-[var(--surface-soft)] shadow-2xs"
           }`}
         >
-          <ShieldCheck className="h-3.5 w-3.5" />
+          <ShieldCheck
+            className={`h-4 w-4 ${
+              activeTab === "extension"
+                ? "text-[var(--accent)]"
+                : "text-[var(--muted)]"
+            }`}
+          />
           <span>Browser Extension & Security</span>
         </button>
       </div>
