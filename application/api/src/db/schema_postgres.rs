@@ -248,13 +248,13 @@ CREATE TABLE IF NOT EXISTS document_comments (
     id            TEXT PRIMARY KEY,
     doc_id        TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
     rel_path      TEXT NOT NULL,
-    user_id       TEXT REFERENCES users(id) ON DELETE SET NULL,
+    user_id       TEXT,
     user_name     TEXT NOT NULL,
     line_number   INTEGER NOT NULL,
     selected_text TEXT,
     content       TEXT NOT NULL,
     resolved      BOOLEAN DEFAULT FALSE,
-    resolved_by   TEXT REFERENCES users(id) ON DELETE SET NULL,
+    resolved_by   TEXT,
     created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
