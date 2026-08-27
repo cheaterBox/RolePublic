@@ -11,9 +11,9 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { IconButton } from "@/components/ui/IconButton";
 import { deleteAllJobs, deleteJobsBatch, listJobs } from "@/features/jobs/api";
 import type { JobPayload } from "@/lib/api/types";
 
@@ -23,7 +23,6 @@ export default function JobsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [sortBy, setSortBy] = useState("date-desc");
-  const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
 
   // Selection Mode State
   const [isSelectionMode, setIsSelectionMode] = useState(false);
@@ -179,97 +178,59 @@ export default function JobsPage() {
           <div className="flex items-center gap-2 shrink-0">
             {!isSelectionMode ? (
               <>
-                {/* Selection Mode Button */}
-                <div
-                  className="relative flex items-center"
-                  onMouseEnter={() => setActiveTooltip("selection-mode")}
-                  onMouseLeave={() => setActiveTooltip(null)}
-                >
-                  <button
-                    type="button"
-                    onClick={() => setIsSelectionMode(true)}
-                    className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-[var(--surface-soft)] border border-[var(--line)] text-[var(--ink)] hover:border-[var(--muted)] transition-colors"
-                  >
-                    <Settings2 className="h-4 w-4" />
-                  </button>
-                  {activeTooltip === "selection-mode" && (
-                    <div className="absolute top-full mt-2 right-0 z-50 rounded-md bg-[var(--surface-soft)] border border-[var(--line)] px-2.5 py-1 text-[11px] font-bold text-[var(--ink)] whitespace-nowrap shadow-xl pointer-events-none">
-                      Selection Mode
-                    </div>
-                  )}
-                </div>
-
-                {/* Delete All Button */}
-                <div
-                  className="relative flex items-center"
-                  onMouseEnter={() => setActiveTooltip("delete-all")}
-                  onMouseLeave={() => setActiveTooltip(null)}
-                >
-                  <button
-                    type="button"
-                    onClick={handleDeleteAll}
-                    className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-lg border border-[var(--warning)] text-[var(--warning)] hover:bg-[var(--warning)] hover:text-white transition-colors"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                  {activeTooltip === "delete-all" && (
-                    <div className="absolute top-full mt-2 right-0 z-50 rounded-md bg-[var(--surface-soft)] border border-[var(--line)] px-2.5 py-1 text-[11px] font-bold text-[var(--ink)] whitespace-nowrap shadow-xl pointer-events-none">
-                      Delete All
-                    </div>
-                  )}
-                </div>
-
-                {/* New Application Button */}
-                <div
-                  className="relative flex items-center"
-                  onMouseEnter={() => setActiveTooltip("new-app")}
-                  onMouseLeave={() => setActiveTooltip(null)}
-                >
-                  <Link
-                    href="/parse"
-                    className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-[var(--accent)] text-white hover:opacity-90 transition-opacity"
-                  >
-                    <Plus className="h-4 w-4 sm:h-5 sm:w-5" />
-                  </Link>
-                  {activeTooltip === "new-app" && (
-                    <div className="absolute top-full mt-2 right-0 z-50 rounded-md bg-[var(--surface-soft)] border border-[var(--line)] px-2.5 py-1 text-[11px] font-bold text-[var(--ink)] whitespace-nowrap shadow-xl pointer-events-none">
-                      New Application
-                    </div>
-                  )}
-                </div>
+                <IconButton
+                  label="Selection Mode"
+                  tooltipPlacement="bottom"
+                  variant="soft"
+                  size="md"
+                  icon={<Settings2 />}
+                  onClick={() => setIsSelectionMode(true)}
+                />
+                <IconButton
+                  label="Delete All Applications"
+                  tooltipPlacement="bottom"
+                  variant="danger"
+                  size="md"
+                  icon={<Trash2 />}
+                  onClick={handleDeleteAll}
+                />
+                <IconButton
+                  label="New Application"
+                  tooltipPlacement="bottom"
+                  variant="accent"
+                  size="md"
+                  icon={<Plus />}
+                  onClick={() => router.push("/parse")}
+                />
               </>
             ) : (
               <>
-                {/* Select All Button */}
-                <button
-                  type="button"
+                <IconButton
+                  label="Select All Visible"
+                  tooltipPlacement="bottom"
+                  variant="soft"
+                  size="md"
+                  icon={<Check />}
                   onClick={handleSelectAllVisible}
-                  className="flex h-9 px-3 items-center gap-1.5 rounded-lg bg-[var(--surface-soft)] border border-[var(--line)] text-xs font-bold text-[var(--ink)] hover:border-[var(--muted)]"
-                >
-                  <Check className="h-4 w-4" />
-                  <span>Select All</span>
-                </button>
-
-                {/* Delete Batch Button */}
+                />
                 {selectedJobs.size > 0 && (
-                  <button
-                    type="button"
+                  <IconButton
+                    label={`Delete Selected (${selectedJobs.size})`}
+                    tooltipPlacement="bottom"
+                    variant="danger"
+                    size="md"
+                    icon={<Trash2 />}
                     onClick={handleDeleteSelected}
-                    className="flex h-9 px-3 items-center gap-1.5 rounded-lg bg-[var(--warning)] text-white text-xs font-bold hover:opacity-90"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    <span>Delete ({selectedJobs.size})</span>
-                  </button>
+                  />
                 )}
-
-                {/* Exit Selection Mode Button */}
-                <button
-                  type="button"
+                <IconButton
+                  label="Exit Selection Mode"
+                  tooltipPlacement="bottom"
+                  variant="accent"
+                  size="md"
+                  icon={<X />}
                   onClick={exitSelectionMode}
-                  className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--accent)] text-white hover:opacity-90"
-                >
-                  <X className="h-4 w-4" />
-                </button>
+                />
               </>
             )}
           </div>

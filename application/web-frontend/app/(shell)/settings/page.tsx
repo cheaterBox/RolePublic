@@ -13,7 +13,6 @@ import {
   HardDrive,
   Key,
   RefreshCw,
-  RotateCw,
   Save,
   Server,
   ShieldCheck,
@@ -21,7 +20,8 @@ import {
   Upload,
   UploadCloud,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { IconButton } from "@/components/ui/IconButton";
 import {
   exportFullData,
   getActiveServerPort,
@@ -42,55 +42,67 @@ import {
 import { apiFetch } from "@/lib/api/client";
 import { getApiToken } from "@/lib/config/env";
 
-const PROVIDER_OPTIONS = [
-  {
-    id: "deepseek",
-    name: "DeepSeek",
-    defaultModel: "deepseek-chat",
-    models: [
-      "deepseek-v4-pro",
-      "deepseek-v4-flash",
-      "deepseek-chat",
-      "deepseek-reasoner",
-    ],
-    placeholder: "sk-...",
-    docs: "https://platform.deepseek.com/",
-  },
-  {
-    id: "openrouter",
-    name: "OpenRouter",
-    defaultModel: "deepseek/deepseek-r1",
-    models: [
-      "deepseek/deepseek-r1",
-      "deepseek/deepseek-chat",
-      "anthropic/claude-3.7-sonnet",
-      "anthropic/claude-3.5-sonnet",
-      "google/gemini-2.5-pro",
-      "google/gemini-2.5-flash",
-      "meta-llama/llama-3.3-70b-instruct",
-      "qwen/qwen-2.5-coder-32b-instruct",
-      "openai/gpt-4o",
-      "openai/o3-mini",
-    ],
-    placeholder: "sk-or-v1-...",
-    docs: "https://openrouter.ai/",
-  },
+// Provider catalog — ported exactly from desktop `src/components/SettingsTab.vue`
+// lines 465–745 (the authoritative source). The web preserves its existing
+// provider IDs (e.g. "claude" for Anthropic) so save/load, scoring, and the
+// JobParser modal keep working unchanged.
+const PROVIDER_OPTIONS: {
+  id: string;
+  name: string;
+  defaultModel: string;
+  models: string[];
+  placeholder: string;
+  docs: string;
+  defaultBaseUrl?: string;
+}[] = [
   {
     id: "openai",
     name: "OpenAI",
-    defaultModel: "gpt-4o",
+    defaultModel: "gpt-5.5",
+    defaultBaseUrl: "https://api.openai.com/v1",
     models: [
-      "gpt-5.5-pro",
-      "gpt-5.5",
-      "gpt-5.4",
-      "gpt-5.3-instant",
-      "gpt-5.3-codex-spark",
+      // Legacy / Very Old
+      "gpt-1",
+      "gpt-2",
+      "text-ada-001",
+      "text-babbage-001",
+      "text-curie-001",
+      "text-davinci-003",
+      "gpt-3.5-turbo-0301",
+      "gpt-3.5-turbo-16k",
+      "gpt-3.5-turbo",
+      // GPT-4 Era
+      "gpt-4-0314",
+      "gpt-4-32k",
+      "gpt-4-1106-preview",
+      "gpt-4-turbo",
       "gpt-4o",
       "gpt-4o-mini",
-      "o3-mini",
-      "o1",
+      "gpt-4.5",
+      // Early Reasoning Era
       "o1-preview",
-      "gpt-4-turbo",
+      "o1-mini",
+      "o1",
+      "o3",
+      "o4-mini",
+      // GPT-5 Era (Current)
+      "gpt-5-nano",
+      "gpt-5-mini",
+      "gpt-5-main",
+      "gpt-5.1",
+      "gpt-5.2",
+      "gpt-5.3-instant",
+      "gpt-5.3-codex-spark",
+      "gpt-5.4-nano",
+      "gpt-5.4-mini",
+      "gpt-5.4",
+      "gpt-5.5-instant",
+      "gpt-5.5",
+      "gpt-5.5-thinking",
+      "gpt-5.5-pro",
+      // Specialty / Open
+      "gpt-rosalind",
+      "chatgpt-images-2",
     ],
     placeholder: "sk-proj-...",
     docs: "https://platform.openai.com/api-keys",
@@ -100,14 +112,39 @@ const PROVIDER_OPTIONS = [
     name: "Google Gemini",
     defaultModel: "gemini-2.5-pro",
     models: [
-      "gemini-3.1-pro-preview",
-      "gemini-3.1-flash-preview",
-      "gemini-3.0-deep-think",
-      "gemini-2.5-pro",
-      "gemini-2.5-flash",
-      "gemini-2.0-flash-exp",
-      "gemini-1.5-pro",
+      // Legacy / Very Old
+      "text-bison-001",
+      "chat-bison-001",
+      "gemini-1.0-nano",
+      "gemini-1.0-pro",
+      "gemini-1.0-ultra",
       "gemini-1.5-flash",
+      "gemini-1.5-pro",
+      // Gemini 2.x Era
+      "gemini-2.0-flash-lite",
+      "gemini-2.0-flash",
+      "gemini-2.0-pro",
+      "gemini-2.5-flash-lite",
+      "gemini-2.5-flash",
+      "gemini-2.5-pro",
+      // Gemini 3.x Era (Current)
+      "gemini-3-flash-preview",
+      "gemini-3-deep-think",
+      "gemini-3-pro-preview",
+      "gemini-3.1-flash-lite-preview",
+      "gemini-3.1-flash-lite",
+      "gemini-3.1-flash-preview",
+      "gemini-3.1-pro-preview",
+      // Specialty / Agents / Vision
+      "gemini-3.1-flash-image",
+      "nano-banana-pro",
+      "deep-research-preview-04-2026",
+      "deep-research-max-preview-04-2026",
+      "veo-3.1-lite-generate-preview",
+      "gemini-robotics-er-1.6-preview",
+      "gemini-embedding-2",
+      "gemma-4-26b-a4b-it",
+      "gemma-4-31b-it",
     ],
     placeholder: "AIzaSy...",
     docs: "https://aistudio.google.com/",
@@ -115,15 +152,34 @@ const PROVIDER_OPTIONS = [
   {
     id: "claude",
     name: "Anthropic Claude",
-    defaultModel: "claude-3-7-sonnet-latest",
+    defaultModel: "claude-opus-4-7",
+    defaultBaseUrl: "https://api.anthropic.com",
     models: [
-      "claude-4-7-opus",
-      "claude-4-6-sonnet",
-      "claude-4-5-sonnet",
-      "claude-3-7-sonnet-latest",
-      "claude-3-5-sonnet-latest",
-      "claude-3-5-haiku-latest",
+      // Legacy / Very Old
+      "claude-1",
+      "claude-instant-1.2",
+      "claude-2.0",
+      "claude-2.1",
+      // Claude 3 Era
+      "claude-3-haiku-20240307",
+      "claude-3-sonnet-20240229",
       "claude-3-opus-20240229",
+      "claude-3-5-haiku-latest",
+      "claude-3-5-sonnet-latest",
+      "claude-3-7-sonnet-latest",
+      // Claude 4 Era (Current)
+      "claude-4-sonnet",
+      "claude-4-opus",
+      "claude-4-1-opus",
+      "claude-haiku-4-5",
+      "claude-sonnet-4-5",
+      "claude-opus-4-5",
+      "claude-sonnet-4-6",
+      "claude-opus-4-6",
+      "claude-opus-4-7",
+      // Specialty
+      "claude-mythos-preview",
+      "claude-cowork",
     ],
     placeholder: "sk-ant-...",
     docs: "https://console.anthropic.com/",
@@ -132,14 +188,40 @@ const PROVIDER_OPTIONS = [
     id: "groq",
     name: "Groq (Ultra-Fast)",
     defaultModel: "llama-3.3-70b-versatile",
+    defaultBaseUrl: "https://api.groq.com/openai/v1",
     models: [
+      // Legacy / Very Old
+      "llama2-70b-4096",
+      "mixtral-8x7b-32768",
+      "gemma-7b-it",
+      "llama3-8b-8192",
+      "llama3-70b-8192",
+      // Llama 3.x Era
+      "llama-3.1-8b-instant",
+      "llama-3.1-70b-versatile",
+      "llama-3.2-11b-vision-preview",
+      "llama-3.2-90b-vision-preview",
       "llama-3.3-70b-versatile",
+      "llama-3.3-70b-specdec",
+      // Llama 4 Era (Current)
       "meta-llama/llama-4-scout-17b-16e-instruct",
       "meta-llama/llama-4-maverick-17b-128e-instruct",
-      "deepseek-v4-flash",
+      "meta-llama/llama-4-maverick-400b-instruct",
+      // OpenAI Open Weights on Groq
+      "openai/gpt-oss-20b",
+      "openai/gpt-oss-safeguard-20b",
       "openai/gpt-oss-120b",
-      "mixtral-8x7b-32768",
-      "llama-3.1-8b-instant",
+      // Mistral
+      "mistral-medium-3.5",
+      "mistral-small-4",
+      // DeepSeek, Qwen & Others
+      "deepseek-v4-flash",
+      "deepseek-v4-pro",
+      "qwen-3-32b",
+      "qwen/qwen3-vl-32b-instruct",
+      "glm-5.1",
+      "moonshotai/kimi-k2-instruct-0905",
+      "minimaxai/minimax-m2.5",
     ],
     placeholder: "gsk_...",
     docs: "https://console.groq.com/",
@@ -147,17 +229,145 @@ const PROVIDER_OPTIONS = [
   {
     id: "bedrock",
     name: "AWS Bedrock",
-    defaultModel: "deepseek.r1-v1:0",
+    defaultModel: "anthropic.claude-opus-4-7",
     models: [
+      // Deep Reasoning & Thinking
       "deepseek.r1-v1:0",
+      "anthropic.claude-opus-4-8",
       "anthropic.claude-opus-4-7",
+      "anthropic.claude-opus-4-6",
+      "openai.gpt-5-5-v1:0",
+      "moonshot.kimi-k2-thinking-v1:0",
+      "mistral.mistral-large-2407-v1:0",
+      "mistral.devstral-2-123b-v1:0",
+      "qwen.qwen3-coder-next-v1:0",
+      "ai21.jamba-1-5-large-v1:0",
+      // General Purpose & Balanced
       "anthropic.claude-sonnet-4-6",
+      "anthropic.claude-sonnet-4-5",
       "anthropic.claude-3-5-sonnet-20241022-v2:0",
       "openai.gpt-5-4-v1:0",
       "amazon.nova-pro-v1:0",
+      "meta.llama4-maverick-17b-instruct-v1:0",
+      "meta.llama4-scout-17b-instruct-v1:0",
+      "meta.llama3-3-70b-instruct-v1:0",
+      "google.gemma-3-27b-pt-v1:0",
+      "z-ai.glm-4-7-v1:0",
+      // Light & Fast
+      "anthropic.claude-haiku-4-5",
+      "anthropic.claude-3-5-haiku-20241022-v1:0",
+      "amazon.nova-2-lite-v1:0",
+      "amazon.nova-sonic-v1:0",
+      "amazon.nova-micro-v1:0",
+      "deepseek.v3-2-v1:0",
+      "deepseek.v3-1-v1:0",
+      "mistral.ministral-3-8b-v1:0",
+      "z-ai.glm-4-7-flash-v1:0",
+      "ai21.jamba-1-5-mini-v1:0",
+      // Vision, Multimodal & Specialized
+      "meta.llama3-2-90b-instruct-v1:0",
+      "meta.llama3-2-11b-instruct-v1:0",
+      "mistral.pixtral-large-2502-v1:0",
+      "qwen.qwen3-vl-235b-v1:0",
+      "google.gemma-3-12b-it-v1:0",
+      "moonshot.kimi-k2-5-v1:0",
+      "minimax.m2-5-v1:0",
+      "writer.palmyra-vision-7b-v1:0",
+      "writer.palmyra-x5-v1:0",
+      "nvidia.nemotron-3-super-120b-v1:0",
     ],
-    placeholder: "AWS Bedrock Credentials",
+    placeholder: "AKIA...:secret_key[:region]",
     docs: "https://aws.amazon.com/bedrock/",
+  },
+  {
+    id: "ollama",
+    name: "Ollama (Local)",
+    defaultModel: "llama3.3",
+    defaultBaseUrl: "http://localhost:11434/v1",
+    models: [
+      "llama3",
+      "llama3.2",
+      "llama3.2:1b",
+      "llama3.3",
+      "phi3",
+      "gemma2",
+      "gemma2:2b",
+      "mistral",
+      "codegemma",
+      "codellama",
+      "qwen2.5-coder",
+      "qwen2.5-coder:1.5b",
+      "deepseek-r1:7b",
+      "deepseek-r1:8b",
+      "deepseek-r1:1.5b",
+    ],
+    placeholder: "(no key required for local Ollama)",
+    docs: "https://ollama.com/",
+  },
+  {
+    id: "openrouter",
+    name: "OpenRouter",
+    defaultModel: "openai/gpt-4o",
+    defaultBaseUrl: "https://openrouter.ai/api/v1",
+    models: [
+      // Gemini 2.x and 2.5
+      "google/gemini-2.5-pro",
+      "google/gemini-2.5-flash",
+      "google/gemini-2.0-flash-exp",
+      // Claude Models
+      "anthropic/claude-3.7-sonnet",
+      "anthropic/claude-3.7-sonnet:thinking",
+      "anthropic/claude-3.5-sonnet",
+      "anthropic/claude-3.5-sonnet:beta",
+      "anthropic/claude-3-opus",
+      "anthropic/claude-3-haiku",
+      "anthropic/claude-3.5-haiku",
+      // DeepSeek Models
+      "deepseek/deepseek-chat",
+      "deepseek/deepseek-r1",
+      "deepseek/deepseek-r1:free",
+      "deepseek/deepseek-chat:free",
+      // Llama Models
+      "meta-llama/llama-3.3-70b-instruct",
+      "meta-llama/llama-3.1-405b-instruct",
+      "meta-llama/llama-3.1-70b-instruct",
+      "meta-llama/llama-3.1-8b-instruct",
+      "meta-llama/llama-3.2-3b-instruct",
+      "meta-llama/llama-3.2-11b-vision-instruct",
+      "meta-llama/llama-3.2-90b-vision-instruct",
+      // Qwen & Mistral Models
+      "qwen/qwen-2.5-72b-instruct",
+      "qwen/qwen-2.5-coder-32b-instruct",
+      "qwen/qwen-2.5-7b-instruct",
+      "mistralai/mistral-large",
+      "mistralai/pixtral-large-2411",
+      "mistralai/mistral-7b-instruct",
+      // OpenAI Models
+      "openai/gpt-4o",
+      "openai/gpt-4o-mini",
+      "openai/o1",
+      "openai/o1-mini",
+      "openai/o1-preview",
+      "openai/o3-mini",
+      "openai/o3-mini:high",
+      "openai/gpt-4-turbo",
+    ],
+    placeholder: "sk-or-v1-...",
+    docs: "https://openrouter.ai/",
+  },
+  {
+    id: "deepseek",
+    name: "DeepSeek",
+    defaultModel: "deepseek-v4-pro",
+    defaultBaseUrl: "https://api.deepseek.com/v1",
+    models: [
+      "deepseek-v4-pro",
+      "deepseek-v4-flash",
+      "deepseek-chat",
+      "deepseek-reasoner",
+    ],
+    placeholder: "sk-...",
+    docs: "https://platform.deepseek.com/",
   },
 ];
 
@@ -217,6 +427,7 @@ export default function SettingsPage() {
     ok: boolean;
     msg: string;
   } | null>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   // Save State
   const [_loading, setLoading] = useState(true);
@@ -396,14 +607,20 @@ export default function SettingsPage() {
     }
   };
 
-  // List S3 Backups
+  // List S3 Backups — S3 not configured is expected in dev/local, don't spam console
   const handleListS3Backups = async () => {
     setIsLoadingBackups(true);
     try {
       const list = await listS3Backups();
       setS3Backups(list || []);
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      const msg = err?.message || "";
+      const code = err?.code || "";
+      const isNotConfigured =
+        code === "s3_not_configured" ||
+        msg.toLowerCase().includes("s3 not configured");
+      if (!isNotConfigured) console.error(err);
+      setS3Backups([]);
     } finally {
       setIsLoadingBackups(false);
     }
@@ -512,19 +729,16 @@ export default function SettingsPage() {
             </span>
           )}
 
-          <button
-            type="button"
+          <IconButton
+            label={saving ? "Saving…" : "Save All Changes"}
+            tooltipPlacement="bottom"
+            variant="accent"
+            size="md"
+            icon={<Save />}
             onClick={handleSave}
             disabled={saving}
-            className="flex items-center gap-2 h-8.5 px-4 rounded bg-[var(--accent)] text-white text-xs font-bold hover:opacity-90 disabled:opacity-50 shadow-sm transition-all active:scale-[0.98]"
-          >
-            {saving ? (
-              <RotateCw className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Save className="h-3.5 w-3.5" />
-            )}
-            <span>Save All Changes</span>
-          </button>
+            loading={saving}
+          />
         </div>
       </header>
 
@@ -695,14 +909,26 @@ export default function SettingsPage() {
                     onChange={(e) => setModel(e.target.value)}
                     className="w-full bg-[var(--surface-soft)] border border-[var(--line)] focus:border-[var(--accent)] rounded px-3 py-2 text-xs font-mono text-[var(--ink)] focus:outline-none"
                   >
-                    {(
-                      PROVIDER_OPTIONS.find((opt) => opt.id === provider)
-                        ?.models || ["gemini-1.5-pro"]
-                    ).map((m) => (
-                      <option key={m} value={m}>
-                        {m}
-                      </option>
-                    ))}
+                    {(() => {
+                      const current = PROVIDER_OPTIONS.find(
+                        (opt) => opt.id === provider,
+                      );
+                      const opts = current?.models?.length
+                        ? current.models
+                        : [];
+                      // If the saved model is not in the catalog (e.g. custom or
+                      // older entry), keep it visible so the user can still see
+                      // what they had selected.
+                      if (model && !opts.includes(model)) opts.unshift(model);
+                      // Always provide at least one option so the select is not
+                      // empty even if the catalog fails to load for some reason.
+                      const final = opts.length > 0 ? opts : ["gemini-1.5-pro"];
+                      return final.map((m) => (
+                        <option key={m} value={m}>
+                          {m}
+                        </option>
+                      ));
+                    })()}
                   </select>
                 </div>
               </div>
@@ -743,18 +969,14 @@ export default function SettingsPage() {
                   <label className="text-[10px] font-bold uppercase text-[var(--muted)]">
                     Secret API Key
                   </label>
-                  <button
-                    type="button"
+                  <IconButton
+                    label={showKey ? "Hide Key" : "Show Key"}
+                    tooltipPlacement="bottom"
+                    variant="ghost"
+                    size="sm"
+                    icon={showKey ? <EyeOff /> : <Eye />}
                     onClick={() => setShowKey(!showKey)}
-                    className="text-[10px] text-[var(--accent)] hover:underline flex items-center gap-1"
-                  >
-                    {showKey ? (
-                      <EyeOff className="h-3 w-3" />
-                    ) : (
-                      <Eye className="h-3 w-3" />
-                    )}
-                    <span>{showKey ? "Hide Key" : "Show Key"}</span>
-                  </button>
+                  />
                 </div>
 
                 <input
@@ -773,19 +995,16 @@ export default function SettingsPage() {
 
               {/* Test AI Probe Action */}
               <div className="pt-3 border-t border-[var(--line)] flex items-center justify-between">
-                <button
-                  type="button"
+                <IconButton
+                  label={isTestingAi ? "Probing AI…" : "Test AI Connection"}
+                  tooltipPlacement="bottom"
+                  variant="soft"
+                  size="sm"
+                  icon={<RefreshCw />}
                   onClick={handleTestAi}
                   disabled={isTestingAi}
-                  className="flex items-center gap-1.5 h-8 px-3 rounded bg-[var(--surface-soft)] border border-[var(--line)] text-xs font-bold text-[var(--ink)] hover:border-[var(--muted)] transition-colors"
-                >
-                  <RefreshCw
-                    className={`h-3.5 w-3.5 ${isTestingAi ? "animate-spin" : ""}`}
-                  />
-                  <span>
-                    {isTestingAi ? "Probing AI..." : "Test AI Connection"}
-                  </span>
-                </button>
+                  loading={isTestingAi}
+                />
 
                 {aiTestResult && (
                   <span
@@ -892,13 +1111,14 @@ export default function SettingsPage() {
                     <label className="text-[10px] font-bold uppercase text-[var(--muted)]">
                       Secret Key
                     </label>
-                    <button
-                      type="button"
+                    <IconButton
+                      label={showS3Secret ? "Hide Secret" : "Show Secret"}
+                      tooltipPlacement="bottom"
+                      variant="ghost"
+                      size="sm"
+                      icon={showS3Secret ? <EyeOff /> : <Eye />}
                       onClick={() => setShowS3Secret(!showS3Secret)}
-                      className="text-[10px] text-[var(--accent)] hover:underline"
-                    >
-                      {showS3Secret ? "Hide" : "Show"}
-                    </button>
+                    />
                   </div>
                   <input
                     type={showS3Secret ? "text" : "password"}
@@ -930,31 +1150,27 @@ export default function SettingsPage() {
               {/* Actions: Test & Push */}
               <div className="pt-3 border-t border-[var(--line)] flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
+                  <IconButton
+                    label={isTestingS3 ? "Testing S3…" : "Test S3 Connection"}
+                    tooltipPlacement="bottom"
+                    variant="soft"
+                    size="sm"
+                    icon={<RefreshCw />}
                     onClick={handleTestS3}
                     disabled={isTestingS3}
-                    className="flex items-center gap-1.5 h-8 px-3 rounded bg-[var(--surface-soft)] border border-[var(--line)] text-xs font-bold text-[var(--ink)] hover:border-[var(--muted)] transition-colors"
-                  >
-                    <RefreshCw
-                      className={`h-3.5 w-3.5 ${isTestingS3 ? "animate-spin" : ""}`}
-                    />
-                    <span>
-                      {isTestingS3 ? "Testing S3..." : "Test S3 Connection"}
-                    </span>
-                  </button>
+                    loading={isTestingS3}
+                  />
 
-                  <button
-                    type="button"
+                  <IconButton
+                    label={isUploadingS3 ? "Uploading…" : "Push Cloud Backup"}
+                    tooltipPlacement="bottom"
+                    variant="accent"
+                    size="sm"
+                    icon={<UploadCloud />}
                     onClick={handlePushS3Backup}
                     disabled={isUploadingS3}
-                    className="flex items-center gap-1.5 h-8 px-3 rounded bg-[var(--accent)] text-white text-xs font-bold hover:opacity-90 transition-opacity"
-                  >
-                    <UploadCloud className="h-3.5 w-3.5" />
-                    <span>
-                      {isUploadingS3 ? "Uploading..." : "Push Cloud Backup"}
-                    </span>
-                  </button>
+                    loading={isUploadingS3}
+                  />
                 </div>
 
                 {s3TestStatus && (
@@ -983,17 +1199,16 @@ export default function SettingsPage() {
                     Remote Cloud Snapshots ({s3Backups.length})
                   </h3>
                 </div>
-                <button
-                  type="button"
+                <IconButton
+                  label="Refresh remote backups"
+                  tooltipPlacement="bottom"
+                  variant="ghost"
+                  size="sm"
+                  icon={<RefreshCw />}
                   onClick={handleListS3Backups}
                   disabled={isLoadingBackups}
-                  className="p-1 rounded text-[var(--muted)] hover:text-[var(--ink)] hover:bg-[var(--surface-soft)]"
-                  title="Refresh remote backups"
-                >
-                  <RefreshCw
-                    className={`h-3.5 w-3.5 ${isLoadingBackups ? "animate-spin" : ""}`}
-                  />
-                </button>
+                  loading={isLoadingBackups}
+                />
               </div>
 
               {s3Backups.length > 0 ? (
@@ -1081,19 +1296,16 @@ export default function SettingsPage() {
                   </p>
                 </div>
 
-                <button
-                  type="button"
+                <IconButton
+                  label={isCachingPackages ? "Caching…" : "Prime Packages"}
+                  tooltipPlacement="bottom"
+                  variant="soft"
+                  size="sm"
+                  icon={<RefreshCw />}
                   onClick={handlePrecachePackages}
                   disabled={isCachingPackages}
-                  className="flex items-center gap-1.5 h-8 px-3 rounded bg-[var(--surface-soft)] border border-[var(--line)] text-xs font-bold text-[var(--ink)] hover:border-[var(--muted)] transition-colors shrink-0"
-                >
-                  <RefreshCw
-                    className={`h-3.5 w-3.5 ${isCachingPackages ? "animate-spin" : ""}`}
-                  />
-                  <span>
-                    {isCachingPackages ? "Caching..." : "Prime Packages"}
-                  </span>
-                </button>
+                  loading={isCachingPackages}
+                />
               </div>
 
               {cacheResult && (
@@ -1134,14 +1346,14 @@ export default function SettingsPage() {
                       projects into a single JSON file.
                     </p>
                   </div>
-                  <button
-                    type="button"
+                  <IconButton
+                    label="Download JSON Backup"
+                    tooltipPlacement="bottom"
+                    variant="soft"
+                    size="sm"
+                    icon={<Download />}
                     onClick={handleExportData}
-                    className="flex items-center gap-1.5 h-8.5 px-3.5 rounded bg-[var(--surface)] border border-[var(--line)] text-xs font-bold text-[var(--ink)] hover:border-[var(--muted)] transition-colors"
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                    <span>Download JSON Backup</span>
-                  </button>
+                  />
                 </div>
 
                 {/* Import Card */}
@@ -1155,21 +1367,26 @@ export default function SettingsPage() {
                       tables and documents.
                     </p>
                   </div>
-                  <label className="inline-flex items-center gap-1.5 h-8.5 px-3.5 rounded bg-[var(--accent)] text-white text-xs font-bold hover:opacity-90 cursor-pointer transition-opacity">
-                    <Upload className="h-3.5 w-3.5" />
-                    <span>
-                      {isImporting
-                        ? "Importing..."
-                        : "Choose Backup File (.json)"}
-                    </span>
-                    <input
-                      type="file"
-                      accept=".json"
-                      onChange={handleImportFile}
-                      disabled={isImporting}
-                      className="hidden"
-                    />
-                  </label>
+                  <input
+                    ref={importInputRef}
+                    type="file"
+                    accept=".json"
+                    onChange={handleImportFile}
+                    disabled={isImporting}
+                    className="hidden"
+                  />
+                  <IconButton
+                    label={
+                      isImporting ? "Importing…" : "Choose Backup File (.json)"
+                    }
+                    tooltipPlacement="bottom"
+                    variant="accent"
+                    size="sm"
+                    icon={<Upload />}
+                    onClick={() => importInputRef.current?.click()}
+                    disabled={isImporting}
+                    loading={isImporting}
+                  />
                 </div>
               </div>
 
@@ -1212,14 +1429,20 @@ export default function SettingsPage() {
                     <label className="text-[10px] font-bold uppercase text-[var(--muted)]">
                       Extension Secret Token
                     </label>
-                    <button
-                      type="button"
+                    <IconButton
+                      label={copiedSecret ? "Copied!" : "Copy Secret"}
+                      tooltipPlacement="bottom"
+                      variant="ghost"
+                      size="sm"
+                      icon={
+                        copiedSecret ? (
+                          <Check className="h-3 w-3 text-emerald-500" />
+                        ) : (
+                          <Copy className="h-3 w-3" />
+                        )
+                      }
                       onClick={copySecret}
-                      className="text-[10px] text-[var(--accent)] hover:underline flex items-center gap-1"
-                    >
-                      <Copy className="h-3 w-3" />
-                      <span>{copiedSecret ? "Copied" : "Copy Secret"}</span>
-                    </button>
+                    />
                   </div>
                   <div className="bg-[var(--surface-soft)] border border-[var(--line)] rounded px-3 py-2 font-mono text-xs text-[var(--ink)] truncate select-all">
                     {extSecret || "rt_sec_xxxxxxxx"}
@@ -1255,14 +1478,20 @@ export default function SettingsPage() {
                     </p>
                   </div>
                 </div>
-                <button
-                  type="button"
+                <IconButton
+                  label={copiedToken ? "Copied!" : "Copy Token"}
+                  tooltipPlacement="bottom"
+                  variant="ghost"
+                  size="sm"
+                  icon={
+                    copiedToken ? (
+                      <Check className="h-3 w-3 text-emerald-500" />
+                    ) : (
+                      <Copy className="h-3 w-3" />
+                    )
+                  }
                   onClick={copyMasterToken}
-                  className="flex items-center gap-1 text-[10px] text-[var(--accent)] font-bold hover:underline"
-                >
-                  <Copy className="h-3 w-3" />
-                  <span>{copiedToken ? "Copied" : "Copy Token"}</span>
-                </button>
+                />
               </div>
 
               <div className="bg-[var(--surface-soft)] border border-[var(--line)] rounded px-3 py-2 font-mono text-xs text-[var(--ink)] truncate select-all">

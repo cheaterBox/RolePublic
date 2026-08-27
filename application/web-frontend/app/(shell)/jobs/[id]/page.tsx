@@ -20,6 +20,8 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use, useEffect, useState } from "react";
+import { LatexEditor } from "@/components/editor/LatexEditor";
+import { IconButton, IconLink } from "@/components/ui/IconButton";
 import { getJob, updateJobStatus } from "@/features/jobs/api";
 import { getResume, listResumes, tailorResume } from "@/features/resumes/api";
 import { getAiConfig } from "@/features/settings/api";
@@ -456,58 +458,48 @@ export default function JobDetailPage({
 
         {/* Right Section: Actions */}
         <div className="flex items-center gap-1.5 shrink-0">
-          {/* Match Score Button */}
-          <button
-            type="button"
+          <IconButton
+            label="Score"
+            tooltipPlacement="bottom"
+            variant="soft"
+            size="sm"
+            icon={<Gauge className="h-3.5 w-3.5 text-amber-400" />}
             onClick={handleScore}
-            className="flex items-center gap-1.5 h-8 px-2.5 rounded-xl bg-[var(--surface-soft)] border border-[var(--line)] text-xs font-bold text-[var(--ink)] hover:border-[var(--muted)] transition-colors shadow-2xs cursor-pointer"
-            title="Evaluate ATS Match"
-          >
-            <Gauge className="h-3.5 w-3.5 text-amber-400" />
-            <span className="hidden sm:inline">Score</span>
-          </button>
-
-          {/* Compile Button */}
-          <button
-            type="button"
+          />
+          <IconButton
+            label="Compile"
+            tooltipPlacement="bottom"
+            variant="accent"
+            size="sm"
+            icon={<Hammer className="h-3.5 w-3.5" />}
             onClick={handleCompile}
-            disabled={isCompiling}
-            className="flex items-center gap-1.5 h-8.5 px-3.5 rounded-xl bg-[var(--accent)] text-white text-xs font-bold hover:opacity-90 disabled:opacity-50 border border-[var(--accent)] shadow-sm transition-all active:scale-[0.98] cursor-pointer"
-            title="Compile LaTeX with Tectonic"
-          >
-            {isCompiling ? (
-              <RotateCw className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Hammer className="h-3.5 w-3.5" />
-            )}
-            <span>Compile</span>
-          </button>
-
-          {/* Download Button */}
+            loading={isCompiling}
+          />
           {pdfBlobUrl && (
-            <a
+            <IconLink
+              label="Download PDF"
+              tooltipPlacement="bottom"
+              variant="soft"
+              size="sm"
+              icon={<Download className="h-3.5 w-3.5" />}
               href={pdfBlobUrl}
               download={`${job.company_name}_${activeMode}.pdf`}
-              className="flex items-center gap-1.5 h-8 px-2.5 rounded-xl bg-[var(--surface-soft)] border border-[var(--line)] text-xs font-bold text-[var(--ink)] hover:border-[var(--muted)] transition-colors shadow-2xs cursor-pointer"
-              title="Download PDF"
-            >
-              <Download className="h-3.5 w-3.5" />
-            </a>
+            />
           )}
-
-          {/* Save Button */}
-          <button
-            type="button"
+          <IconButton
+            label="Save LaTeX Document"
+            tooltipPlacement="bottom"
+            variant="soft"
+            size="sm"
+            icon={
+              isSaved ? (
+                <Check className="h-3.5 w-3.5 text-[var(--accent)]" />
+              ) : (
+                <Save className="h-3.5 w-3.5" />
+              )
+            }
             onClick={handleSave}
-            className="flex items-center gap-1.5 h-8 px-2.5 rounded-xl bg-[var(--surface-soft)] border border-[var(--line)] text-xs font-bold text-[var(--ink)] hover:border-[var(--muted)] transition-colors shadow-2xs cursor-pointer"
-            title="Save LaTeX Document"
-          >
-            {isSaved ? (
-              <Check className="h-3.5 w-3.5 text-[var(--accent)]" />
-            ) : (
-              <Save className="h-3.5 w-3.5" />
-            )}
-          </button>
+          />
         </div>
       </header>
 
@@ -658,8 +650,8 @@ export default function JobDetailPage({
           )}
         </div>
 
-        {/* Center: LaTeX Code Editor */}
-        <div className="flex-1 flex flex-col min-w-0 bg-[#0d0f14] overflow-hidden">
+        {/* Center: Production LaTeX Code Editor */}
+        <div className="flex-1 flex flex-col min-w-0 bg-[#0d1117] overflow-hidden">
           <div className="h-7 flex items-center justify-between px-3 bg-[var(--bg-accent)] border-b border-[var(--line)] text-[10px] font-mono text-[var(--muted)] select-none">
             <span>
               {activeMode === "resume" ? "resume.tex" : "cover_letter.tex"}
@@ -682,12 +674,21 @@ export default function JobDetailPage({
             </div>
           </div>
 
-          <textarea
-            value={activeLatex}
-            onChange={(e) => setActiveLatex(e.target.value)}
-            spellCheck={false}
-            className="flex-1 w-full bg-[#0d0f14] p-3.5 font-mono text-xs text-[#e6edf3] border-0 resize-none focus:outline-none leading-relaxed select-text overflow-y-auto"
-          />
+          <div className="flex-1 flex min-h-0 overflow-hidden bg-[#0d1117]">
+            <LatexEditor
+              key={activeMode}
+              value={activeLatex}
+              onChange={setActiveLatex}
+              onCompile={handleCompile}
+              onSave={handleCompile}
+              height="100%"
+              placeholder={
+                activeMode === "resume"
+                  ? "% Tailored resume LaTeX — syntax highlighting & LaTeX auto-close enabled"
+                  : "% Tailored cover letter LaTeX — syntax highlighting & LaTeX auto-close enabled"
+              }
+            />
+          </div>
         </div>
 
         {/* Right: PDF Vector Viewer */}

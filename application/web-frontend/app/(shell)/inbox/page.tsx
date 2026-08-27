@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { IconButton } from "@/components/ui/IconButton";
 import { deleteInbox, listInbox } from "@/features/inbox/api";
 import { getExtensionConfig } from "@/features/settings/api";
 import type { InboxJob } from "@/lib/api/types";
@@ -30,7 +31,6 @@ export default function InboxPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
-  const [_activeTooltip, _setActiveTooltip] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -104,46 +104,46 @@ export default function InboxPage() {
         <div className="flex items-center gap-2 shrink-0">
           {!isSelectionMode ? (
             <>
-              <button
-                type="button"
+              <IconButton
+                label="Selection Mode"
+                tooltipPlacement="bottom"
+                variant="soft"
+                size="sm"
+                icon={<Settings2 className="h-4 w-4" />}
                 onClick={() => setIsSelectionMode(true)}
-                className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--surface-soft)] border border-[var(--line)] text-[var(--ink)] hover:border-[var(--muted)]"
-                title="Selection Mode"
-              >
-                <Settings2 className="h-4 w-4" />
-              </button>
-
-              <button
-                type="button"
+              />
+              <IconButton
+                label="Refresh Inbox"
+                tooltipPlacement="bottom"
+                variant="soft"
+                size="sm"
+                icon={<RefreshCw className="h-4 w-4" />}
                 onClick={load}
-                className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--surface-soft)] border border-[var(--line)] text-[var(--ink)] hover:border-[var(--muted)]"
-                title="Refresh Inbox"
-              >
-                <RefreshCw className="h-4 w-4" />
-              </button>
+              />
             </>
           ) : (
             <>
               {selectedIds.size > 0 && (
-                <button
-                  type="button"
+                <IconButton
+                  label={`Delete Selected (${selectedIds.size})`}
+                  tooltipPlacement="bottom"
+                  variant="danger"
+                  size="sm"
+                  icon={<Trash2 className="h-4 w-4" />}
                   onClick={handleDeleteSelected}
-                  className="flex h-10 px-3 items-center gap-1.5 rounded-lg bg-[var(--warning)] text-white text-xs font-bold hover:opacity-90"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  <span>Delete ({selectedIds.size})</span>
-                </button>
+                />
               )}
-              <button
-                type="button"
+              <IconButton
+                label="Cancel"
+                tooltipPlacement="bottom"
+                variant="soft"
+                size="sm"
+                icon={<X className="h-4 w-4" />}
                 onClick={() => {
                   setIsSelectionMode(false);
                   setSelectedIds(new Set());
                 }}
-                className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--surface-soft)] border border-[var(--line)] text-[var(--ink)]"
-              >
-                <X className="h-4 w-4" />
-              </button>
+              />
             </>
           )}
         </div>
@@ -246,23 +246,22 @@ export default function InboxPage() {
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    type="button"
+                  <IconButton
+                    label="Delete"
+                    tooltipPlacement="top"
+                    variant="danger"
+                    size="sm"
+                    icon={<Trash2 className="h-4 w-4" />}
                     onClick={() => handleDeleteOne(item.id)}
-                    className="p-2 rounded border border-transparent hover:border-[var(--warning)] text-[var(--muted)] hover:text-[var(--warning)] transition-colors"
-                    title="Delete"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-
-                  <button
-                    type="button"
+                  />
+                  <IconButton
+                    label="Convert to Application"
+                    tooltipPlacement="top"
+                    variant="accent"
+                    size="sm"
+                    icon={<Cpu className="h-3.5 w-3.5" />}
                     onClick={() => handleConvert(item)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-[var(--accent)] text-white text-xs font-bold hover:opacity-90 transition-opacity"
-                  >
-                    <Cpu className="h-3.5 w-3.5" />
-                    <span>Convert to Application</span>
-                  </button>
+                  />
                 </div>
               </div>
             );

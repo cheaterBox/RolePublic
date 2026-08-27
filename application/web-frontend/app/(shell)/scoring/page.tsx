@@ -1,16 +1,9 @@
 "use client";
 
-import {
-  AlertCircle,
-  CheckCircle2,
-  Cpu,
-  Gauge,
-  RotateCw,
-  Sparkles,
-} from "lucide-react";
-import Link from "next/link";
+import { AlertCircle, CheckCircle2, Cpu, Gauge, Sparkles } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
+import { IconButton, IconLink } from "@/components/ui/IconButton";
 import { listJobs } from "@/features/jobs/api";
 import { listResumes } from "@/features/resumes/api";
 import { getAiConfig } from "@/features/settings/api";
@@ -63,13 +56,13 @@ function ScoringContent() {
     try {
       const cfg = await getAiConfig().catch(() => ({
         provider: "gemini",
-        model: "gemini-1.5-pro",
+        model: "gemini-2.5-pro",
       }));
       const res = await apiFetch<ScoreResumeResult>("/scoring/score", {
         method: "POST",
         body: {
           provider: cfg.provider || "gemini",
-          model: cfg.model || "gemini-1.5-pro",
+          model: cfg.model || "gemini-2.5-pro",
           api_key: "vault_key",
           resume_id: selectedResumeId,
           job_id: selectedJobId,
@@ -121,24 +114,16 @@ function ScoringContent() {
             </p>
           </div>
 
-          <button
-            type="button"
+          <IconButton
+            label={scoring ? "Evaluating…" : "Compute Match Score"}
+            tooltipPlacement="bottom"
+            variant="accent"
+            size="md"
+            icon={<Gauge />}
             onClick={handleRunScore}
             disabled={scoring || !selectedResumeId || !selectedJobId}
-            className="flex items-center gap-1.5 h-10 px-4 rounded-xl bg-[var(--accent)] text-white text-xs font-bold hover:opacity-90 disabled:opacity-50 transition-all border border-[var(--accent)] shadow-sm active:scale-[0.98] shrink-0 cursor-pointer"
-          >
-            {scoring ? (
-              <>
-                <RotateCw className="h-4 w-4 animate-spin" />
-                <span>Evaluating…</span>
-              </>
-            ) : (
-              <>
-                <Gauge className="h-4 w-4" />
-                <span>Compute Match Score</span>
-              </>
-            )}
-          </button>
+            loading={scoring}
+          />
         </header>
 
         {/* Selection Form */}
@@ -205,13 +190,14 @@ function ScoringContent() {
                 </p>
               </div>
 
-              <Link
+              <IconLink
                 href={`/jobs/${selectedJobId}`}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent)] px-3.5 py-1.5 text-xs font-bold text-white hover:opacity-90 transition-opacity"
-              >
-                <Sparkles className="h-3.5 w-3.5" />
-                <span>Tailor Resume</span>
-              </Link>
+                label="Tailor Resume"
+                tooltipPlacement="bottom"
+                variant="accent"
+                size="sm"
+                icon={<Sparkles />}
+              />
             </div>
 
             {/* Reasoning & Keywords */}

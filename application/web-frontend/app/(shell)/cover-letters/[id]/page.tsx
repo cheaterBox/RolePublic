@@ -16,6 +16,8 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use, useEffect, useState } from "react";
+import { LatexEditor } from "@/components/editor/LatexEditor";
+import { IconButton } from "@/components/ui/IconButton";
 import { getAiConfig } from "@/features/settings/api";
 import { apiFetch } from "@/lib/api/client";
 import type { CoverLetterDetail } from "@/lib/api/types";
@@ -229,53 +231,54 @@ export default function CoverLetterDetailPage({
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handleCompile}
+          <IconButton
+            label="Compile LaTeX"
+            tooltipPlacement="bottom"
+            variant="accent"
+            size="sm"
+            icon={<Hammer />}
+            loading={isCompiling}
             disabled={isCompiling}
-            className="flex items-center gap-1.5 h-8 px-3 rounded bg-[var(--accent)] text-white text-xs font-bold hover:opacity-90 disabled:opacity-50 transition-opacity"
-          >
-            {isCompiling ? (
-              <RotateCw className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Hammer className="h-3.5 w-3.5" />
-            )}
-            <span>Compile</span>
-          </button>
+            onClick={handleCompile}
+          />
 
           {pdfBlobUrl && (
-            <a
-              href={pdfBlobUrl}
-              download={`${name || "cover_letter"}.pdf`}
-              className="flex items-center gap-1 h-8 px-2.5 rounded bg-[var(--surface-soft)] border border-[var(--line)] text-xs font-bold text-[var(--ink)] hover:border-[var(--muted)] transition-colors"
-              title="Download PDF"
-            >
-              <Download className="h-3.5 w-3.5" />
-            </a>
+            <IconButton
+              label="Download PDF"
+              tooltipPlacement="bottom"
+              variant="soft"
+              size="sm"
+              icon={<Download />}
+              onClick={() => {
+                const a = document.createElement("a");
+                a.href = pdfBlobUrl;
+                a.download = `${name || "cover_letter"}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+              }}
+            />
           )}
 
-          <button
-            type="button"
-            onClick={handleSave}
+          <IconButton
+            label="Save Template"
+            tooltipPlacement="bottom"
+            variant="soft"
+            size="sm"
+            icon={isSaved ? <Check className="text-emerald-400" /> : <Save />}
             disabled={saving}
-            className="flex items-center gap-1 h-8 px-2.5 rounded bg-[var(--surface-soft)] border border-[var(--line)] text-xs font-bold text-[var(--ink)] hover:border-[var(--muted)] transition-colors"
-            title="Save Template"
-          >
-            {isSaved ? (
-              <Check className="h-3.5 w-3.5 text-emerald-400" />
-            ) : (
-              <Save className="h-3.5 w-3.5" />
-            )}
-          </button>
+            loading={saving}
+            onClick={handleSave}
+          />
 
-          <button
-            type="button"
+          <IconButton
+            label="Delete Template"
+            tooltipPlacement="bottom"
+            variant="danger"
+            size="sm"
+            icon={<Trash2 />}
             onClick={handleDelete}
-            className="flex items-center h-8 px-2.5 rounded border border-[var(--warning)] text-[var(--warning)] hover:bg-[var(--warning)] hover:text-white transition-colors"
-            title="Delete Template"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
+          />
         </div>
       </header>
 
@@ -304,19 +307,23 @@ export default function CoverLetterDetailPage({
 
       {/* Split Pane Editor & Vector PDF Preview */}
       <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden">
-        {/* Left: LaTeX Editor */}
-        <div className="flex-1 flex flex-col min-w-0 bg-[#0d0f14] overflow-hidden">
+        {/* Left: Production LaTeX Editor */}
+        <div className="flex-1 flex flex-col min-w-0 bg-[#0d1117] overflow-hidden">
           <div className="h-8 flex items-center justify-between px-4 bg-[var(--bg-accent)] border-b border-[var(--line)] text-[10px] font-mono text-[var(--muted)] select-none">
             <span>cover_letter.tex</span>
             <span>{latex.split("\n").length} lines</span>
           </div>
 
-          <textarea
-            value={latex}
-            onChange={(e) => setLatex(e.target.value)}
-            spellCheck={false}
-            className="flex-1 w-full bg-[#0d0f14] p-5 font-mono text-xs text-[#e6edf3] border-0 resize-none focus:outline-hidden leading-relaxed select-text overflow-y-auto"
-          />
+          <div className="flex-1 flex min-h-0 overflow-hidden bg-[#0d1117]">
+            <LatexEditor
+              value={latex}
+              onChange={setLatex}
+              onCompile={handleCompile}
+              onSave={handleSave}
+              height="100%"
+              placeholder="% Cover letter LaTeX — CodeMirror with LaTeX grammar, bracket matching & dark theme"
+            />
+          </div>
         </div>
 
         {/* Right: PDF Vector Viewer */}

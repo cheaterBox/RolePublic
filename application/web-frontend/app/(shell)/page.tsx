@@ -11,13 +11,13 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { Tooltip } from "@/components/ui/Tooltip";
 import { listJobs } from "@/features/jobs/api";
 import type { JobPayload } from "@/lib/api/types";
 
 export default function HomePage() {
   const router = useRouter();
   const [savedJobs, setSavedJobs] = useState<JobPayload[]>([]);
-  const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -56,64 +56,39 @@ export default function HomePage() {
             Surgical AI tailoring for high-performance LaTeX resumes.
           </p>
 
-          {/* Action Buttons with Floating Tooltips (Matching HomeTab.vue) */}
+          {/* Action Buttons — icon-only + viewport-safe tooltip */}
           <div className="flex items-center gap-3 pt-2">
-            {/* New Application */}
-            <div
-              className="relative flex items-center"
-              onMouseEnter={() => setActiveTooltip("new-app")}
-              onMouseLeave={() => setActiveTooltip(null)}
-            >
+            <Tooltip content="New Application" placement="top" maxWidth={180}>
               <Link
                 href="/parse"
-                className="flex h-11 w-11 items-center justify-center rounded-lg bg-[var(--accent)] text-white hover:opacity-90 transition-opacity"
+                aria-label="New Application"
+                className="flex h-11 w-11 items-center justify-center rounded-lg bg-[var(--accent)] text-white hover:opacity-90 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] shrink-0 touch-manipulation"
               >
                 <Plus className="h-5 w-5" />
               </Link>
-              {activeTooltip === "new-app" && (
-                <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-50 rounded-md bg-[var(--surface-soft)] border border-[var(--line)] px-2.5 py-1 text-[11px] font-bold text-[var(--ink)] whitespace-nowrap shadow-xl pointer-events-none">
-                  New Application
-                </div>
-              )}
-            </div>
-
-            {/* Resume Templates */}
-            <div
-              className="relative flex items-center"
-              onMouseEnter={() => setActiveTooltip("resumes")}
-              onMouseLeave={() => setActiveTooltip(null)}
-            >
+            </Tooltip>
+            <Tooltip content="Resume Templates" placement="top" maxWidth={180}>
               <Link
                 href="/resumes"
-                className="flex h-11 w-11 items-center justify-center rounded-lg bg-[var(--surface-soft)] border border-[var(--line)] text-[var(--ink)] hover:border-[var(--muted)] transition-colors"
+                aria-label="Resume Templates"
+                className="flex h-11 w-11 items-center justify-center rounded-lg bg-[var(--surface-soft)] border border-[var(--line)] text-[var(--ink)] hover:border-[var(--muted)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] shrink-0 touch-manipulation"
               >
                 <FileText className="h-5 w-5" />
               </Link>
-              {activeTooltip === "resumes" && (
-                <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-50 rounded-md bg-[var(--surface-soft)] border border-[var(--line)] px-2.5 py-1 text-[11px] font-bold text-[var(--ink)] whitespace-nowrap shadow-xl pointer-events-none">
-                  Resume Templates
-                </div>
-              )}
-            </div>
-
-            {/* CL Templates */}
-            <div
-              className="relative flex items-center"
-              onMouseEnter={() => setActiveTooltip("cls")}
-              onMouseLeave={() => setActiveTooltip(null)}
+            </Tooltip>
+            <Tooltip
+              content="Cover Letter Templates"
+              placement="top"
+              maxWidth={180}
             >
               <Link
                 href="/cover-letters"
-                className="flex h-11 w-11 items-center justify-center rounded-lg bg-[var(--surface-soft)] border border-[var(--line)] text-[var(--ink)] hover:border-[var(--muted)] transition-colors"
+                aria-label="Cover Letter Templates"
+                className="flex h-11 w-11 items-center justify-center rounded-lg bg-[var(--surface-soft)] border border-[var(--line)] text-[var(--ink)] hover:border-[var(--muted)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] shrink-0 touch-manipulation"
               >
                 <Mail className="h-5 w-5" />
               </Link>
-              {activeTooltip === "cls" && (
-                <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-50 rounded-md bg-[var(--surface-soft)] border border-[var(--line)] px-2.5 py-1 text-[11px] font-bold text-[var(--ink)] whitespace-nowrap shadow-xl pointer-events-none">
-                  CL Templates
-                </div>
-              )}
-            </div>
+            </Tooltip>
           </div>
         </div>
 
@@ -124,23 +99,19 @@ export default function HomePage() {
               RECENT APPLICATIONS
             </h3>
 
-            <div
-              className="relative flex items-center"
-              onMouseEnter={() => setActiveTooltip("all-jobs")}
-              onMouseLeave={() => setActiveTooltip(null)}
+            <Tooltip
+              content="All Applications"
+              placement="bottom"
+              maxWidth={180}
             >
               <Link
                 href="/jobs"
-                className="text-[var(--accent)] hover:opacity-80 text-xs font-bold flex items-center gap-1"
+                aria-label="All Applications"
+                className="text-[var(--accent)] hover:opacity-80 text-xs font-bold flex items-center gap-1 p-1.5 rounded-lg hover:bg-[var(--surface-soft)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
               >
                 <LayoutGrid className="h-4 w-4" />
               </Link>
-              {activeTooltip === "all-jobs" && (
-                <div className="absolute top-full mt-2 right-0 z-50 rounded-md bg-[var(--surface-soft)] border border-[var(--line)] px-2.5 py-1 text-[11px] font-bold text-[var(--ink)] whitespace-nowrap shadow-xl pointer-events-none">
-                  All Applications
-                </div>
-              )}
-            </div>
+            </Tooltip>
           </div>
 
           {loading ? (

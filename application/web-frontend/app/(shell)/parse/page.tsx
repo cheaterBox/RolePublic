@@ -1,16 +1,10 @@
 "use client";
 
-import {
-  AlertCircle,
-  ArrowLeft,
-  Check,
-  Copy,
-  Cpu,
-  RotateCw,
-} from "lucide-react";
+import { AlertCircle, ArrowLeft, Check, Copy, Cpu } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { IconButton } from "@/components/ui/IconButton";
 import { parseJobDescription, saveJob } from "@/features/jobs/api";
 import { getAiConfig } from "@/features/settings/api";
 import type { JobPayload } from "@/lib/api/types";
@@ -192,28 +186,20 @@ export default function ParsePage() {
             </div>
           )}
 
-          {/* Run Extraction Button */}
-          <div className="mt-auto pt-4">
-            <button
-              type="button"
+          {/* Run Extraction — icon-only primary action */}
+          <div className="mt-auto pt-4 flex justify-center">
+            <IconButton
+              label={loading ? "Parsing…" : "Run Extraction"}
+              tooltipPlacement="bottom"
+              variant="accent"
+              size="lg"
+              icon={<Cpu />}
               onClick={handleParse}
               disabled={
                 loading || (!rawJobDescription.trim() && !jobUrl.trim())
               }
-              className="w-full h-11 flex items-center justify-center gap-2 rounded-md bg-[var(--accent)] text-white text-xs font-bold hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
-            >
-              {loading ? (
-                <>
-                  <RotateCw className="h-4 w-4 animate-spin" />
-                  <span>PARSING...</span>
-                </>
-              ) : (
-                <>
-                  <Cpu className="h-4 w-4" />
-                  <span>RUN EXTRACTION</span>
-                </>
-              )}
-            </button>
+              loading={loading}
+            />
           </div>
         </div>
       </div>

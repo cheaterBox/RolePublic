@@ -35,7 +35,7 @@ export function JobParser({
   const [rawJd, setRawJd] = useState(initialRawJd);
   const [jobUrl, setJobUrl] = useState(initialUrl);
   const [provider, setProvider] = useState("gemini");
-  const [model, setModel] = useState("gemini-1.5-pro");
+  const [model, setModel] = useState("gemini-2.5-pro");
   const [apiKey, setApiKey] = useState("");
   const [hasSavedKey, setHasSavedKey] = useState(false);
   const [saving, setSaving] = useState(false);

@@ -1,5 +1,6 @@
 "use client";
 
+import type { EditorView } from "@codemirror/view";
 import {
   AlertTriangle,
   Check,
@@ -23,6 +24,8 @@ import {
   ZoomOut,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { LatexEditor } from "@/components/editor/LatexEditor";
+import { IconButton } from "@/components/ui/IconButton";
 import { getAiConfig } from "@/features/settings/api";
 import { apiFetch } from "@/lib/api/client";
 import type { CompilerState } from "@/lib/api/types";
@@ -216,8 +219,8 @@ export default function CompilerPage() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [mobileTab, setMobileTab] = useState<"editor" | "preview">("editor");
 
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const splitRef = useRef<HTMLDivElement | null>(null);
+  const editorViewRef = useRef<EditorView | null>(null);
 
   // Load saved state on mount
   useEffect(() => {
@@ -232,17 +235,6 @@ export default function CompilerPage() {
       }
     })();
   }, []);
-
-  // Update cursor position on keyup / click
-  const updateCursorPosition = () => {
-    if (!textareaRef.current) return;
-    const text = textareaRef.current.value;
-    const selStart = textareaRef.current.selectionStart;
-    const lines = text.slice(0, selStart).split("\n");
-    const currentLine = lines.length;
-    const currentCol = lines[lines.length - 1].length + 1;
-    setCursorPos({ line: currentLine, col: currentCol });
-  };
 
   // Extract document outline from LaTeX (\section, \subsection)
   const outline = useMemo(() => {
@@ -264,18 +256,19 @@ export default function CompilerPage() {
   }, [latex]);
 
   const jumpToLine = (lineNumber: number) => {
-    if (!textareaRef.current) return;
-    const lines = latex.split("\n");
-    let charIndex = 0;
-    for (let i = 0; i < lineNumber - 1 && i < lines.length; i++) {
-      charIndex += lines[i].length + 1;
+    const view = editorViewRef.current;
+    if (!view) return;
+    try {
+      const line = view.state.doc.line(lineNumber);
+      view.dispatch({
+        selection: { anchor: line.from, head: line.to },
+        scrollIntoView: true,
+      });
+      view.focus();
+      setCursorPos({ line: lineNumber, col: 1 });
+    } catch {
+      // out of bounds
     }
-    textareaRef.current.focus();
-    textareaRef.current.setSelectionRange(
-      charIndex,
-      charIndex + (lines[lineNumber - 1]?.length || 0),
-    );
-    updateCursorPosition();
   };
 
   // Compile LaTeX handler
@@ -487,84 +480,65 @@ export default function CompilerPage() {
           </button>
         </div>
 
-        {/* Right Tools & Compilation */}
+        {/* Right Tools — icon-only + viewport-safe tooltips */}
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          {/* AI Refine Toggle */}
-          <button
-            type="button"
+          <IconButton
+            label={showRefineBar ? "Close AI Refine" : "AI Refine"}
+            tooltipPlacement="bottom"
+            variant="soft"
+            size="sm"
+            icon={<Sparkles className="text-[var(--accent)]" />}
             onClick={() => setShowRefineBar(!showRefineBar)}
-            className={`flex items-center gap-1.5 h-8 px-2.5 sm:px-3 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+            className={
               showRefineBar
-                ? "bg-[var(--accent)]/15 text-[var(--accent)] border-[var(--accent)] ring-1 ring-[var(--accent)]/30"
-                : "bg-[var(--surface-soft)] text-[var(--ink)] border-[var(--line)] hover:border-[var(--muted)] shadow-2xs"
-            }`}
-          >
-            <Sparkles className="h-3.5 w-3.5 text-[var(--accent)]" />
-            <span className="hidden sm:inline">AI Refine</span>
-          </button>
-
-          {/* Copy Source */}
-          <button
-            type="button"
+                ? "!bg-[var(--accent)]/15 !text-[var(--accent)] !border-[var(--accent)] ring-1 ring-[var(--accent)]/30"
+                : ""
+            }
+            aria-pressed={showRefineBar}
+          />
+          <IconButton
+            label={copied ? "Copied!" : "Copy LaTeX source"}
+            tooltipPlacement="bottom"
+            variant="soft"
+            size="sm"
+            icon={copied ? <Check className="text-emerald-500" /> : <Copy />}
             onClick={handleCopySource}
-            className="flex items-center gap-1.5 h-8 px-2.5 rounded-xl bg-[var(--surface-soft)] border border-[var(--line)] text-xs font-medium text-[var(--ink)] hover:border-[var(--muted)] transition-colors shadow-2xs cursor-pointer"
-            title="Copy LaTeX source"
-          >
-            {copied ? (
-              <Check className="h-3.5 w-3.5 text-emerald-500" />
-            ) : (
-              <Copy className="h-3.5 w-3.5" />
-            )}
-            <span className="hidden md:inline">
-              {copied ? "Copied" : "Copy"}
-            </span>
-          </button>
-
-          {/* Primary Compile Action */}
-          <button
-            type="button"
+          />
+          <IconButton
+            label={isCompiling ? "Compiling…" : "Compile LaTeX (Ctrl+Enter)"}
+            tooltipPlacement="bottom"
+            variant="accent"
+            size="sm"
+            icon={
+              isCompiling ? <RotateCw className="animate-spin" /> : <Hammer />
+            }
             onClick={handleCompile}
             disabled={isCompiling}
-            className="flex items-center gap-1.5 sm:gap-2 h-8.5 px-3.5 sm:px-4 rounded-xl bg-[var(--accent)] text-white text-xs font-bold hover:opacity-90 disabled:opacity-50 border border-[var(--accent)] shadow-sm transition-all active:scale-[0.98] cursor-pointer"
-            title="Compile to PDF (Ctrl+Enter)"
-          >
-            {isCompiling ? (
-              <RotateCw className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Hammer className="h-3.5 w-3.5" />
-            )}
-            <span>Compile</span>
-            <kbd className="hidden sm:inline-block px-1.5 py-0.2 rounded bg-black/25 text-[10px] font-mono">
-              Ctrl+Enter
-            </kbd>
-          </button>
-
-          {/* Download PDF */}
+            loading={isCompiling}
+          />
           {pdfBlobUrl && (
-            <a
-              href={pdfBlobUrl}
-              download="roletect_compiler_output.pdf"
-              className="flex items-center gap-1.5 h-8 px-2.5 sm:px-3 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors shadow-sm"
-              title="Download compiled PDF"
-            >
-              <Download className="h-3.5 w-3.5" />
-              <span className="hidden md:inline">PDF</span>
-            </a>
+            <IconButton
+              label="Download PDF"
+              tooltipPlacement="bottom"
+              variant="emerald"
+              size="sm"
+              icon={<Download />}
+              onClick={() => {
+                const a = document.createElement("a");
+                a.href = pdfBlobUrl;
+                a.download = "roletect_compiler_output.pdf";
+                a.click();
+              }}
+            />
           )}
-
-          {/* Fullscreen Toggle */}
-          <button
-            type="button"
+          <IconButton
+            label={isFullscreen ? "Exit Fullscreen" : "Fullscreen Studio"}
+            tooltipPlacement="bottom"
+            variant="ghost"
+            size="sm"
+            icon={isFullscreen ? <Minimize2 /> : <Maximize2 />}
             onClick={() => setIsFullscreen(!isFullscreen)}
-            className="p-1.5 rounded text-[var(--muted)] hover:text-[var(--ink)] hover:bg-[var(--surface-soft)] transition-colors"
-            title={isFullscreen ? "Exit Fullscreen" : "Fullscreen Studio"}
-          >
-            {isFullscreen ? (
-              <Minimize2 className="h-4 w-4" />
-            ) : (
-              <Maximize2 className="h-4 w-4" />
-            )}
-          </button>
+          />
         </div>
       </header>
 
@@ -582,19 +556,16 @@ export default function CompilerPage() {
             placeholder="Describe surgical edit (e.g. 'Add a section on Distributed Raft Consensus in Rust', 'Tighten margins to 0.5in')..."
             className="flex-1 bg-[var(--bg)] border border-[var(--line)] focus:border-[var(--accent)] rounded px-3 py-1.5 text-xs text-[var(--ink)] placeholder-[var(--muted)] focus:outline-none"
           />
-          <button
-            type="button"
+          <IconButton
+            label={isRefining ? "Applying AI Edit…" : "Apply AI Edit"}
+            tooltipPlacement="bottom"
+            variant="accent"
+            size="sm"
+            icon={<Sparkles />}
             onClick={handleAiRefine}
             disabled={isRefining || !refinePrompt.trim()}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-[var(--accent)] text-white text-xs font-bold hover:opacity-90 disabled:opacity-50 shrink-0 transition-opacity"
-          >
-            {isRefining ? (
-              <RotateCw className="h-3 w-3 animate-spin" />
-            ) : (
-              <Sparkles className="h-3 w-3" />
-            )}
-            <span>Apply AI Edit</span>
-          </button>
+            loading={isRefining}
+          />
         </div>
       )}
 
@@ -610,19 +581,17 @@ export default function CompilerPage() {
               </p>
             </div>
           </div>
-          <button
-            type="button"
+          <IconButton
+            label={isFixing ? "Repairing…" : "Auto-Repair LaTeX"}
+            tooltipPlacement="bottom"
+            variant="danger"
+            size="sm"
+            icon={<Wand2 />}
             onClick={handleAiFix}
             disabled={isFixing}
-            className="flex items-center gap-1.5 px-3 py-1 rounded bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shrink-0 transition-colors shadow-sm"
-          >
-            {isFixing ? (
-              <RotateCw className="h-3 w-3 animate-spin" />
-            ) : (
-              <Wand2 className="h-3 w-3" />
-            )}
-            <span>Auto-Repair LaTeX</span>
-          </button>
+            loading={isFixing}
+            className="!bg-rose-600 !border-rose-600 !text-white hover:!bg-rose-500 hover:!border-rose-500 shadow-sm"
+          />
         </div>
       )}
 
@@ -737,43 +706,19 @@ export default function CompilerPage() {
             </div>
           </div>
 
-          {/* Code Textarea with custom font & scroll */}
-          <div className="flex-1 relative overflow-hidden flex">
-            <textarea
-              ref={textareaRef}
+          {/* Production CodeMirror LaTeX Editor */}
+          <div className="flex-1 relative overflow-hidden flex bg-[#0d1117]">
+            <LatexEditor
               value={latex}
-              onChange={(e) => setLatex(e.target.value)}
-              onClick={updateCursorPosition}
-              onKeyUp={updateCursorPosition}
-              onKeyDown={(e) => {
-                if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
-                  e.preventDefault();
-                  void handleCompile();
-                }
-                if ((e.ctrlKey || e.metaKey) && e.key === "s") {
-                  e.preventDefault();
-                  void handleCompile();
-                }
-                if (e.key === "Tab") {
-                  e.preventDefault();
-                  const target = e.currentTarget;
-                  const start = target.selectionStart;
-                  const end = target.selectionEnd;
-                  const val = target.value;
-                  setLatex(`${val.substring(0, start)}  ${val.substring(end)}`);
-                  setTimeout(() => {
-                    target.selectionStart = target.selectionEnd = start + 2;
-                    updateCursorPosition();
-                  }, 0);
-                }
+              onChange={setLatex}
+              onCompile={handleCompile}
+              onSave={handleCompile}
+              onCursorChange={setCursorPos}
+              onCreateEditor={(view) => {
+                editorViewRef.current = view;
               }}
-              spellCheck={false}
-              className="flex-1 w-full h-full bg-[#0d1117] p-4 font-mono text-[13px] text-zinc-100 leading-relaxed border-0 resize-none focus:outline-none select-text overflow-y-auto"
-              style={{
-                tabSize: 2,
-                fontFamily:
-                  "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-              }}
+              height="100%"
+              placeholder="% Paste your LaTeX document here — syntax highlighting, bracket matching & auto-close enabled"
             />
           </div>
 

@@ -34,6 +34,8 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use, useEffect, useMemo, useRef, useState } from "react";
+import { LatexEditor } from "@/components/editor/LatexEditor";
+import { IconButton } from "@/components/ui/IconButton";
 import { writeTrackedFile } from "@/features/documents/api";
 import { CollaboratorsModal } from "@/features/documents/components/CollaboratorsModal";
 import { CommentsSidebar } from "@/features/documents/components/CommentsSidebar";
@@ -105,7 +107,6 @@ export default function DocumentDetailPage({
   const [showComments, setShowComments] = useState(false);
   const [activePresence, setActivePresence] = useState<UserPresence[]>([]);
 
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
   const activeContent = activeFileRel
@@ -230,17 +231,6 @@ export default function DocumentDetailPage({
       // Offline fallback
     }
   }, [id, activeFileRel]);
-
-  // Update cursor position on editor interaction
-  const updateCursorPosition = () => {
-    if (!textareaRef.current) return;
-    const text = textareaRef.current.value;
-    const selStart = textareaRef.current.selectionStart;
-    const lines = text.slice(0, selStart).split("\n");
-    const currentLine = lines.length;
-    const currentCol = lines[lines.length - 1].length + 1;
-    setCursorPos({ line: currentLine, col: currentCol });
-  };
 
   // Switch Active File Tab
   const handleSelectFile = (relPath: string) => {
@@ -658,124 +648,105 @@ export default function DocumentDetailPage({
           </button>
         </div>
 
-        {/* Right Tools & Compilation */}
+        {/* Right Tools & Compilation — icon-only + viewport-safe Tooltip */}
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          {/* AI Refine Toggle */}
-          <button
-            type="button"
+          <IconButton
+            label="AI Refine"
+            tooltipPlacement="bottom"
+            variant="soft"
+            size="sm"
+            aria-pressed={showRefineBar}
             onClick={() => setShowRefineBar(!showRefineBar)}
-            className={`flex items-center gap-1.5 h-8 px-2 sm:px-2.5 rounded text-xs font-semibold border transition-colors ${
-              showRefineBar
-                ? "bg-[var(--accent)]/10 text-[var(--accent)] border-[var(--accent)]/30"
-                : "bg-[var(--surface-soft)] text-[var(--ink)] border-[var(--line)] hover:border-[var(--muted)]"
-            }`}
-          >
-            <Sparkles className="h-3.5 w-3.5 text-[var(--accent)]" />
-            <span className="hidden sm:inline">AI Refine</span>
-          </button>
-
-          {/* Collaborators Button */}
-          <button
-            type="button"
+            icon={<Sparkles className="h-3.5 w-3.5" />}
+          />
+          <IconButton
+            label="Team & Access"
+            tooltipPlacement="bottom"
+            variant="soft"
+            size="sm"
             onClick={() => setShowCollaborators(true)}
-            className="flex items-center gap-1.5 h-8 px-2 sm:px-2.5 rounded bg-[var(--surface-soft)] border border-[var(--line)] text-xs font-bold text-[var(--ink)] hover:border-[var(--muted)] transition-colors"
-            title="Team & Access"
-          >
-            <Users className="h-3.5 w-3.5 text-[var(--accent)]" />
-            <span className="hidden lg:inline">Team</span>
-          </button>
-
-          {/* History / Audit Drawer */}
-          <button
-            type="button"
+            icon={<Users className="h-3.5 w-3.5" />}
+          />
+          <IconButton
+            label="Version History"
+            tooltipPlacement="bottom"
+            variant="soft"
+            size="sm"
             onClick={() => setShowHistory(true)}
-            className="flex items-center gap-1.5 h-8 px-2 sm:px-2.5 rounded bg-[var(--surface-soft)] border border-[var(--line)] text-xs font-bold text-[var(--ink)] hover:border-[var(--muted)] transition-colors"
-            title="Version Checkpoints"
-          >
-            <History className="h-3.5 w-3.5 text-blue-400" />
-            <span className="hidden lg:inline">History</span>
-          </button>
-
-          {/* Review Comments */}
-          <button
-            type="button"
+            icon={<History className="h-3.5 w-3.5" />}
+          />
+          <IconButton
+            label="Review Comments"
+            tooltipPlacement="bottom"
+            variant="soft"
+            size="sm"
             onClick={() => setShowComments(true)}
-            className="flex items-center gap-1.5 h-8 px-2 sm:px-2.5 rounded bg-[var(--surface-soft)] border border-[var(--line)] text-xs font-bold text-[var(--ink)] hover:border-[var(--muted)] transition-colors"
-            title="Margin Comments"
-          >
-            <MessageSquare className="h-3.5 w-3.5 text-emerald-400" />
-            <span className="hidden lg:inline">Review</span>
-          </button>
-
-          {/* Save Action */}
-          <button
-            type="button"
-            onClick={handleSaveActiveFile}
-            disabled={isSaving || !activeFileRel}
-            className="flex items-center gap-1.5 h-8 px-2 sm:px-2.5 rounded bg-[var(--surface-soft)] border border-[var(--line)] text-xs font-bold text-[var(--ink)] hover:border-[var(--muted)] transition-colors"
-            title="Save File (Ctrl+S)"
-          >
-            {isSaving ? (
-              <RotateCw className="h-3.5 w-3.5 animate-spin text-[var(--accent)]" />
-            ) : dirtyFiles.has(activeFileRel || "") ? (
-              <span className="h-2 w-2 rounded-full bg-amber-400" />
-            ) : (
-              <Check className="h-3.5 w-3.5 text-emerald-400" />
-            )}
-            <span className="hidden sm:inline">
-              {isSaving
+            icon={<MessageSquare className="h-3.5 w-3.5" />}
+          />
+          <IconButton
+            label={
+              isSaving
                 ? "Saving..."
                 : dirtyFiles.has(activeFileRel || "")
-                  ? "Save"
-                  : "Saved"}
-            </span>
-          </button>
-
-          {/* Primary Compile Action */}
-          <button
-            type="button"
+                  ? "Save File (Ctrl+S)"
+                  : "Saved"
+            }
+            tooltipPlacement="bottom"
+            variant="soft"
+            size="sm"
+            onClick={handleSaveActiveFile}
+            disabled={isSaving || !activeFileRel}
+            loading={isSaving}
+            icon={
+              dirtyFiles.has(activeFileRel || "") ? (
+                <span className="h-2 w-2 rounded-full bg-amber-400" />
+              ) : (
+                <Check className="h-3.5 w-3.5" />
+              )
+            }
+          />
+          <IconButton
+            label="Compile Workspace (Ctrl+Enter)"
+            tooltipPlacement="bottom"
+            variant="accent"
+            size="sm"
             onClick={handleCompile}
             disabled={isCompiling}
-            className="flex items-center gap-1.5 sm:gap-2 h-8.5 px-3 sm:px-3.5 rounded bg-[var(--accent)] text-white text-xs font-bold hover:opacity-90 disabled:opacity-50 shadow-sm transition-all active:scale-[0.98]"
-            title="Compile Multi-file Workspace (Ctrl+Enter)"
-          >
-            {isCompiling ? (
-              <RotateCw className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Hammer className="h-3.5 w-3.5" />
-            )}
-            <span>Compile</span>
-            <kbd className="hidden sm:inline-block px-1 py-0.2 rounded bg-black/20 text-[10px] font-mono">
-              Ctrl+Enter
-            </kbd>
-          </button>
-
-          {/* Download PDF */}
+            loading={isCompiling}
+            icon={<Hammer className="h-3.5 w-3.5" />}
+          />
           {pdfBlobUrl && (
-            <a
-              href={pdfBlobUrl}
-              download={`${doc.title.replace(/\s+/g, "_")}.pdf`}
-              className="flex items-center gap-1.5 h-8 px-2 sm:px-2.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors shadow-sm"
-              title="Download compiled PDF"
-            >
-              <Download className="h-3.5 w-3.5" />
-              <span className="hidden md:inline">PDF</span>
-            </a>
+            <IconButton
+              label="Download PDF"
+              tooltipPlacement="bottom"
+              variant="emerald"
+              size="sm"
+              onClick={() => {
+                if (!pdfBlobUrl) return;
+                const a = document.createElement("a");
+                a.href = pdfBlobUrl;
+                a.download = `${doc.title.replace(/\s+/g, "_")}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+              }}
+              icon={<Download className="h-3.5 w-3.5" />}
+            />
           )}
-
-          {/* Fullscreen Toggle */}
-          <button
-            type="button"
+          <IconButton
+            label={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
+            tooltipPlacement="bottom"
+            variant="ghost"
+            size="sm"
             onClick={() => setIsFullscreen(!isFullscreen)}
-            className="p-1.5 rounded text-[var(--muted)] hover:text-[var(--ink)] hover:bg-[var(--surface-soft)] transition-colors"
-            title={isFullscreen ? "Exit Fullscreen" : "Fullscreen Studio"}
-          >
-            {isFullscreen ? (
-              <Minimize2 className="h-4 w-4" />
-            ) : (
-              <Maximize2 className="h-4 w-4" />
-            )}
-          </button>
+            icon={
+              isFullscreen ? (
+                <Minimize2 className="h-4 w-4" />
+              ) : (
+                <Maximize2 className="h-4 w-4" />
+              )
+            }
+          />
         </div>
       </header>
 
@@ -793,19 +764,16 @@ export default function DocumentDetailPage({
             placeholder={`Refine active file "${activeFileRel || "document"}" (e.g. 'Add a sub-item for Kubernetes orchestration', 'Refactor into custom command')...`}
             className="flex-1 bg-[var(--bg)] border border-[var(--line)] focus:border-[var(--accent)] rounded px-3 py-1.5 text-xs text-[var(--ink)] placeholder-[var(--muted)] focus:outline-none"
           />
-          <button
-            type="button"
+          <IconButton
+            label={isRefining ? "Applying AI Edit…" : "Apply AI Edit"}
+            tooltipPlacement="bottom"
+            variant="accent"
+            size="sm"
+            icon={<Sparkles />}
             onClick={handleAiRefine}
             disabled={isRefining || !refinePrompt.trim()}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-[var(--accent)] text-white text-xs font-bold hover:opacity-90 disabled:opacity-50 shrink-0 transition-opacity"
-          >
-            {isRefining ? (
-              <RotateCw className="h-3 w-3 animate-spin" />
-            ) : (
-              <Sparkles className="h-3 w-3" />
-            )}
-            <span>Apply AI Edit</span>
-          </button>
+            loading={isRefining}
+          />
         </div>
       )}
 
@@ -823,19 +791,17 @@ export default function DocumentDetailPage({
               </p>
             </div>
           </div>
-          <button
-            type="button"
+          <IconButton
+            label={isFixing ? "Repairing…" : "Auto-Repair LaTeX"}
+            tooltipPlacement="bottom"
+            variant="danger"
+            size="sm"
+            icon={<Wand2 />}
             onClick={handleAiFix}
             disabled={isFixing}
-            className="flex items-center gap-1.5 px-3 py-1 rounded bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shrink-0 transition-colors shadow-sm"
-          >
-            {isFixing ? (
-              <RotateCw className="h-3 w-3 animate-spin" />
-            ) : (
-              <Wand2 className="h-3 w-3" />
-            )}
-            <span>Auto-Repair LaTeX</span>
-          </button>
+            loading={isFixing}
+            className="!bg-rose-600 !border-rose-600 !text-white hover:!bg-rose-500 hover:!border-rose-500 shadow-sm"
+          />
         </div>
       )}
 
@@ -1043,57 +1009,25 @@ export default function DocumentDetailPage({
             })}
           </div>
 
-          {/* Editor Body */}
+          {/* Editor Body — Production CodeMirror */}
           {activeFileRel ? (
             <>
-              <div className="flex-1 relative overflow-hidden flex">
-                <textarea
-                  ref={textareaRef}
+              <div className="flex-1 relative overflow-hidden flex bg-[#0d1117]">
+                <LatexEditor
+                  key={activeFileRel}
                   value={activeContent}
-                  onChange={(e) => {
-                    const nextVal = e.target.value;
+                  onChange={(nextVal) => {
                     setFileContentMap((prev) => ({
                       ...prev,
                       [activeFileRel]: nextVal,
                     }));
                     setDirtyFiles((prev) => new Set(prev).add(activeFileRel));
                   }}
-                  onClick={updateCursorPosition}
-                  onKeyUp={updateCursorPosition}
-                  onKeyDown={(e) => {
-                    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
-                      e.preventDefault();
-                      void handleCompile();
-                    }
-                    if ((e.ctrlKey || e.metaKey) && e.key === "s") {
-                      e.preventDefault();
-                      void handleSaveActiveFile();
-                    }
-                    if (e.key === "Tab") {
-                      e.preventDefault();
-                      const target = e.currentTarget;
-                      const start = target.selectionStart;
-                      const end = target.selectionEnd;
-                      const val = target.value;
-                      const updated = `${val.substring(0, start)}  ${val.substring(end)}`;
-                      setFileContentMap((prev) => ({
-                        ...prev,
-                        [activeFileRel]: updated,
-                      }));
-                      setDirtyFiles((prev) => new Set(prev).add(activeFileRel));
-                      setTimeout(() => {
-                        target.selectionStart = target.selectionEnd = start + 2;
-                        updateCursorPosition();
-                      }, 0);
-                    }
-                  }}
-                  spellCheck={false}
-                  className="flex-1 w-full h-full bg-[#0d1117] p-4 font-mono text-[13px] text-zinc-100 leading-relaxed border-0 resize-none focus:outline-none select-text overflow-y-auto"
-                  style={{
-                    tabSize: 2,
-                    fontFamily:
-                      "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-                  }}
+                  onCompile={handleCompile}
+                  onSave={handleSaveActiveFile}
+                  onCursorChange={setCursorPos}
+                  height="100%"
+                  placeholder={`% ${activeFileRel} — LaTeX syntax highlighting, bracket matching & autocomplete`}
                 />
               </div>
 

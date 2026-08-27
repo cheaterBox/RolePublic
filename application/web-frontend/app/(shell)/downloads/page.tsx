@@ -2,6 +2,7 @@
 
 import { Archive, FileCode, FileText } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { IconButton } from "@/components/ui/IconButton";
 import { apiFetch } from "@/lib/api/client";
 import type { DownloadRecord } from "@/lib/api/types";
 
@@ -57,14 +58,14 @@ export default function DownloadsPage() {
             </p>
           </div>
 
-          <button
-            type="button"
+          <IconButton
+            label="Export JSON Archive"
+            tooltipPlacement="bottom"
+            variant="accent"
+            size="sm"
+            icon={<Archive className="h-4 w-4" />}
             onClick={handleExportFullArchive}
-            className="flex items-center gap-1.5 h-10 px-4 rounded-xl bg-[var(--accent)] text-white text-xs font-bold hover:opacity-90 transition-all border border-[var(--accent)] shadow-sm active:scale-[0.98] shrink-0 cursor-pointer"
-          >
-            <Archive className="h-4 w-4" />
-            <span>Export JSON Archive</span>
-          </button>
+          />
         </header>
 
         {/* Downloads Table */}

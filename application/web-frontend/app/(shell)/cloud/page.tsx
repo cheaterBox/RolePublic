@@ -7,10 +7,10 @@ import {
   DownloadCloud,
   HardDrive,
   RefreshCw,
-  RotateCw,
   UploadCloud,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { IconButton } from "@/components/ui/IconButton";
 import { apiFetch } from "@/lib/api/client";
 
 interface BackupEntry {
@@ -35,7 +35,20 @@ export default function CloudPage() {
       const list = await apiFetch<BackupEntry[]>("/cloud/list");
       setBackups(list || []);
     } catch (err: any) {
-      console.error(err);
+      // S3 not configured is an expected state in local/dev — don't spam console
+      const msg = err?.message || "";
+      const code = err?.code || "";
+      const isNotConfigured =
+        code === "s3_not_configured" ||
+        msg.toLowerCase().includes("s3 not configured") ||
+        msg.toLowerCase().includes("s3_not_configured");
+      if (!isNotConfigured) console.error(err);
+      if (isNotConfigured) {
+        setStatusMsg({
+          text: "S3 cloud storage not configured. Set S3 credentials in Settings → S3 Cloud Storage to enable backups.",
+          ok: false,
+        });
+      }
       setBackups([]);
     } finally {
       setLoading(false);
@@ -124,33 +137,24 @@ export default function CloudPage() {
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
+            <IconButton
+              label="Test Connection"
+              tooltipPlacement="bottom"
+              variant="soft"
+              size="sm"
+              icon={<RefreshCw className="h-4 w-4 text-[var(--accent)]" />}
               onClick={handleTestConnection}
-              disabled={testing}
-              className="flex items-center gap-1.5 h-10 px-3.5 rounded-xl bg-[var(--surface-soft)] border border-[var(--line)] text-xs font-bold text-[var(--ink)] hover:border-[var(--muted)] shadow-xs transition-colors cursor-pointer"
-            >
-              {testing ? (
-                <RotateCw className="h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4 text-[var(--accent)]" />
-              )}
-              <span>Test Connection</span>
-            </button>
-
-            <button
-              type="button"
+              loading={testing}
+            />
+            <IconButton
+              label="Create Backup Snapshot"
+              tooltipPlacement="bottom"
+              variant="accent"
+              size="sm"
+              icon={<UploadCloud className="h-4 w-4" />}
               onClick={handleCreateSnapshot}
-              disabled={uploading}
-              className="flex items-center gap-1.5 h-10 px-4 rounded-xl bg-[var(--accent)] text-white text-xs font-bold hover:opacity-90 disabled:opacity-50 shadow-sm border border-[var(--accent)] transition-all active:scale-[0.98] cursor-pointer"
-            >
-              {uploading ? (
-                <RotateCw className="h-4 w-4 animate-spin" />
-              ) : (
-                <UploadCloud className="h-4 w-4" />
-              )}
-              <span>Create Backup Snapshot</span>
-            </button>
+              loading={uploading}
+            />
           </div>
         </header>
 
@@ -222,14 +226,14 @@ export default function CloudPage() {
                           {b.last_modified || "Recent"}
                         </td>
                         <td className="py-3 px-4 text-right">
-                          <button
-                            type="button"
+                          <IconButton
+                            label="Restore"
+                            tooltipPlacement="top"
+                            variant="soft"
+                            size="sm"
+                            icon={<DownloadCloud className="h-3.5 w-3.5" />}
                             onClick={() => handleRestore(b.key)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-[var(--surface-soft)] border border-[var(--line)] text-xs font-bold text-[var(--ink)] hover:border-[var(--muted)]"
-                          >
-                            <DownloadCloud className="h-3.5 w-3.5" />
-                            <span>Restore</span>
-                          </button>
+                          />
                         </td>
                       </tr>
                     ))}

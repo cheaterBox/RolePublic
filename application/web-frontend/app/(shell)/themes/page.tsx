@@ -2,6 +2,7 @@
 
 import { CheckCircle2, Copy, Layout } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { IconButton } from "@/components/ui/IconButton";
 import { createResume } from "@/features/resumes/api";
 import { apiFetch } from "@/lib/api/client";
 import type { Theme } from "@/lib/api/types";
@@ -135,24 +136,22 @@ export default function ThemesPage() {
                     {isActive ? "Selected" : "Set Active"}
                   </button>
 
-                  <button
-                    type="button"
+                  <IconButton
+                    label={isCloned ? "Cloned!" : "Clone to Resumes"}
+                    tooltipPlacement="bottom"
+                    variant="soft"
+                    size="sm"
+                    icon={
+                      isCloned ? (
+                        <CheckCircle2 className="text-[var(--accent)]" />
+                      ) : (
+                        <Copy />
+                      )
+                    }
                     onClick={() => handleCloneToResumes(theme)}
                     disabled={cloningId === theme.id}
-                    className="flex items-center gap-1.5 rounded border border-[var(--line)] bg-[var(--surface-soft)] px-3 py-1 text-xs font-bold text-[var(--ink)] hover:border-[var(--muted)] transition-all"
-                  >
-                    {isCloned ? (
-                      <>
-                        <CheckCircle2 className="h-3.5 w-3.5 text-[var(--accent)]" />
-                        <span className="text-[var(--accent)]">Cloned!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="h-3.5 w-3.5 text-[var(--muted)]" />
-                        <span>Clone to Resumes</span>
-                      </>
-                    )}
-                  </button>
+                    loading={cloningId === theme.id}
+                  />
                 </div>
               </div>
             );

@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { LatexEditor } from "@/components/editor/LatexEditor";
+import { IconButton } from "@/components/ui/IconButton";
 import { apiFetch } from "@/lib/api/client";
 import type { CoverLetterItem } from "@/lib/api/types";
 
@@ -115,46 +117,47 @@ export default function CoverLettersPage() {
           <div className="flex items-center gap-2 shrink-0">
             {!isSelectionMode ? (
               <>
-                <button
-                  type="button"
+                <IconButton
+                  label="Selection Mode"
+                  tooltipPlacement="bottom"
+                  variant="soft"
+                  size="md"
+                  icon={<Settings2 />}
                   onClick={() => setIsSelectionMode(true)}
-                  className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--surface-soft)] border border-[var(--line)] text-[var(--ink)] hover:border-[var(--muted)]"
-                  title="Selection Mode"
-                >
-                  <Settings2 className="h-4 w-4" />
-                </button>
+                />
 
-                <button
-                  type="button"
+                <IconButton
+                  label="New Template"
+                  tooltipPlacement="bottom"
+                  variant="accent"
+                  size="md"
+                  icon={<Plus />}
                   onClick={() => setShowNewForm(!showNewForm)}
-                  className="flex h-10 px-3.5 items-center gap-1.5 rounded-lg bg-[var(--accent)] text-white text-xs font-bold hover:opacity-90"
-                >
-                  <Plus className="h-4 w-4" />
-                  <span>New Template</span>
-                </button>
+                />
               </>
             ) : (
               <>
                 {selectedIds.size > 0 && (
-                  <button
-                    type="button"
+                  <IconButton
+                    label={`Delete (${selectedIds.size})`}
+                    tooltipPlacement="bottom"
+                    variant="danger"
+                    size="md"
+                    icon={<Trash2 />}
                     onClick={handleDeleteSelected}
-                    className="flex h-10 px-3 items-center gap-1.5 rounded-lg bg-[var(--warning)] text-white text-xs font-bold hover:opacity-90"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    <span>Delete ({selectedIds.size})</span>
-                  </button>
+                  />
                 )}
-                <button
-                  type="button"
+                <IconButton
+                  label="Exit Selection Mode"
+                  tooltipPlacement="bottom"
+                  variant="soft"
+                  size="md"
+                  icon={<X />}
                   onClick={() => {
                     setIsSelectionMode(false);
                     setSelectedIds(new Set());
                   }}
-                  className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--surface-soft)] border border-[var(--line)] text-[var(--ink)]"
-                >
-                  <X className="h-4 w-4" />
-                </button>
+                />
               </>
             )}
           </div>
@@ -205,14 +208,16 @@ export default function CoverLettersPage() {
 
             <div className="space-y-1">
               <label className="text-[10px] font-bold uppercase text-[var(--muted)]">
-                LaTeX Document Source
+                LaTeX Document Source — syntax highlighting enabled
               </label>
-              <textarea
-                value={newLatex}
-                onChange={(e) => setNewLatex(e.target.value)}
-                rows={8}
-                className="w-full bg-[#0d0f14] border border-[var(--line)] rounded p-3 font-mono text-xs text-[#e6edf3] focus:outline-none resize-none leading-relaxed"
-              />
+              <div className="w-full h-[380px] border border-[var(--line)] rounded overflow-hidden bg-[#0d1117]">
+                <LatexEditor
+                  value={newLatex}
+                  onChange={setNewLatex}
+                  height="380px"
+                  placeholder="% Cover letter template LaTeX — CodeMirror LaTeX grammar"
+                />
+              </div>
             </div>
 
             <div className="flex justify-end gap-2">
