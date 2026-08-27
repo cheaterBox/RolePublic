@@ -11,7 +11,6 @@ import {
   FileText,
   Home,
   Inbox,
-  Info,
   LogIn,
   LogOut,
   Mail,
@@ -46,7 +45,6 @@ const iconMap: Record<string, typeof Home> = {
   Cloud,
   Download,
   Settings,
-  Info,
 };
 
 export function Shell({ children }: { children: React.ReactNode }) {

@@ -17,5 +17,4 @@ export const navItems: NavItem[] = [
   { label: "Cloud Backup", href: "/cloud", iconName: "Cloud" },
   { label: "Downloads", href: "/downloads", iconName: "Download" },
   { label: "Settings", href: "/settings", iconName: "Settings" },
-  { label: "About", href: "/about", iconName: "Info" },
 ];
