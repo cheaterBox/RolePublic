@@ -1,7 +1,4 @@
 @import "tailwindcss";
-@import "@astryxdesign/core/reset.css";
-@import "@astryxdesign/core/astryx.css";
-@import "@astryxdesign/theme-neutral/theme.css";
 
 :root {
   --bg: #0d0f14;
@@ -49,13 +46,16 @@
   --color-muted: var(--muted-foreground);
   --color-muted-foreground: var(--muted-foreground);
   --color-border: var(--border);
-  --font-sans: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
-  --font-mono: var(--font-geist-mono), monospace;
+  --font-sans:
+    var(--font-geist-sans), system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, sans-serif;
+  --font-mono:
+    var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco,
+    Consolas, monospace;
 }
 
 * {
   box-sizing: border-box;
-  border-color: var(--line);
 }
 
 html,
@@ -68,40 +68,68 @@ body {
   background-color: var(--bg);
   color: var(--ink);
   font-family: var(--font-sans);
-  font-size: 14.5px;
-  line-height: 1.55;
+  font-size: 14px;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Scrollbar Styles */
+/* Custom Scrollbars */
 ::-webkit-scrollbar {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
   background: #30363d;
-  border: 1px solid var(--bg);
-  border-radius: 8px;
+  border-radius: 6px;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #484f58;
 }
 
-/* Polished Tag & Badge Styles */
+/* Standard Underline Navigation Tabs (GitHub / Vercel pattern) */
+.nav-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 0.25rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease;
+  cursor: pointer;
+  white-space: nowrap;
+  margin-bottom: -1px;
+}
+
+.nav-tab:hover {
+  color: var(--ink);
+  border-bottom-color: var(--line-strong);
+}
+
+.nav-tab.active {
+  color: var(--ink);
+  font-weight: 600;
+  border-bottom-color: var(--accent);
+}
+
+/* Status Badges */
 .status-badge {
-  padding: 4px 10px;
-  border-radius: 8px;
+  padding: 3px 8px;
+  border-radius: 6px;
   font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   line-height: 1.25;
   white-space: nowrap;
 }
@@ -137,7 +165,7 @@ body {
 .tag-pill {
   display: inline-flex;
   align-items: center;
-  padding: 3px 9px;
+  padding: 2px 8px;
   border-radius: 6px;
   font-size: 0.75rem;
   font-weight: 600;
@@ -166,9 +194,38 @@ body {
   border: 1px solid rgba(248, 81, 73, 0.3);
 }
 
-/* Form Inputs */
-input,
-textarea,
+/* Text-like Form Inputs (Safe scoping, won't break checkboxes or range inputs) */
+input[type="text"],
+input[type="password"],
+input[type="email"],
+input[type="search"],
+input[type="url"],
+input[type="number"],
+textarea {
+  font-family: inherit;
+  font-size: 0.85rem;
+  background-color: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 6px 10px;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+input[type="text"]:focus,
+input[type="password"]:focus,
+input[type="email"]:focus,
+input[type="search"]:focus,
+input[type="url"]:focus,
+input[type="number"]:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
 select {
   font-family: inherit;
   font-size: 0.85rem;
@@ -176,26 +233,20 @@ select {
   color: var(--ink);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
-  padding: 8px 12px;
-  transition: border-color 0.15s ease;
-}
-
-input:focus,
-textarea:focus,
-select:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
-}
-
-select {
+  padding: 6px 28px 6px 10px;
   appearance: none;
   -webkit-appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%238b949e'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 10px center;
+  background-position: right 8px center;
   background-size: 14px;
-  padding-right: 32px;
+  transition: border-color 0.15s ease;
+}
+
+select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
 }
 
 select option {
@@ -203,31 +254,17 @@ select option {
   color: var(--ink);
 }
 
-/* Underline Navigation Tabs (GitHub / Vercel Standard) */
-.nav-tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 0.25rem;
-  font-size: 0.8125rem;
-  font-weight: 500;
-  border-bottom: 2px solid transparent;
-  color: var(--muted);
-  transition: all 0.15s ease;
+/* Checkbox & Radio Accents */
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--accent);
   cursor: pointer;
-  white-space: nowrap;
-  margin-bottom: -1px;
 }
 
-.nav-tab:hover {
-  color: var(--ink);
-  border-bottom-color: var(--line-strong);
-}
-
-.nav-tab.active {
-  color: var(--ink);
-  font-weight: 600;
-  border-bottom-color: var(--accent);
+/* Range Slider Accent */
+input[type="range"] {
+  accent-color: var(--accent);
+  cursor: pointer;
 }
 
 /* Number Spinner Reset */
