@@ -44,6 +44,13 @@ application/api/roletect.db
 application/api/data/
 src-tauri/texput.pdf
 
+# Next.js & Turbopack
+.next/
+.turbo/
+application/web-frontend/.next/
+application/web-frontend/.turbo/
+coverage/
+
 # Flatpak & Packaging Artifacts
 .flatpak-builder/
 build-dir/
@@ -52,4 +59,6 @@ repo/
 packaging/**/lib/
 packaging/**/*.so*
 .qwen/
+.puku-cli/
+
 
