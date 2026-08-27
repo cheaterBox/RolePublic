@@ -49,7 +49,7 @@ impl PgRepo {
             .ok();
 
         // Ensure document_comments foreign keys are relaxed for local user IDs
-        sqlx::query("ALTER TABLE document_comments DROP CONSTRAINT IF EXISTS document_comments_user_id_fkey; ALTER TABLE document_comments DROP CONSTRAINT IF EXISTS document_comments_resolved_by_fkey;")
+        sqlx::raw_sql("ALTER TABLE document_comments DROP CONSTRAINT IF EXISTS document_comments_user_id_fkey; ALTER TABLE document_comments DROP CONSTRAINT IF EXISTS document_comments_resolved_by_fkey; ALTER TABLE document_collaborators DROP CONSTRAINT IF EXISTS document_collaborators_invited_by_fkey; ALTER TABLE document_revisions DROP CONSTRAINT IF EXISTS document_revisions_created_by_fkey; ALTER TABLE document_changes DROP CONSTRAINT IF EXISTS document_changes_user_id_fkey;")
             .execute(&self.pool)
             .await
             .ok();

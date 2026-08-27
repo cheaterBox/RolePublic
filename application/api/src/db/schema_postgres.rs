@@ -207,7 +207,7 @@ CREATE TABLE IF NOT EXISTS document_collaborators (
     doc_id     TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
     user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     role       TEXT NOT NULL DEFAULT 'Editor',
-    invited_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+    invited_by TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (doc_id, user_id)
@@ -222,7 +222,7 @@ CREATE TABLE IF NOT EXISTS document_revisions (
     version_number INTEGER NOT NULL,
     title          TEXT NOT NULL,
     snapshot       TEXT NOT NULL,
-    created_by     TEXT REFERENCES users(id) ON DELETE SET NULL,
+    created_by     TEXT,
     created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (doc_id, version_number)
 );
@@ -233,7 +233,7 @@ CREATE TABLE IF NOT EXISTS document_changes (
     id          TEXT PRIMARY KEY,
     doc_id      TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
     rel_path    TEXT NOT NULL,
-    user_id     TEXT REFERENCES users(id) ON DELETE SET NULL,
+    user_id     TEXT,
     user_name   TEXT NOT NULL DEFAULT 'Anonymous',
     change_type TEXT NOT NULL DEFAULT 'Edit',
     diff_patch  TEXT NOT NULL,
