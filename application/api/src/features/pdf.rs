@@ -139,7 +139,7 @@ async fn compile_document(
     let main_rel = doc
         .main_file
         .clone()
-        .ok_or_else(|| AppError::Validation("document has no main_file".into()))?;
+        .unwrap_or_else(|| "main.tex".to_string());
 
     // Stage all files into a temp directory.
     let files = state

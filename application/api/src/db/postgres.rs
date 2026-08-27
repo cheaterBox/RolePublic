@@ -42,8 +42,8 @@ impl PgRepo {
             }
         }
 
-        // Ensure document_files.size_bytes is BIGINT
-        sqlx::query("ALTER TABLE document_files ALTER COLUMN size_bytes TYPE BIGINT")
+        // Ensure BIGINT types for high scalability
+        sqlx::raw_sql("ALTER TABLE document_files ALTER COLUMN size_bytes TYPE BIGINT; ALTER TABLE document_comments ALTER COLUMN line_number TYPE BIGINT; ALTER TABLE document_revisions ALTER COLUMN version_number TYPE BIGINT;")
             .execute(&self.pool)
             .await
             .ok();
@@ -2058,7 +2058,10 @@ impl Repository for PgRepo {
                     rel_path: r.try_get("rel_path")?,
                     user_id: r.try_get("user_id").ok(),
                     user_name: r.try_get("user_name")?,
-                    line_number: r.try_get("line_number")?,
+                    line_number: r
+                        .try_get::<i64, _>("line_number")
+                        .or_else(|_| r.try_get::<i32, _>("line_number").map(|n| n as i64))
+                        .unwrap_or(1),
                     selected_text: r.try_get("selected_text").ok(),
                     content: r.try_get("content")?,
                     resolved: r.try_get("resolved")?,
