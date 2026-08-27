@@ -56,6 +56,16 @@ pub fn build_router(state: AppState) -> Router {
     // Public health endpoint (no auth, no rate limit).
     let health = Router::new().route("/health", axum::routing::get(health_handler));
 
+    // Desktop-style extension ingestion endpoint.
+    // Mirrors `src-tauri/src/server.rs::ingest_job` so the same browser
+    // extension can post to either the desktop embedded Axum server or this
+    // VPS API without code changes. Auth is the shared `extension_secret`,
+    // NOT the API bearer token. CORS is already permissive above.
+    let desktop_compat = Router::new().route(
+        "/inbox/ingest",
+        axum::routing::post(crate::features::inbox::public_ingest),
+    );
+
     // Public auth endpoints (/api/auth/register, /api/auth/login)
     let public_auth = Router::new()
         .route(
@@ -82,6 +92,7 @@ pub fn build_router(state: AppState) -> Router {
 
     Router::new()
         .merge(health)
+        .merge(desktop_compat)
         .nest("/api", api_router)
         .layer(TraceLayer::new_for_http())
         .layer(cors)

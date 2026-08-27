@@ -10,10 +10,12 @@
 
 use axum::{
     extract::{Path, State},
+    http::StatusCode,
     routing::{delete, get, post},
     Json, Router,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
 
 use crate::error::{AppError, AppResult};
 use crate::models::{InboxJob, IngestPayload};
@@ -70,10 +72,80 @@ async fn mark_processed(State(state): State<AppState>, Path(id): Path<String>) -
 ///
 /// Auth: separate secret (NOT the API token) shared with the browser extension.
 /// Constant-time comparison to prevent timing attacks.
+///
+/// Response shape mirrors the embedded Tauri Axum server in `src-tauri/src/server.rs`
+/// so the same browser extension works against either target.
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ExtensionResponse {
+    pub status: String,
+    pub message: String,
+}
+
+/// Public re-export of the ingest handler so `bootstrap/mod.rs` can mount it at
+/// the root path (no `/api` prefix) to match the desktop's embedded server.
+pub async fn public_ingest(
+    State(state): State<AppState>,
+    Json(payload): Json<IngestPayload>,
+) -> (StatusCode, Json<ExtensionResponse>) {
+    let stored = match state.repo.get_extension_secret().await {
+        Ok(Some(s)) => s,
+        Ok(None) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ExtensionResponse {
+                    status: "error".to_string(),
+                    message: "extension secret not initialized".to_string(),
+                }),
+            );
+        }
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ExtensionResponse {
+                    status: "error".to_string(),
+                    message: format!("Database error: {}", e),
+                }),
+            );
+        }
+    };
+
+    if !constant_time_eq_str(&payload.secret, &stored) {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(ExtensionResponse {
+                status: "error".to_string(),
+                message: "Invalid secret key".to_string(),
+            }),
+        );
+    }
+
+    match state
+        .repo
+        .ingest_inbox(payload.url.as_deref(), &payload.raw_description)
+        .await
+    {
+        Ok(_) => (
+            StatusCode::OK,
+            Json(ExtensionResponse {
+                status: "success".to_string(),
+                message: "Job ingested into vault".to_string(),
+            }),
+        ),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ExtensionResponse {
+                status: "error".to_string(),
+                message: format!("Database error: {}", e),
+            }),
+        ),
+    }
+}
+
+/// `/api/inbox/ingest` — protected by bearer token, used by the web frontend.
 async fn ingest(
     State(state): State<AppState>,
     Json(payload): Json<IngestPayload>,
-) -> AppResult<Json<serde_json::Value>> {
+) -> AppResult<Json<Value>> {
     let stored = state
         .repo
         .get_extension_secret()
@@ -93,7 +165,7 @@ async fn ingest(
         .ingest_inbox(payload.url.as_deref(), &payload.raw_description)
         .await
         .map_err(internal)?;
-    Ok(Json(serde_json::json!({ "status": "ok" })))
+    Ok(Json(json!({ "status": "ok" })))
 }
 
 fn internal<E: std::fmt::Display>(e: E) -> AppError {
