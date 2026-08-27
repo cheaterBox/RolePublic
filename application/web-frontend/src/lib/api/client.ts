@@ -49,6 +49,10 @@ async function parseError(res: Response): Promise<ApiError> {
 }
 
 function authHeaders(): Record<string, string> {
+  if (typeof window !== "undefined") {
+    const userJwt = localStorage.getItem("roletect_jwt_token");
+    if (userJwt) return { Authorization: `Bearer ${userJwt}` };
+  }
   const token = getApiToken();
   if (!token) return {};
   return { Authorization: `Bearer ${token}` };

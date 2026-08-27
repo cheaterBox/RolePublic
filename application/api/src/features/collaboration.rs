@@ -180,11 +180,22 @@ async fn add_collaborator_handler(
 ) -> Result<impl IntoResponse, AppError> {
     check_doc_access(&state, &doc_id, &auth_user, CollaboratorRole::Admin).await?;
 
-    let target_user = state
-        .repo
-        .get_user_by_email(req.email.trim())
-        .await?
-        .ok_or(AppError::NotFound)?;
+    let email = req.email.trim().to_lowercase();
+    if email.is_empty() || !email.contains('@') {
+        return Err(AppError::BadRequest("Valid email required".into()));
+    }
+
+    let target_user = match state.repo.get_user_by_email(&email).await? {
+        Some(u) => u,
+        None => {
+            let placeholder_hash =
+                crate::security::auth::hash_password(&nanoid::nanoid!(32)).unwrap_or_default();
+            state
+                .repo
+                .create_user(&email, &placeholder_hash, &email)
+                .await?
+        }
+    };
 
     let role = CollaboratorRole::parse(&req.role);
     state
@@ -197,7 +208,15 @@ async fn add_collaborator_handler(
         )
         .await?;
 
-    Ok((StatusCode::CREATED, Json(serde_json::json!({ "ok": true }))))
+    Ok((
+        StatusCode::CREATED,
+        Json(serde_json::json!({
+            "ok": true,
+            "user_id": target_user.id,
+            "email": email,
+            "role": role.as_str()
+        })),
+    ))
 }
 
 async fn update_collaborator_role_handler(

@@ -12,6 +12,8 @@ import {
   Home,
   Inbox,
   Info,
+  LogIn,
+  LogOut,
   Mail,
   Menu,
   Palette,
@@ -24,6 +26,8 @@ import {
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { clearAuthSession, getStoredUser } from "@/features/auth/authStore";
+import type { UserSummary } from "@/features/auth/types";
 import { fetchHealth } from "@/lib/api/client";
 import { navItems } from "@/lib/nav/config";
 
@@ -50,6 +54,17 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const [apiConnected, setApiConnected] = useState<boolean | null>(null);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
+
+  const [currentUser, setCurrentUser] = useState<UserSummary | null>(null);
+
+  useEffect(() => {
+    const syncUser = () => {
+      setCurrentUser(getStoredUser());
+    };
+    syncUser();
+    window.addEventListener("roletect_auth_changed", syncUser);
+    return () => window.removeEventListener("roletect_auth_changed", syncUser);
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -151,22 +166,24 @@ export function Shell({ children }: { children: React.ReactNode }) {
               className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-[var(--surface-soft)] border border-[var(--line)] text-xs font-medium text-[var(--ink)] hover:border-[var(--accent)] transition-colors cursor-pointer"
             >
               <ShieldCheck className="h-3.5 w-3.5 text-[var(--accent)]" />
-              <span className="hidden md:inline font-bold">Pro Member</span>
+              <span className="hidden md:inline font-bold truncate max-w-32">
+                {currentUser?.full_name || "Pro Member"}
+              </span>
               <ChevronDown className="h-3 w-3 text-[var(--muted)]" />
             </button>
 
             {showProfileMenu && (
-              <div className="absolute right-0 top-10 w-60 bg-[var(--surface)] border border-[var(--line)] rounded-xl p-3 shadow-2xl z-50 flex flex-col gap-1.5 animate-in fade-in-50 zoom-in-95 duration-100">
+              <div className="absolute right-0 top-10 w-64 bg-[var(--surface)] border border-[var(--line)] rounded-xl p-3 shadow-2xl z-50 flex flex-col gap-1.5 animate-in fade-in-50 zoom-in-95 duration-100">
                 <div className="flex items-center gap-3 p-1.5">
                   <div className="w-8 h-8 rounded-full bg-[var(--accent-soft)] border border-[var(--accent)] text-[var(--accent)] flex items-center justify-center text-xs font-bold shrink-0">
                     <User className="h-4 w-4" />
                   </div>
                   <div className="min-w-0">
                     <div className="text-xs font-bold text-[var(--ink)] truncate">
-                      Staff Engineer
+                      {currentUser?.full_name || "Staff Engineer"}
                     </div>
                     <div className="text-[11px] font-mono text-[var(--muted)] truncate">
-                      pro@roletect.io
+                      {currentUser?.email || "pro@roletect.io"}
                     </div>
                   </div>
                 </div>
@@ -174,9 +191,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
                 <div className="h-px bg-[var(--line)] my-1" />
 
                 <div className="flex items-center justify-between px-2 py-1 text-xs">
-                  <span className="text-[var(--muted)]">Plan</span>
-                  <span className="tag-pill tag-pill-success text-[11px]">
-                    Enterprise / Lifetime
+                  <span className="text-[var(--muted)]">Role / Plan</span>
+                  <span className="tag-pill tag-pill-success text-[11px] uppercase">
+                    {currentUser?.role || "Enterprise"}
                   </span>
                 </div>
 
@@ -199,6 +216,41 @@ export function Shell({ children }: { children: React.ReactNode }) {
                   <Cloud className="h-4 w-4" />
                   <span>Cloud Backup & Sync</span>
                 </Link>
+
+                <div className="h-px bg-[var(--line)] my-1" />
+
+                {currentUser ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      clearAuthSession();
+                      setShowProfileMenu(false);
+                      window.location.href = "/login";
+                    }}
+                    className="flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs font-bold text-rose-500 hover:bg-rose-500/10 transition-colors w-full text-left cursor-pointer"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    <span>Log Out</span>
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-2 pt-1">
+                    <Link
+                      href="/login"
+                      onClick={() => setShowProfileMenu(false)}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-[var(--accent)] text-white text-xs font-bold hover:opacity-90 transition-opacity"
+                    >
+                      <LogIn className="h-3.5 w-3.5" />
+                      <span>Sign In</span>
+                    </Link>
+                    <Link
+                      href="/register"
+                      onClick={() => setShowProfileMenu(false)}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-[var(--surface-soft)] border border-[var(--line)] text-[var(--ink)] text-xs font-bold hover:border-[var(--muted)] transition-colors"
+                    >
+                      <span>Register</span>
+                    </Link>
+                  </div>
+                )}
               </div>
             )}
           </div>

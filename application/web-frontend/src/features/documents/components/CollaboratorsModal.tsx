@@ -3,7 +3,10 @@
 import {
   AlertCircle,
   Check,
+  Copy,
+  Link2,
   Loader2,
+  Lock,
   Trash2,
   UserPlus,
   Users,
@@ -39,6 +42,7 @@ export function CollaboratorsModal({
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<CollaboratorRole>("Editor");
   const [inviting, setInviting] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -62,6 +66,17 @@ export function CollaboratorsModal({
   }, [isOpen, docId]);
 
   if (!isOpen) return null;
+
+  const shareableUrl =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/documents/${docId}`
+      : `/documents/${docId}`;
+
+  const copyShareLink = async () => {
+    await navigator.clipboard.writeText(shareableUrl);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2000);
+  };
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -112,7 +127,7 @@ export function CollaboratorsModal({
           <div className="flex items-center gap-2">
             <Users className="h-5 w-5 text-[var(--accent)]" />
             <h2 className="text-sm font-bold text-[var(--ink)]">
-              Document Collaborators & RBAC
+              Document Access & Collaboration
             </h2>
           </div>
           <button
@@ -122,6 +137,44 @@ export function CollaboratorsModal({
           >
             <X className="h-4 w-4" />
           </button>
+        </div>
+
+        {/* Shareable Link Bar */}
+        <div className="px-5 py-3 border-b border-[var(--line)] bg-[var(--surface-soft)] space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted)] flex items-center gap-1.5">
+              <Link2 className="h-3.5 w-3.5 text-[var(--accent)]" />
+              <span>Shareable Collaboration Link</span>
+            </span>
+            <span className="text-[10px] font-medium text-amber-400 flex items-center gap-1">
+              <Lock className="h-3 w-3" />
+              <span>Restricted Access</span>
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              readOnly
+              value={shareableUrl}
+              className="flex-1 bg-[var(--surface)] border border-[var(--line)] rounded-lg px-2.5 py-1.5 text-xs font-mono text-[var(--ink)] select-all truncate focus:outline-hidden"
+            />
+            <button
+              type="button"
+              onClick={copyShareLink}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--accent)] text-white text-xs font-bold hover:opacity-90 transition-opacity shrink-0"
+            >
+              {copiedLink ? (
+                <Check className="h-3.5 w-3.5" />
+              ) : (
+                <Copy className="h-3.5 w-3.5" />
+              )}
+              <span>{copiedLink ? "Copied" : "Copy Link"}</span>
+            </button>
+          </div>
+          <p className="text-[10px] text-[var(--muted)]">
+            Only users with emails added to the member list below will be
+            permitted to enter and collaborate.
+          </p>
         </div>
 
         {/* Alerts */}
@@ -141,10 +194,10 @@ export function CollaboratorsModal({
         {/* Invite Form */}
         <form
           onSubmit={handleInvite}
-          className="p-5 border-b border-[var(--line)] bg-[var(--surface-soft)]/50 space-y-3"
+          className="p-5 border-b border-[var(--line)] bg-[var(--surface-soft)]/30 space-y-3"
         >
           <label className="block text-[11px] font-bold uppercase tracking-wider text-[var(--muted)]">
-            Invite New Collaborator
+            Add Collaborator by Email
           </label>
           <div className="flex gap-2">
             <input
@@ -152,7 +205,7 @@ export function CollaboratorsModal({
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="colleague@university.edu"
+              placeholder="colleague@company.com"
               className="flex-1 bg-[var(--surface)] border border-[var(--line)] rounded-lg px-3 py-2 text-xs text-[var(--ink)] focus:outline-hidden focus:border-[var(--accent)]"
             />
             <select
@@ -175,7 +228,7 @@ export function CollaboratorsModal({
               ) : (
                 <UserPlus className="h-3.5 w-3.5" />
               )}
-              <span>Invite</span>
+              <span>Add Member</span>
             </button>
           </div>
         </form>
