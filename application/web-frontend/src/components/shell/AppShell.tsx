@@ -17,6 +17,8 @@ import {
   Mail,
   Menu,
   Palette,
+  PanelLeftClose,
+  PanelLeftOpen,
   Settings,
   Share2,
   ShieldCheck,
@@ -55,7 +57,42 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
 
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [currentUser, setCurrentUser] = useState<UserSummary | null>(null);
+
+  // Load persisted desktop sidebar state
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("roletect_sidebar_collapsed");
+      if (stored !== null) {
+        setSidebarCollapsed(stored === "true");
+      }
+    } catch {
+      // Ignore in non-browser env
+    }
+  }, []);
+
+  const toggleSidebar = () => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("roletect_sidebar_collapsed", String(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  // Keyboard shortcut Ctrl+B / Cmd+B to toggle sidebar
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
+        e.preventDefault();
+        toggleSidebar();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   useEffect(() => {
     const syncUser = () => {
@@ -103,18 +140,39 @@ export function Shell({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[var(--bg)] text-[var(--ink)] select-none">
+    <div className="flex flex-col h-screen w-full max-w-full overflow-hidden bg-[var(--bg)] text-[var(--ink)] select-none">
       {/* TOP DESKTOP HEADER (52px, web-proportioned) */}
-      <header className="h-13 shrink-0 bg-[var(--bg-accent)] border-b border-[var(--line)] flex items-center justify-between px-4 z-40 select-none backdrop-blur-md">
-        {/* Left: Logo & Branding */}
-        <div className="flex items-center gap-3">
+      <header className="h-13 shrink-0 bg-[var(--bg-accent)] border-b border-[var(--line)] flex items-center justify-between px-3 sm:px-4 z-40 select-none backdrop-blur-md">
+        {/* Left: Logo & Branding & Sidebar Toggle */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          {/* Mobile menu button */}
           <button
             type="button"
             onClick={() => setMobileOpen(true)}
             className="md:hidden p-1.5 rounded-lg text-[var(--muted)] hover:text-[var(--ink)] hover:bg-[var(--surface-soft)]"
+            title="Open navigation menu"
           >
             <Menu className="h-4 w-4" />
           </button>
+
+          {/* Desktop expand/collapse button */}
+          <button
+            type="button"
+            onClick={toggleSidebar}
+            className="hidden md:flex p-1.5 rounded-lg text-[var(--muted)] hover:text-[var(--ink)] hover:bg-[var(--surface-soft)] transition-colors"
+            title={
+              sidebarCollapsed
+                ? "Expand Sidebar (Ctrl+B)"
+                : "Collapse Sidebar (Ctrl+B)"
+            }
+          >
+            {sidebarCollapsed ? (
+              <PanelLeftOpen className="h-4 w-4" />
+            ) : (
+              <PanelLeftClose className="h-4 w-4" />
+            )}
+          </button>
+
           <div className="h-2 w-2 rounded-full bg-[var(--accent)] shadow-[0_0_10px_var(--accent)]" />
           <Link
             href="/"
@@ -259,61 +317,130 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
       {/* BODY (Web Sidebar + Main Viewport) */}
       <div className="flex flex-1 overflow-hidden">
-        {/* SIDEBAR - Desktop Icon Bar (56px-60px for web clickability) */}
-        <aside className="hidden md:flex w-14 lg:w-15 flex-col items-center justify-between border-r border-[var(--line)] bg-[var(--bg-accent)] py-3 shrink-0 select-none z-30">
-          <nav className="flex flex-col items-center gap-1.5 w-full">
+        {/* SIDEBAR - Desktop Expandable / Collapsible */}
+        <aside
+          className={`hidden md:flex flex-col justify-between border-r border-[var(--line)] bg-[var(--bg-accent)] py-3 shrink-0 select-none z-30 transition-[width] duration-200 ease-in-out ${
+            sidebarCollapsed
+              ? "w-14 lg:w-15 items-center px-1.5"
+              : "w-56 lg:w-60 px-3"
+          }`}
+        >
+          {/* Nav Items List */}
+          <nav className="flex flex-col gap-1 w-full overflow-y-auto no-scrollbar">
             {navItems.map((item) => {
               const Icon = iconMap[item.iconName] || FileText;
               const isActive =
                 pathname === item.href ||
                 (item.href !== "/" && pathname.startsWith(item.href));
 
-              return (
-                <div
-                  key={item.href}
-                  className="relative flex items-center justify-center w-full"
-                  onMouseEnter={() => setActiveTooltip(item.label)}
-                  onMouseLeave={() => setActiveTooltip(null)}
-                >
-                  <Link
-                    href={item.href}
-                    className={`relative flex h-10 w-10 items-center justify-center rounded-xl transition-all ${
-                      isActive
-                        ? "text-[var(--accent)] bg-[var(--surface-soft)] font-bold shadow-xs"
-                        : "text-[var(--muted)] hover:text-[var(--ink)] hover:bg-[var(--surface-soft)]"
-                    }`}
+              if (sidebarCollapsed) {
+                return (
+                  <div
+                    key={item.href}
+                    className="relative flex items-center justify-center w-full"
+                    onMouseEnter={() => setActiveTooltip(item.label)}
+                    onMouseLeave={() => setActiveTooltip(null)}
                   >
-                    {isActive && (
-                      <span className="absolute left-0 top-2 bottom-2 w-[2.5px] bg-[var(--accent)] rounded-r" />
-                    )}
-                    <Icon
-                      className="h-4.5 w-4.5"
-                      strokeWidth={isActive ? 2.2 : 1.8}
-                    />
-                  </Link>
+                    <Link
+                      href={item.href}
+                      className={`relative flex h-10 w-10 items-center justify-center rounded-xl transition-all ${
+                        isActive
+                          ? "text-[var(--accent)] bg-[var(--surface-soft)] font-bold shadow-xs"
+                          : "text-[var(--muted)] hover:text-[var(--ink)] hover:bg-[var(--surface-soft)]"
+                      }`}
+                    >
+                      {isActive && (
+                        <span className="absolute left-0 top-2 bottom-2 w-[2.5px] bg-[var(--accent)] rounded-r" />
+                      )}
+                      <Icon
+                        className="h-4.5 w-4.5"
+                        strokeWidth={isActive ? 2.2 : 1.8}
+                      />
+                    </Link>
 
-                  {/* Flying Tooltip */}
-                  {activeTooltip === item.label && (
-                    <div className="absolute left-full ml-3.5 z-50 rounded-lg bg-[var(--bg-accent)] border border-[var(--line)] px-3 py-1.5 text-xs font-bold text-[var(--ink)] whitespace-nowrap shadow-2xl pointer-events-none animate-in fade-in-50 zoom-in-95 duration-100">
-                      {item.label}
-                    </div>
-                  )}
-                </div>
+                    {/* Flying Tooltip */}
+                    {activeTooltip === item.label && (
+                      <div className="absolute left-full ml-3.5 z-50 rounded-lg bg-[var(--bg-accent)] border border-[var(--line)] px-3 py-1.5 text-xs font-bold text-[var(--ink)] whitespace-nowrap shadow-2xl pointer-events-none animate-in fade-in-50 zoom-in-95 duration-100">
+                        {item.label}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold transition-all group ${
+                    isActive
+                      ? "text-[var(--accent)] bg-[var(--surface-soft)] font-bold shadow-xs border border-[var(--line)]"
+                      : "text-[var(--muted)] hover:text-[var(--ink)] hover:bg-[var(--surface-soft)] border border-transparent"
+                  }`}
+                >
+                  <Icon
+                    className={`h-4 w-4 shrink-0 transition-colors ${
+                      isActive
+                        ? "text-[var(--accent)]"
+                        : "text-[var(--muted)] group-hover:text-[var(--ink)]"
+                    }`}
+                    strokeWidth={isActive ? 2.2 : 1.8}
+                  />
+                  <span className="truncate">{item.label}</span>
+                </Link>
               );
             })}
           </nav>
 
-          {/* Bottom External Links */}
-          <div className="flex flex-col items-center gap-2 w-full pt-2.5 border-t border-[var(--line)]">
-            <a
-              href="https://github.com/AhmedTrooper/roletect-app"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex h-9 w-9 items-center justify-center rounded-xl text-[var(--muted)] hover:text-[var(--accent)] hover:bg-[var(--surface-soft)] transition-colors"
-              title="GitHub Community"
-            >
-              <Code className="h-4 w-4" />
-            </a>
+          {/* Bottom Controls */}
+          <div className="flex flex-col gap-1.5 w-full pt-2.5 border-t border-[var(--line)]">
+            {sidebarCollapsed ? (
+              <>
+                <a
+                  href="https://github.com/AhmedTrooper/roletect-app"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex h-9 w-9 items-center justify-center rounded-xl text-[var(--muted)] hover:text-[var(--accent)] hover:bg-[var(--surface-soft)] transition-colors mx-auto"
+                  title="GitHub Community"
+                >
+                  <Code className="h-4 w-4" />
+                </a>
+                <button
+                  type="button"
+                  onClick={toggleSidebar}
+                  className="flex h-9 w-9 items-center justify-center rounded-xl text-[var(--muted)] hover:text-[var(--ink)] hover:bg-[var(--surface-soft)] transition-colors mx-auto cursor-pointer"
+                  title="Expand Sidebar (Ctrl+B)"
+                >
+                  <PanelLeftOpen className="h-4 w-4" />
+                </button>
+              </>
+            ) : (
+              <>
+                <a
+                  href="https://github.com/AhmedTrooper/roletect-app"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-[var(--muted)] hover:text-[var(--accent)] hover:bg-[var(--surface-soft)] transition-colors"
+                >
+                  <Code className="h-4 w-4 shrink-0" />
+                  <span>GitHub Repository</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={toggleSidebar}
+                  className="flex items-center justify-between w-full px-3 py-2 rounded-xl text-xs text-[var(--muted)] hover:text-[var(--ink)] hover:bg-[var(--surface-soft)] transition-colors cursor-pointer"
+                  title="Collapse Sidebar (Ctrl+B)"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <PanelLeftClose className="h-4 w-4 shrink-0" />
+                    <span>Collapse</span>
+                  </div>
+                  <kbd className="px-1.5 py-0.5 rounded bg-[var(--surface)] border border-[var(--line)] text-[10px] font-mono">
+                    Ctrl+B
+                  </kbd>
+                </button>
+              </>
+            )}
           </div>
         </aside>
 
