@@ -224,6 +224,12 @@ pub trait Repository: Send + Sync {
         password_hash: &str,
         full_name: &str,
     ) -> RepoResult<User>;
+    async fn update_user_credentials(
+        &self,
+        id: &str,
+        password_hash: &str,
+        full_name: &str,
+    ) -> RepoResult<()>;
     async fn get_user_by_email(&self, email: &str) -> RepoResult<Option<User>>;
     async fn get_user_by_id(&self, id: &str) -> RepoResult<Option<User>>;
 

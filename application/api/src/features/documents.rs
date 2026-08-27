@@ -27,6 +27,7 @@ use crate::error::{AppError, AppResult};
 use crate::models::{
     CreateDocumentRequest, DocumentFileEntry, DocumentSummary, UpdateDocumentRequest,
 };
+use crate::security::auth::AuthUser;
 use crate::state::AppState;
 
 pub fn routes() -> Router<AppState> {
@@ -65,6 +66,7 @@ async fn get_one(
 }
 
 async fn create(
+    auth_user: Result<AuthUser, axum::http::StatusCode>,
     State(state): State<AppState>,
     Json(req): Json<CreateDocumentRequest>,
 ) -> AppResult<Json<serde_json::Value>> {
@@ -78,6 +80,15 @@ async fn create(
         )
         .await
         .map_err(internal)?;
+
+    if let Ok(user) = auth_user {
+        state
+            .repo
+            .add_document_collaborator(&id, &user.user_id, "Owner", None)
+            .await
+            .ok();
+    }
+
     Ok(Json(serde_json::json!({ "id": id })))
 }
 

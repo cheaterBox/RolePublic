@@ -137,25 +137,67 @@ async fn check_doc_access(
         return Ok(CollaboratorRole::Owner);
     }
 
-    let role = state
-        .repo
-        .get_user_doc_role(doc_id, &auth_user.user_id)
-        .await?
-        .unwrap_or(CollaboratorRole::Viewer);
+    // 1. Fetch all registered collaborators on this document
+    let collaborators = state.repo.list_document_collaborators(doc_id).await?;
 
-    let allowed = match required_role {
-        CollaboratorRole::Viewer => true,
-        CollaboratorRole::Commenter => role.can_comment(),
-        CollaboratorRole::Editor => role.can_edit(),
-        CollaboratorRole::Admin => role.can_manage_collaborators(),
-        CollaboratorRole::Owner => role.can_delete_document(),
-    };
-
-    if !allowed {
-        return Err(AppError::Forbidden);
+    // 2. If the document has no collaborators yet, the active user becomes its Owner
+    if collaborators.is_empty() {
+        state
+            .repo
+            .add_document_collaborator(doc_id, &auth_user.user_id, "Owner", None)
+            .await
+            .ok();
+        return Ok(CollaboratorRole::Owner);
     }
 
-    Ok(role)
+    // 3. Check for direct user_id match in collaborators
+    if let Some(c) = collaborators
+        .iter()
+        .find(|c| c.user_id == auth_user.user_id)
+    {
+        let role = CollaboratorRole::parse(&c.role);
+        let allowed = match required_role {
+            CollaboratorRole::Viewer => true,
+            CollaboratorRole::Commenter => role.can_comment(),
+            CollaboratorRole::Editor => role.can_edit(),
+            CollaboratorRole::Admin => role.can_manage_collaborators(),
+            CollaboratorRole::Owner => role.can_delete_document(),
+        };
+        if !allowed {
+            return Err(AppError::Forbidden);
+        }
+        return Ok(role);
+    }
+
+    // 4. Check for invited email match
+    if let Some(user_rec) = state.repo.get_user_by_id(&auth_user.user_id).await? {
+        if let Some(c) = collaborators
+            .iter()
+            .find(|c| c.email.eq_ignore_ascii_case(&user_rec.email))
+        {
+            let role = CollaboratorRole::parse(&c.role);
+            // Ensure this user ID is linked to the document collaborator record
+            state
+                .repo
+                .add_document_collaborator(doc_id, &auth_user.user_id, role.as_str(), None)
+                .await
+                .ok();
+            let allowed = match required_role {
+                CollaboratorRole::Viewer => true,
+                CollaboratorRole::Commenter => role.can_comment(),
+                CollaboratorRole::Editor => role.can_edit(),
+                CollaboratorRole::Admin => role.can_manage_collaborators(),
+                CollaboratorRole::Owner => role.can_delete_document(),
+            };
+            if !allowed {
+                return Err(AppError::Forbidden);
+            }
+            return Ok(role);
+        }
+    }
+
+    // 5. User is not in collaborators and email was not invited
+    Err(AppError::Forbidden)
 }
 
 // -----------------------------------------------------------------------------

@@ -1596,6 +1596,23 @@ impl Repository for SqliteRepo {
         })
     }
 
+    async fn update_user_credentials(
+        &self,
+        id: &str,
+        password_hash: &str,
+        full_name: &str,
+    ) -> RepoResult<()> {
+        sqlx::query(
+            "UPDATE users SET password_hash = ?1, full_name = ?2, updated_at = CURRENT_TIMESTAMP WHERE id = ?3",
+        )
+        .bind(password_hash)
+        .bind(full_name)
+        .bind(id)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
     async fn get_user_by_email(&self, email: &str) -> RepoResult<Option<User>> {
         let row = sqlx::query(
             "SELECT id, email, password_hash, full_name, avatar_url, role,

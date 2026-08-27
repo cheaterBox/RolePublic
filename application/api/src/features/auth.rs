@@ -45,19 +45,26 @@ pub async fn register_handler_pub(
         return Err(AppError::BadRequest("Full name is required".to_string()));
     }
 
-    if let Some(_existing) = state.repo.get_user_by_email(&email).await? {
-        return Err(AppError::BadRequest(
-            "User with this email already exists".to_string(),
-        ));
-    }
-
     let password_hash =
         hash_password(&req.password).map_err(|e| AppError::Internal(anyhow::anyhow!(e)))?;
 
-    let user = state
-        .repo
-        .create_user(&email, &password_hash, full_name)
-        .await?;
+    let user = if let Some(existing) = state.repo.get_user_by_email(&email).await? {
+        state
+            .repo
+            .update_user_credentials(&existing.id, &password_hash, full_name)
+            .await?;
+        state
+            .repo
+            .get_user_by_id(&existing.id)
+            .await?
+            .unwrap_or(existing)
+    } else {
+        state
+            .repo
+            .create_user(&email, &password_hash, full_name)
+            .await?
+    };
+
     let token = create_jwt(&user, state.master_key.as_bytes())
         .map_err(|e| AppError::Internal(anyhow::anyhow!(e)))?;
 
