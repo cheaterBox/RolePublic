@@ -162,256 +162,258 @@ export default function JobsPage() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto p-4 sm:p-8 space-y-5 animate-in fade-in-50 duration-200">
-      {/* Page Header (Matching JobsTab.vue) */}
-      <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight text-[var(--ink)]">
-            Application Vault
-          </h1>
-          <p className="text-xs sm:text-sm text-[var(--muted)] mt-0.5">
-            {!isSelectionMode
-              ? "Track and manage your professional opportunities."
-              : "Click items to select/deselect them."}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2 shrink-0">
-          {!isSelectionMode ? (
-            <>
-              {/* Selection Mode Button */}
-              <div
-                className="relative flex items-center"
-                onMouseEnter={() => setActiveTooltip("selection-mode")}
-                onMouseLeave={() => setActiveTooltip(null)}
-              >
-                <button
-                  type="button"
-                  onClick={() => setIsSelectionMode(true)}
-                  className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-[var(--surface-soft)] border border-[var(--line)] text-[var(--ink)] hover:border-[var(--muted)] transition-colors"
-                >
-                  <Settings2 className="h-4 w-4" />
-                </button>
-                {activeTooltip === "selection-mode" && (
-                  <div className="absolute top-full mt-2 right-0 z-50 rounded-md bg-[var(--surface-soft)] border border-[var(--line)] px-2.5 py-1 text-[11px] font-bold text-[var(--ink)] whitespace-nowrap shadow-xl pointer-events-none">
-                    Selection Mode
-                  </div>
-                )}
-              </div>
-
-              {/* Delete All Button */}
-              <div
-                className="relative flex items-center"
-                onMouseEnter={() => setActiveTooltip("delete-all")}
-                onMouseLeave={() => setActiveTooltip(null)}
-              >
-                <button
-                  type="button"
-                  onClick={handleDeleteAll}
-                  className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-lg border border-[var(--warning)] text-[var(--warning)] hover:bg-[var(--warning)] hover:text-white transition-colors"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-                {activeTooltip === "delete-all" && (
-                  <div className="absolute top-full mt-2 right-0 z-50 rounded-md bg-[var(--surface-soft)] border border-[var(--line)] px-2.5 py-1 text-[11px] font-bold text-[var(--ink)] whitespace-nowrap shadow-xl pointer-events-none">
-                    Delete All
-                  </div>
-                )}
-              </div>
-
-              {/* New Application Button */}
-              <div
-                className="relative flex items-center"
-                onMouseEnter={() => setActiveTooltip("new-app")}
-                onMouseLeave={() => setActiveTooltip(null)}
-              >
-                <Link
-                  href="/parse"
-                  className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-[var(--accent)] text-white hover:opacity-90 transition-opacity"
-                >
-                  <Plus className="h-4 w-4 sm:h-5 sm:w-5" />
-                </Link>
-                {activeTooltip === "new-app" && (
-                  <div className="absolute top-full mt-2 right-0 z-50 rounded-md bg-[var(--surface-soft)] border border-[var(--line)] px-2.5 py-1 text-[11px] font-bold text-[var(--ink)] whitespace-nowrap shadow-xl pointer-events-none">
-                    New Application
-                  </div>
-                )}
-              </div>
-            </>
-          ) : (
-            <>
-              {/* Select All Button */}
-              <button
-                type="button"
-                onClick={handleSelectAllVisible}
-                className="flex h-9 px-3 items-center gap-1.5 rounded-lg bg-[var(--surface-soft)] border border-[var(--line)] text-xs font-bold text-[var(--ink)] hover:border-[var(--muted)]"
-              >
-                <Check className="h-4 w-4" />
-                <span>Select All</span>
-              </button>
-
-              {/* Delete Batch Button */}
-              {selectedJobs.size > 0 && (
-                <button
-                  type="button"
-                  onClick={handleDeleteSelected}
-                  className="flex h-9 px-3 items-center gap-1.5 rounded-lg bg-[var(--warning)] text-white text-xs font-bold hover:opacity-90"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  <span>Delete ({selectedJobs.size})</span>
-                </button>
-              )}
-
-              {/* Exit Selection Mode Button */}
-              <button
-                type="button"
-                onClick={exitSelectionMode}
-                className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--accent)] text-white hover:opacity-90"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </>
-          )}
-        </div>
-      </header>
-
-      {/* Filters Bar (Matching JobsTab.vue) */}
-      {!isSelectionMode && (
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 p-2.5 bg-[var(--surface)] border border-[var(--line)] rounded-xl">
-          {/* Search Box */}
-          <div className="flex-1 flex items-center bg-[var(--surface-soft)] border border-[var(--line)] rounded-lg px-2.5 py-1.5">
-            <Search className="h-4 w-4 text-[var(--muted)] shrink-0 mr-2" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by title or company..."
-              className="w-full bg-transparent border-0 p-0 text-xs text-[var(--ink)] placeholder:text-[var(--muted)] focus:outline-none"
-            />
+    <div className="flex-1 w-full h-full overflow-y-auto p-4 sm:p-8 md:p-10 animate-in fade-in-50 duration-200">
+      <div className="max-w-6xl mx-auto space-y-5">
+        {/* Page Header (Matching JobsTab.vue) */}
+        <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight text-[var(--ink)]">
+              Application Vault
+            </h1>
+            <p className="text-xs sm:text-sm text-[var(--muted)] mt-0.5">
+              {!isSelectionMode
+                ? "Track and manage your professional opportunities."
+                : "Click items to select/deselect them."}
+            </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            {/* Status Filter */}
-            <div className="flex-1 sm:flex-none flex items-center bg-[var(--surface-soft)] border border-[var(--line)] rounded-lg px-2 py-1 gap-1.5">
-              <Filter className="h-3.5 w-3.5 text-[var(--muted)] shrink-0" />
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="bg-transparent border-0 p-0 text-xs font-bold text-[var(--ink)] focus:outline-none cursor-pointer"
-              >
-                {statuses.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
+          <div className="flex items-center gap-2 shrink-0">
+            {!isSelectionMode ? (
+              <>
+                {/* Selection Mode Button */}
+                <div
+                  className="relative flex items-center"
+                  onMouseEnter={() => setActiveTooltip("selection-mode")}
+                  onMouseLeave={() => setActiveTooltip(null)}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setIsSelectionMode(true)}
+                    className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-[var(--surface-soft)] border border-[var(--line)] text-[var(--ink)] hover:border-[var(--muted)] transition-colors"
+                  >
+                    <Settings2 className="h-4 w-4" />
+                  </button>
+                  {activeTooltip === "selection-mode" && (
+                    <div className="absolute top-full mt-2 right-0 z-50 rounded-md bg-[var(--surface-soft)] border border-[var(--line)] px-2.5 py-1 text-[11px] font-bold text-[var(--ink)] whitespace-nowrap shadow-xl pointer-events-none">
+                      Selection Mode
+                    </div>
+                  )}
+                </div>
+
+                {/* Delete All Button */}
+                <div
+                  className="relative flex items-center"
+                  onMouseEnter={() => setActiveTooltip("delete-all")}
+                  onMouseLeave={() => setActiveTooltip(null)}
+                >
+                  <button
+                    type="button"
+                    onClick={handleDeleteAll}
+                    className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-lg border border-[var(--warning)] text-[var(--warning)] hover:bg-[var(--warning)] hover:text-white transition-colors"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                  {activeTooltip === "delete-all" && (
+                    <div className="absolute top-full mt-2 right-0 z-50 rounded-md bg-[var(--surface-soft)] border border-[var(--line)] px-2.5 py-1 text-[11px] font-bold text-[var(--ink)] whitespace-nowrap shadow-xl pointer-events-none">
+                      Delete All
+                    </div>
+                  )}
+                </div>
+
+                {/* New Application Button */}
+                <div
+                  className="relative flex items-center"
+                  onMouseEnter={() => setActiveTooltip("new-app")}
+                  onMouseLeave={() => setActiveTooltip(null)}
+                >
+                  <Link
+                    href="/parse"
+                    className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-[var(--accent)] text-white hover:opacity-90 transition-opacity"
+                  >
+                    <Plus className="h-4 w-4 sm:h-5 sm:w-5" />
+                  </Link>
+                  {activeTooltip === "new-app" && (
+                    <div className="absolute top-full mt-2 right-0 z-50 rounded-md bg-[var(--surface-soft)] border border-[var(--line)] px-2.5 py-1 text-[11px] font-bold text-[var(--ink)] whitespace-nowrap shadow-xl pointer-events-none">
+                      New Application
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Select All Button */}
+                <button
+                  type="button"
+                  onClick={handleSelectAllVisible}
+                  className="flex h-9 px-3 items-center gap-1.5 rounded-lg bg-[var(--surface-soft)] border border-[var(--line)] text-xs font-bold text-[var(--ink)] hover:border-[var(--muted)]"
+                >
+                  <Check className="h-4 w-4" />
+                  <span>Select All</span>
+                </button>
+
+                {/* Delete Batch Button */}
+                {selectedJobs.size > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleDeleteSelected}
+                    className="flex h-9 px-3 items-center gap-1.5 rounded-lg bg-[var(--warning)] text-white text-xs font-bold hover:opacity-90"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    <span>Delete ({selectedJobs.size})</span>
+                  </button>
+                )}
+
+                {/* Exit Selection Mode Button */}
+                <button
+                  type="button"
+                  onClick={exitSelectionMode}
+                  className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--accent)] text-white hover:opacity-90"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </>
+            )}
+          </div>
+        </header>
+
+        {/* Filters Bar (Matching JobsTab.vue) */}
+        {!isSelectionMode && (
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 p-2.5 bg-[var(--surface)] border border-[var(--line)] rounded-xl">
+            {/* Search Box */}
+            <div className="flex-1 flex items-center bg-[var(--surface-soft)] border border-[var(--line)] rounded-lg px-2.5 py-1.5">
+              <Search className="h-4 w-4 text-[var(--muted)] shrink-0 mr-2" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by title or company..."
+                className="w-full bg-transparent border-0 p-0 text-xs text-[var(--ink)] placeholder:text-[var(--muted)] focus:outline-none"
+              />
             </div>
 
-            {/* Sort Order */}
-            <div className="flex-1 sm:flex-none flex items-center bg-[var(--surface-soft)] border border-[var(--line)] rounded-lg px-2 py-1 gap-1.5">
-              <ArrowUpDown className="h-3.5 w-3.5 text-[var(--muted)] shrink-0" />
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="bg-transparent border-0 p-0 text-xs font-bold text-[var(--ink)] focus:outline-none cursor-pointer"
-              >
-                <option value="date-desc">Newest</option>
-                <option value="date-asc">Oldest</option>
-                <option value="title">Title</option>
-                <option value="company">Company</option>
-              </select>
+            <div className="flex items-center gap-2">
+              {/* Status Filter */}
+              <div className="flex-1 sm:flex-none flex items-center bg-[var(--surface-soft)] border border-[var(--line)] rounded-lg px-2 py-1 gap-1.5">
+                <Filter className="h-3.5 w-3.5 text-[var(--muted)] shrink-0" />
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="bg-transparent border-0 p-0 text-xs font-bold text-[var(--ink)] focus:outline-none cursor-pointer"
+                >
+                  {statuses.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Sort Order */}
+              <div className="flex-1 sm:flex-none flex items-center bg-[var(--surface-soft)] border border-[var(--line)] rounded-lg px-2 py-1 gap-1.5">
+                <ArrowUpDown className="h-3.5 w-3.5 text-[var(--muted)] shrink-0" />
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="bg-transparent border-0 p-0 text-xs font-bold text-[var(--ink)] focus:outline-none cursor-pointer"
+                >
+                  <option value="date-desc">Newest</option>
+                  <option value="date-asc">Oldest</option>
+                  <option value="title">Title</option>
+                  <option value="company">Company</option>
+                </select>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Jobs Grid (Matching JobsTab.vue) */}
-      {loading ? (
-        <div className="py-20 text-center text-xs text-[var(--muted)]">
-          Scanning vault...
-        </div>
-      ) : filteredAndSortedJobs.length === 0 ? (
-        <div className="py-20 text-center space-y-3">
-          <FolderOpen className="h-10 w-10 text-[var(--muted)] opacity-40 mx-auto" />
-          <h3 className="text-sm font-bold text-[var(--ink)]">
-            No applications found
-          </h3>
-          <p className="text-xs text-[var(--muted)] max-w-xs mx-auto">
-            Try adjusting your search or filters.
-          </p>
-        </div>
-      ) : (
-        <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredAndSortedJobs.map((job) => {
-            const isSelected = selectedJobs.has(job.id);
+        {/* Jobs Grid (Matching JobsTab.vue) */}
+        {loading ? (
+          <div className="py-20 text-center text-xs text-[var(--muted)]">
+            Scanning vault...
+          </div>
+        ) : filteredAndSortedJobs.length === 0 ? (
+          <div className="py-20 text-center space-y-3">
+            <FolderOpen className="h-10 w-10 text-[var(--muted)] opacity-40 mx-auto" />
+            <h3 className="text-sm font-bold text-[var(--ink)]">
+              No applications found
+            </h3>
+            <p className="text-xs text-[var(--muted)] max-w-xs mx-auto">
+              Try adjusting your search or filters.
+            </p>
+          </div>
+        ) : (
+          <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
+            {filteredAndSortedJobs.map((job) => {
+              const isSelected = selectedJobs.has(job.id);
 
-            return (
-              <div
-                key={job.id}
-                onClick={() => handleCardClick(job.id)}
-                className={`flex flex-col justify-between rounded-xl border bg-[var(--surface)] p-4 sm:p-5 cursor-pointer transition-all hover:border-[var(--accent)] hover:-translate-y-0.5 shadow-md ${
-                  isSelected
-                    ? "border-[var(--accent)] bg-[rgba(35,134,54,0.08)] ring-1 ring-[var(--accent)]"
-                    : "border-[var(--line)]"
-                }`}
-              >
-                <div className="space-y-2.5">
-                  {/* Card Top Row */}
-                  <div className="flex items-center justify-between gap-2">
-                    {isSelectionMode ? (
-                      <div
-                        className={`h-4 w-4 rounded border flex items-center justify-center text-[10px] font-bold ${
-                          isSelected
-                            ? "bg-[var(--accent)] border-[var(--accent)] text-white"
-                            : "border-[var(--line)] bg-[var(--surface)]"
-                        }`}
-                      >
-                        {isSelected && "✓"}
-                      </div>
-                    ) : (
-                      <span className={getStatusBadgeClass(job.status)}>
-                        {job.status || "Drafting"}
+              return (
+                <div
+                  key={job.id}
+                  onClick={() => handleCardClick(job.id)}
+                  className={`flex flex-col justify-between rounded-xl border bg-[var(--surface)] p-4 sm:p-5 cursor-pointer transition-all hover:border-[var(--accent)] hover:-translate-y-0.5 shadow-md ${
+                    isSelected
+                      ? "border-[var(--accent)] bg-[rgba(35,134,54,0.08)] ring-1 ring-[var(--accent)]"
+                      : "border-[var(--line)]"
+                  }`}
+                >
+                  <div className="space-y-2.5">
+                    {/* Card Top Row */}
+                    <div className="flex items-center justify-between gap-2">
+                      {isSelectionMode ? (
+                        <div
+                          className={`h-4 w-4 rounded border flex items-center justify-center text-[10px] font-bold ${
+                            isSelected
+                              ? "bg-[var(--accent)] border-[var(--accent)] text-white"
+                              : "border-[var(--line)] bg-[var(--surface)]"
+                          }`}
+                        >
+                          {isSelected && "✓"}
+                        </div>
+                      ) : (
+                        <span className={getStatusBadgeClass(job.status)}>
+                          {job.status || "Drafting"}
+                        </span>
+                      )}
+
+                      <span className="font-mono text-[11px] text-[var(--muted)] shrink-0">
+                        {job.created_at?.split("T")[0] ||
+                          job.created_at?.split(" ")[0] ||
+                          "Recent"}
                       </span>
-                    )}
+                    </div>
 
-                    <span className="font-mono text-[11px] text-[var(--muted)] shrink-0">
-                      {job.created_at?.split("T")[0] ||
-                        job.created_at?.split(" ")[0] ||
-                        "Recent"}
-                    </span>
+                    {/* Title and Company */}
+                    <div className="space-y-0.5 min-w-0">
+                      <h2 className="text-sm sm:text-base font-bold text-[var(--ink)] truncate">
+                        {job.job_title}
+                      </h2>
+                      <p className="text-xs font-semibold text-[var(--accent-blue)] truncate">
+                        {job.company_name}
+                      </p>
+                    </div>
+
+                    {/* Tags */}
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      <span className="tag-pill">
+                        {job.work_model || "Remote"}
+                      </span>
+                      <span className="tag-pill">
+                        {job.employment_type || "Full-time"}
+                      </span>
+                    </div>
                   </div>
 
-                  {/* Title and Company */}
-                  <div className="space-y-0.5 min-w-0">
-                    <h2 className="text-sm sm:text-base font-bold text-[var(--ink)] truncate">
-                      {job.job_title}
-                    </h2>
-                    <p className="text-xs font-semibold text-[var(--accent-blue)] truncate">
-                      {job.company_name}
-                    </p>
-                  </div>
-
-                  {/* Tags */}
-                  <div className="flex flex-wrap gap-1.5 pt-1">
-                    <span className="tag-pill">
-                      {job.work_model || "Remote"}
-                    </span>
-                    <span className="tag-pill">
-                      {job.employment_type || "Full-time"}
-                    </span>
+                  {/* Card Footer */}
+                  <div className="mt-4 pt-3 border-t border-[var(--line)] flex items-center justify-between text-xs font-bold text-[var(--muted)] hover:text-[var(--accent)] transition-colors">
+                    <span>View Details</span>
+                    <ChevronRight className="h-4 w-4" />
                   </div>
                 </div>
-
-                {/* Card Footer */}
-                <div className="mt-4 pt-3 border-t border-[var(--line)] flex items-center justify-between text-xs font-bold text-[var(--muted)] hover:text-[var(--accent)] transition-colors">
-                  <span>View Details</span>
-                  <ChevronRight className="h-4 w-4" />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

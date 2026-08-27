@@ -83,11 +83,12 @@ export default function DocumentDetailPage({
   const [cursorPos, setCursorPos] = useState({ line: 1, col: 1 });
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const sidebarWidth = 240;
-  const previewWidth = 520;
+  const _previewWidth = 520;
   const [zoomLevel, setZoomLevel] = useState(100);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [_copiedSource, setCopiedSource] = useState(false);
+  const [mobileTab, setMobileTab] = useState<"editor" | "preview">("editor");
 
   // Compilation & Diagnostics
   const [isCompiling, setIsCompiling] = useState(false);
@@ -420,6 +421,9 @@ export default function DocumentDetailPage({
       if (pdfBlobUrl) URL.revokeObjectURL(pdfBlobUrl);
       const url = URL.createObjectURL(blob);
       setPdfBlobUrl(url);
+      if (typeof window !== "undefined" && window.innerWidth < 768) {
+        setMobileTab("preview");
+      }
     } catch (err: any) {
       setCompilationError(
         err.message ||
@@ -544,9 +548,9 @@ export default function DocumentDetailPage({
       }`}
     >
       {/* 1. Pro Header Toolbar (52px / h-13) */}
-      <header className="h-13 flex items-center justify-between px-4 bg-[var(--bg-accent)] border-b border-[var(--line)] shrink-0 z-20">
+      <header className="h-13 flex items-center justify-between px-3 sm:px-4 bg-[var(--bg-accent)] border-b border-[var(--line)] shrink-0 z-20 gap-2">
         {/* Left Navigation & Project Identity */}
-        <div className="flex items-center gap-3 min-w-0">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <Link
             href="/documents"
             className="p-1.5 rounded text-[var(--muted)] hover:text-[var(--ink)] hover:bg-[var(--surface-soft)] transition-colors shrink-0"
@@ -558,14 +562,14 @@ export default function DocumentDetailPage({
           <button
             type="button"
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="p-1.5 rounded text-[var(--muted)] hover:text-[var(--ink)] hover:bg-[var(--surface-soft)] transition-colors"
+            className="p-1.5 rounded text-[var(--muted)] hover:text-[var(--ink)] hover:bg-[var(--surface-soft)] transition-colors shrink-0"
             title={isSidebarOpen ? "Collapse File Tree" : "Show File Tree"}
           >
             <PanelLeft className="h-4 w-4" />
           </button>
 
           {/* Editable Project Title */}
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
             {isEditingTitle ? (
               <input
                 type="text"
@@ -584,13 +588,13 @@ export default function DocumentDetailPage({
             ) : (
               <div
                 onClick={() => setIsEditingTitle(true)}
-                className="flex items-center gap-1.5 cursor-pointer group"
+                className="flex items-center gap-1.5 cursor-pointer group min-w-0"
                 title="Click to rename workspace"
               >
-                <span className="text-xs font-bold text-[var(--ink)] truncate max-w-xs group-hover:text-[var(--accent)] transition-colors">
+                <span className="text-xs font-bold text-[var(--ink)] truncate max-w-[120px] sm:max-w-xs group-hover:text-[var(--accent)] transition-colors">
                   {doc.title}
                 </span>
-                <Edit3 className="h-3 w-3 text-[var(--muted)] opacity-0 group-hover:opacity-100 transition-opacity" />
+                <Edit3 className="h-3 w-3 text-[var(--muted)] opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
               </div>
             )}
 
@@ -598,7 +602,7 @@ export default function DocumentDetailPage({
             <button
               type="button"
               onClick={handleToggleStar}
-              className={`p-1 rounded transition-colors ${
+              className={`p-1 rounded transition-colors shrink-0 ${
                 doc.starred
                   ? "text-amber-400 hover:text-amber-300"
                   : "text-[var(--muted)] hover:text-[var(--ink)]"
@@ -613,7 +617,7 @@ export default function DocumentDetailPage({
 
           {/* Live Online Presence Avatars */}
           {activePresence.length > 0 && (
-            <div className="hidden md:flex items-center -space-x-1.5 pl-2 border-l border-[var(--line)]">
+            <div className="hidden xl:flex items-center -space-x-1.5 pl-2 border-l border-[var(--line)]">
               {activePresence.map((u) => (
                 <div
                   key={u.user_id}
@@ -628,13 +632,39 @@ export default function DocumentDetailPage({
           )}
         </div>
 
+        {/* Center / Mobile View Switcher */}
+        <div className="flex md:hidden items-center bg-[var(--surface)] p-0.5 rounded-lg border border-[var(--line)] shrink-0">
+          <button
+            type="button"
+            onClick={() => setMobileTab("editor")}
+            className={`px-2.5 py-1 rounded text-[11px] font-bold transition-colors ${
+              mobileTab === "editor"
+                ? "bg-[var(--accent)] text-white shadow-xs"
+                : "text-[var(--muted)] hover:text-[var(--ink)]"
+            }`}
+          >
+            Code
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileTab("preview")}
+            className={`px-2.5 py-1 rounded text-[11px] font-bold transition-colors ${
+              mobileTab === "preview"
+                ? "bg-[var(--accent)] text-white shadow-xs"
+                : "text-[var(--muted)] hover:text-[var(--ink)]"
+            }`}
+          >
+            PDF
+          </button>
+        </div>
+
         {/* Right Tools & Compilation */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {/* AI Refine Toggle */}
           <button
             type="button"
             onClick={() => setShowRefineBar(!showRefineBar)}
-            className={`flex items-center gap-1.5 h-8 px-2.5 rounded text-xs font-semibold border transition-colors ${
+            className={`flex items-center gap-1.5 h-8 px-2 sm:px-2.5 rounded text-xs font-semibold border transition-colors ${
               showRefineBar
                 ? "bg-[var(--accent)]/10 text-[var(--accent)] border-[var(--accent)]/30"
                 : "bg-[var(--surface-soft)] text-[var(--ink)] border-[var(--line)] hover:border-[var(--muted)]"
@@ -648,7 +678,7 @@ export default function DocumentDetailPage({
           <button
             type="button"
             onClick={() => setShowCollaborators(true)}
-            className="flex items-center gap-1.5 h-8 px-2.5 rounded bg-[var(--surface-soft)] border border-[var(--line)] text-xs font-bold text-[var(--ink)] hover:border-[var(--muted)] transition-colors"
+            className="flex items-center gap-1.5 h-8 px-2 sm:px-2.5 rounded bg-[var(--surface-soft)] border border-[var(--line)] text-xs font-bold text-[var(--ink)] hover:border-[var(--muted)] transition-colors"
             title="Team & Access"
           >
             <Users className="h-3.5 w-3.5 text-[var(--accent)]" />
@@ -659,7 +689,7 @@ export default function DocumentDetailPage({
           <button
             type="button"
             onClick={() => setShowHistory(true)}
-            className="flex items-center gap-1.5 h-8 px-2.5 rounded bg-[var(--surface-soft)] border border-[var(--line)] text-xs font-bold text-[var(--ink)] hover:border-[var(--muted)] transition-colors"
+            className="flex items-center gap-1.5 h-8 px-2 sm:px-2.5 rounded bg-[var(--surface-soft)] border border-[var(--line)] text-xs font-bold text-[var(--ink)] hover:border-[var(--muted)] transition-colors"
             title="Version Checkpoints"
           >
             <History className="h-3.5 w-3.5 text-blue-400" />
@@ -670,7 +700,7 @@ export default function DocumentDetailPage({
           <button
             type="button"
             onClick={() => setShowComments(true)}
-            className="flex items-center gap-1.5 h-8 px-2.5 rounded bg-[var(--surface-soft)] border border-[var(--line)] text-xs font-bold text-[var(--ink)] hover:border-[var(--muted)] transition-colors"
+            className="flex items-center gap-1.5 h-8 px-2 sm:px-2.5 rounded bg-[var(--surface-soft)] border border-[var(--line)] text-xs font-bold text-[var(--ink)] hover:border-[var(--muted)] transition-colors"
             title="Margin Comments"
           >
             <MessageSquare className="h-3.5 w-3.5 text-emerald-400" />
@@ -682,7 +712,7 @@ export default function DocumentDetailPage({
             type="button"
             onClick={handleSaveActiveFile}
             disabled={isSaving || !activeFileRel}
-            className="flex items-center gap-1.5 h-8 px-2.5 rounded bg-[var(--surface-soft)] border border-[var(--line)] text-xs font-bold text-[var(--ink)] hover:border-[var(--muted)] transition-colors"
+            className="flex items-center gap-1.5 h-8 px-2 sm:px-2.5 rounded bg-[var(--surface-soft)] border border-[var(--line)] text-xs font-bold text-[var(--ink)] hover:border-[var(--muted)] transition-colors"
             title="Save File (Ctrl+S)"
           >
             {isSaving ? (
@@ -706,7 +736,7 @@ export default function DocumentDetailPage({
             type="button"
             onClick={handleCompile}
             disabled={isCompiling}
-            className="flex items-center gap-2 h-8.5 px-3.5 rounded bg-[var(--accent)] text-white text-xs font-bold hover:opacity-90 disabled:opacity-50 shadow-sm transition-all active:scale-[0.98]"
+            className="flex items-center gap-1.5 sm:gap-2 h-8.5 px-3 sm:px-3.5 rounded bg-[var(--accent)] text-white text-xs font-bold hover:opacity-90 disabled:opacity-50 shadow-sm transition-all active:scale-[0.98]"
             title="Compile Multi-file Workspace (Ctrl+Enter)"
           >
             {isCompiling ? (
@@ -725,7 +755,7 @@ export default function DocumentDetailPage({
             <a
               href={pdfBlobUrl}
               download={`${doc.title.replace(/\s+/g, "_")}.pdf`}
-              className="flex items-center gap-1.5 h-8 px-2.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors shadow-sm"
+              className="flex items-center gap-1.5 h-8 px-2 sm:px-2.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors shadow-sm"
               title="Download compiled PDF"
             >
               <Download className="h-3.5 w-3.5" />
@@ -815,7 +845,7 @@ export default function DocumentDetailPage({
         {isSidebarOpen && (
           <aside
             style={{ width: `${sidebarWidth}px` }}
-            className="bg-[var(--bg-accent)] border-r border-[var(--line)] flex flex-col shrink-0 overflow-hidden select-none"
+            className="hidden lg:flex bg-[var(--bg-accent)] border-r border-[var(--line)] flex-col shrink-0 overflow-hidden select-none"
           >
             {/* Header with search & New file */}
             <div className="p-2.5 border-b border-[var(--line)] space-y-2">
@@ -976,7 +1006,11 @@ export default function DocumentDetailPage({
         )}
 
         {/* Center Pane: Multi-Tab Code Editor */}
-        <main className="flex-1 flex flex-col min-w-0 bg-[#0d1117] overflow-hidden">
+        <main
+          className={`flex-1 min-w-0 min-h-0 bg-[#0d1117] flex-col overflow-hidden ${
+            mobileTab === "editor" ? "flex" : "hidden md:flex"
+          }`}
+        >
           {/* Tab Bar */}
           <div className="h-8 flex items-center bg-[#161b22] border-b border-[#30363d] overflow-x-auto select-none no-scrollbar">
             {openTabs.map((tab) => {
@@ -1108,8 +1142,9 @@ export default function DocumentDetailPage({
 
         {/* Right Pane: Project PDF Preview */}
         <section
-          style={{ width: `${previewWidth}px` }}
-          className="bg-[var(--bg-accent)] border-l border-[var(--line)] flex flex-col shrink-0 overflow-hidden"
+          className={`w-full md:w-[440px] lg:w-[480px] xl:w-[540px] 2xl:w-[600px] bg-[var(--bg-accent)] border-l border-[var(--line)] flex-col shrink-0 min-h-0 overflow-hidden ${
+            mobileTab === "preview" ? "flex" : "hidden md:flex"
+          }`}
         >
           {/* PDF Viewer Header */}
           <div className="h-8 flex items-center justify-between px-3 bg-[var(--bg-accent)] border-b border-[var(--line)] select-none">
@@ -1197,16 +1232,15 @@ export default function DocumentDetailPage({
                     <kbd className="px-1 py-0.5 bg-zinc-800 rounded font-mono text-[10px]">
                       Ctrl+Enter
                     </kbd>{" "}
-                    to compile all project files into a vector PDF.
+                    to build your multi-file PDF workspace.
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={handleCompile}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded bg-[var(--accent)] text-white text-xs font-bold hover:opacity-90 transition-opacity"
+                  className="px-4 py-2 rounded bg-[var(--accent)] text-white text-xs font-bold hover:opacity-90 transition-opacity"
                 >
-                  <Hammer className="h-3.5 w-3.5" />
-                  <span>Compile Workspace</span>
+                  Compile Workspace
                 </button>
               </div>
             )}

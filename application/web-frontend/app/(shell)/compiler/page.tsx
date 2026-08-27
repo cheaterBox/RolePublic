@@ -208,12 +208,13 @@ export default function CompilerPage() {
   const [copied, setCopied] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const sidebarWidth = 250;
-  const previewWidth = 520;
+  const _previewWidth = 520;
   const [zoomLevel, setZoomLevel] = useState(100);
   const [cursorPos, setCursorPos] = useState({ line: 1, col: 1 });
   const [searchTemplate, setSearchTemplate] = useState("");
   const [activeTemplateId, setActiveTemplateId] = useState("faang_modern");
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [mobileTab, setMobileTab] = useState<"editor" | "preview">("editor");
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const splitRef = useRef<HTMLDivElement | null>(null);
@@ -430,9 +431,9 @@ export default function CompilerPage() {
       }`}
     >
       {/* 1. Pro Command Bar (52px / h-13) */}
-      <header className="h-13 flex items-center justify-between px-4 bg-[var(--bg-accent)] border-b border-[var(--line)] shrink-0 z-20">
+      <header className="h-13 flex items-center justify-between px-3 sm:px-4 bg-[var(--bg-accent)] border-b border-[var(--line)] shrink-0 z-20 gap-2">
         {/* Left branding & stats */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <button
             type="button"
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -442,16 +443,16 @@ export default function CompilerPage() {
             <PanelLeft className="h-4 w-4" />
           </button>
 
-          <div className="flex items-center gap-2">
-            <div className="h-7 w-7 rounded bg-[var(--accent)]/10 border border-[var(--accent)]/20 flex items-center justify-center text-[var(--accent)]">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="h-7 w-7 rounded bg-[var(--accent)]/10 border border-[var(--accent)]/20 flex items-center justify-center text-[var(--accent)] shrink-0">
               <Terminal className="h-3.5 w-3.5" />
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-[var(--ink)] tracking-tight">
+                <span className="text-xs font-bold text-[var(--ink)] tracking-tight truncate">
                   Tectonic Studio
                 </span>
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                <span className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                   XeTeX Engine
                 </span>
@@ -460,13 +461,39 @@ export default function CompilerPage() {
           </div>
         </div>
 
+        {/* Center / Mobile View Switcher */}
+        <div className="flex md:hidden items-center bg-[var(--surface)] p-0.5 rounded-lg border border-[var(--line)] shrink-0">
+          <button
+            type="button"
+            onClick={() => setMobileTab("editor")}
+            className={`px-2.5 py-1 rounded text-[11px] font-bold transition-colors ${
+              mobileTab === "editor"
+                ? "bg-[var(--accent)] text-white shadow-xs"
+                : "text-[var(--muted)] hover:text-[var(--ink)]"
+            }`}
+          >
+            Code
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileTab("preview")}
+            className={`px-2.5 py-1 rounded text-[11px] font-bold transition-colors ${
+              mobileTab === "preview"
+                ? "bg-[var(--accent)] text-white shadow-xs"
+                : "text-[var(--muted)] hover:text-[var(--ink)]"
+            }`}
+          >
+            PDF
+          </button>
+        </div>
+
         {/* Right Tools & Compilation */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {/* AI Refine Toggle */}
           <button
             type="button"
             onClick={() => setShowRefineBar(!showRefineBar)}
-            className={`flex items-center gap-1.5 h-8 px-3 rounded text-xs font-semibold border transition-colors ${
+            className={`flex items-center gap-1.5 h-8 px-2.5 sm:px-3 rounded text-xs font-semibold border transition-colors ${
               showRefineBar
                 ? "bg-[var(--accent)]/10 text-[var(--accent)] border-[var(--accent)]/30"
                 : "bg-[var(--surface-soft)] text-[var(--ink)] border-[var(--line)] hover:border-[var(--muted)]"
@@ -498,7 +525,7 @@ export default function CompilerPage() {
             type="button"
             onClick={handleCompile}
             disabled={isCompiling}
-            className="flex items-center gap-2 h-8.5 px-4 rounded bg-[var(--accent)] text-white text-xs font-bold hover:opacity-90 disabled:opacity-50 shadow-sm transition-all active:scale-[0.98]"
+            className="flex items-center gap-1.5 sm:gap-2 h-8.5 px-3 sm:px-4 rounded bg-[var(--accent)] text-white text-xs font-bold hover:opacity-90 disabled:opacity-50 shadow-sm transition-all active:scale-[0.98]"
             title="Compile to PDF (Ctrl+Enter)"
           >
             {isCompiling ? (
@@ -517,11 +544,11 @@ export default function CompilerPage() {
             <a
               href={pdfBlobUrl}
               download="roletect_compiler_output.pdf"
-              className="flex items-center gap-1.5 h-8 px-3 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors shadow-sm"
+              className="flex items-center gap-1.5 h-8 px-2.5 sm:px-3 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors shadow-sm"
               title="Download compiled PDF"
             >
               <Download className="h-3.5 w-3.5" />
-              <span className="hidden md:inline">Download</span>
+              <span className="hidden md:inline">PDF</span>
             </a>
           )}
 
@@ -605,7 +632,7 @@ export default function CompilerPage() {
         {isSidebarOpen && (
           <aside
             style={{ width: `${sidebarWidth}px` }}
-            className="bg-[var(--bg-accent)] border-r border-[var(--line)] flex flex-col shrink-0 overflow-hidden"
+            className="hidden lg:flex bg-[var(--bg-accent)] border-r border-[var(--line)] flex-col shrink-0 overflow-hidden"
           >
             {/* Sidebar search header */}
             <div className="p-3 border-b border-[var(--line)]">
@@ -687,7 +714,11 @@ export default function CompilerPage() {
         )}
 
         {/* Center Pane: Pro Code Editor */}
-        <main className="flex-1 flex flex-col min-w-0 bg-[#0d1117] overflow-hidden">
+        <main
+          className={`flex-1 min-w-0 min-h-0 bg-[#0d1117] flex-col overflow-hidden ${
+            mobileTab === "editor" ? "flex" : "hidden md:flex"
+          }`}
+        >
           {/* Editor subheader */}
           <div className="h-8 flex items-center justify-between px-3 bg-[#161b22] border-b border-[#30363d] text-[11px] font-mono text-zinc-400 select-none">
             <div className="flex items-center gap-2">
@@ -765,8 +796,9 @@ export default function CompilerPage() {
 
         {/* Right Pane: Vector PDF Output Viewer */}
         <section
-          style={{ width: `${previewWidth}px` }}
-          className="bg-[var(--bg-accent)] border-l border-[var(--line)] flex flex-col shrink-0 overflow-hidden"
+          className={`w-full md:w-[440px] lg:w-[480px] xl:w-[540px] 2xl:w-[600px] bg-[var(--bg-accent)] border-l border-[var(--line)] flex-col shrink-0 min-h-0 overflow-hidden ${
+            mobileTab === "preview" ? "flex" : "hidden md:flex"
+          }`}
         >
           {/* PDF Viewer Header */}
           <div className="h-8 flex items-center justify-between px-3 bg-[var(--bg-accent)] border-b border-[var(--line)] select-none">
@@ -860,10 +892,9 @@ export default function CompilerPage() {
                 <button
                   type="button"
                   onClick={handleCompile}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded bg-[var(--accent)] text-white text-xs font-bold hover:opacity-90 transition-opacity"
+                  className="px-4 py-2 rounded bg-[var(--accent)] text-white text-xs font-bold hover:opacity-90 transition-opacity"
                 >
-                  <Hammer className="h-3.5 w-3.5" />
-                  <span>Build Now</span>
+                  Compile Default Template
                 </button>
               </div>
             )}
