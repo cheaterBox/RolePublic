@@ -1,64 +1,27 @@
-# Build Artifacts
-node_modules/
-dist/
-dist-ssr/
-build/
-target/
-src-tauri/target/
-api/target/
-application/mobile/roletect/build/
-application/mobile/roletect/.dart_tool/
+# AI Assistants & Local Tooling
+.puku-cli/
+.qwen/
+.claude/
+.gemini/
 
-# Environment & Secrets
-*.local
-.env*
-!.env.example
-.DS_Store
-*.key
-*.key.pub
-
-# IDEs
+# IDEs & System
 .vscode/*
 !.vscode/extensions.json
 .idea/
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+*.bak
+
+# Root Environment & Keys
+*.local
+.env*
+!.env.example
+*.key
+*.key.pub
 
 # Logs
 logs/
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-
-# Misc
-potential_features.txt
-*.pem
-*.tsbuildinfo
-next-env.d.ts
-application/api/roletect.db
-application/api/data/
-src-tauri/texput.pdf
-
-# Next.js & Turbopack
-.next/
-.turbo/
-application/web-frontend/.next/
-application/web-frontend/.turbo/
-coverage/
-
-# Flatpak & Packaging Artifacts
-.flatpak-builder/
-build-dir/
-repo/
-*.flatpak
-packaging/**/lib/
-packaging/**/*.so*
-.qwen/
-.puku-cli/
-
-

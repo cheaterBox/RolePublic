@@ -76,8 +76,13 @@ The following diagram illustrates how the components of RoleTect interact, from 
 ## 📂 Project Structure
 
 ```text
-├── application/             # Standalone assets & icons
-├── src-tauri/               # Tauri Rust Backend
+├── application/             # RoleTect VPS/Web & API Application Stack
+│   ├── api/                 # Axum REST API backend (Rust, SQLx, Postgres/SQLite, Redis, S3)
+│   ├── web-frontend/        # Next.js 15 Web Application (Bun, React, Tailwind, Lucide)
+│   ├── docker-compose.yml   # Multi-service stack (Postgres, Redis, MinIO S3, Next.js Web)
+│   ├── Makefile             # Application control panel (make dev, make up, make docker-down, etc.)
+│   └── .env.example         # Application environment variables template
+├── src-tauri/               # Tauri Desktop Rust Backend
 │   ├── src/
 │   │   ├── commands/        # Tauri command handlers (settings, compiler, database)
 │   │   ├── ai.rs            # Rig LLM integration & prompt templates
@@ -85,15 +90,39 @@ The following diagram illustrates how the components of RoleTect interact, from 
 │   │   ├── lib.rs           # Tauri app setup & plugin registration
 │   │   └── server.rs        # Axum local server
 │   └── Cargo.toml           # Rust backend dependencies
-├── src/                     # Vue 3 Frontend
+├── src/                     # Vue 3 Desktop Frontend
 │   ├── components/          # Views & UI Components (Editor, Job Tracker, Settings)
 │   ├── store/               # Pinia State Management (Settings, Jobs, Resumes)
 │   └── App.vue              # Main App wrapper
 ├── extentions/              # Browser Extensions
 │   ├── chrome/              # Manifest V3 extension code
 │   └── firefox/             # Firefox compatible manifest extension code
+├── Makefile                 # Root Workspace Makefile (forwards all stack commands from pwd)
 └── README.md
 ```
+
+---
+
+## 🛠️ RoleTect Application Stack & Make Commands
+
+RoleTect includes an automated **Makefile control panel** that works identically from the root directory (`pwd`) or inside [`application/`](./application):
+
+### Primary Make Commands
+
+| Command | Action | Description |
+| :--- | :--- | :--- |
+| `make dev` | **Instant Development** | **1.** Spins backing Docker services (PostgreSQL, Redis, MinIO)<br>**2.** Starts Axum API locally with `cargo run`<br>**3.** Starts Next.js Web Frontend with `bun run dev` concurrently. |
+| `make up` / `make docker` | **Spin Containers** | Starts containerized services (Web Bun + DB + Redis + MinIO) **without pulling or building Rust images**. |
+| `make web` | **Run Web Locally** | Starts Next.js Web Frontend with Bun (`http://localhost:3000`). |
+| `make api` | **Run API Locally** | Starts Axum API backend in dev mode (`http://localhost:8080`). |
+| `make docker-down` | **Safe Down** | Stops & downs containers and networks while **preserving persistent data volumes**. |
+| `make docker-erase` | **Complete Wipe** | Releases ports, stops containers, and unmounts/wipes persistent volumes & networks (**Docker images are preserved**). |
+| `make down-port` | **Port Reset** | Terminates all processes bound to RoleTect ports (`8080`, `3000`, `5432`, `6379`, `9000`, `9001`). |
+| `make status` / `make health` | **Health Check** | Probes live HTTP and database connectivity across all stack components. |
+| `make ps` / `make logs` | **Container Info** | Inspects running Docker containers or streams live logs. |
+| `make db` / `make db-psql` | **Database Shell** | Starts PostgreSQL or opens an interactive `psql` shell. |
+| `make redis` / `make redis-cli` | **Redis Cache** | Starts Redis or opens an interactive `redis-cli` shell. |
+| `make s3` | **MinIO S3** | Starts MinIO object storage (`http://localhost:9000`) & Console (`http://localhost:9001`). |
 
 ---
 
@@ -112,29 +141,34 @@ The easiest way to get started is to download the pre-compiled application and o
 ---
 
 ### 2. Developer Setup & Local Execution
-If you wish to build from source or install the appication manually:
 
 #### Prerequisites
 *   [Node.js](https://nodejs.org/) (v18+)
 *   [Rust Compiler & Cargo](https://www.rust-lang.org/)
 *   [Bun Package Manager](https://bun.sh/) (Recommended, or npm)
+*   [Docker & Docker Compose](https://docs.docker.com/get-docker/)
 
-#### Backend & Frontend Build
-1.  **Clone the Repository:**
-    ```bash
-    git clone https://github.com/AhmedTrooper/RoleTect.git
-    cd RoleTect
-    ```
-2.  **Install Dependencies:**
-    ```bash
-    bun install
-    # or npm install
-    ```
-3.  **Run Development Environment:**
-    ```bash
-    bun run tauri dev
-    # or npm run tauri dev
-    ```
+#### Option A: Running the Full Web & API Application Stack
+```bash
+# Clone the repository
+git clone https://github.com/AhmedTrooper/RoleTect.git
+cd RoleTect
+
+# Spin backing services and launch API + Web frontend concurrently
+make dev
+
+# Or spin containerized stack instantly (no Rust image build)
+make up
+```
+
+#### Option B: Running the Desktop App (Tauri + Vue 3)
+```bash
+# Install dependencies
+bun install
+
+# Run Tauri desktop app in dev mode
+bun run tauri dev
+```
 
 
 
