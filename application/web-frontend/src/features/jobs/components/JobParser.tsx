@@ -15,7 +15,7 @@ import {
 import { useEffect, useState } from "react";
 import { saveJob } from "@/features/jobs/api";
 import { useParse } from "@/features/jobs/hooks/useParse";
-import { getAiConfig } from "@/features/settings/api";
+import { resolveAiCredentials } from "@/lib/ai/storage";
 
 interface JobParserProps {
   isOpen: boolean;
@@ -49,12 +49,13 @@ export function JobParser({
   useEffect(() => {
     async function loadConfig() {
       try {
-        const cfg = await getAiConfig();
-        if (cfg.provider) setProvider(cfg.provider);
-        if (cfg.model) setModel(cfg.model);
-        if (cfg.has_key) {
+        const cfg = resolveAiCredentials();
+        if (cfg?.provider) setProvider(cfg.provider);
+        if (cfg?.model) setModel(cfg.model);
+        if (cfg?.apiKey) {
           setHasSavedKey(true);
-          // If the backend has an encrypted key, we can pass a dummy marker or user can input if required
+        } else {
+          setHasSavedKey(false);
         }
       } catch (err) {
         console.error("Failed to load AI config", err);
@@ -74,7 +75,8 @@ export function JobParser({
     await parse({
       provider,
       model,
-      api_key: apiKey || "use_saved_key",
+      api_key: apiKey.trim() || resolveAiCredentials()?.apiKey || "",
+      custom_base_url: resolveAiCredentials()?.customBaseUrl || undefined,
       raw_jd: rawJd,
       job_url: jobUrl.trim() || null,
     });

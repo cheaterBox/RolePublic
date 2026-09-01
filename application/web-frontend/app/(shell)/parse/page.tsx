@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { IconButton } from "@/components/ui/IconButton";
 import { parseJobDescription, saveJob } from "@/features/jobs/api";
-import { getAiConfig } from "@/features/settings/api";
+import { resolveAiCredentials } from "@/lib/ai/storage";
 import type { JobPayload } from "@/lib/api/types";
 
 export default function ParsePage() {
@@ -36,20 +36,21 @@ export default function ParsePage() {
     setError(null);
 
     try {
-      let provider = "gemini";
-      let model = "gemini-1.5-pro";
-      try {
-        const cfg = await getAiConfig();
-        if (cfg.provider) provider = cfg.provider;
-        if (cfg.model) model = cfg.model;
-      } catch {
-        // Fallback
+      const creds = resolveAiCredentials();
+      if (!creds?.apiKey) {
+        throw new Error(
+          "AI API key not configured. Please set it in Settings → AI Intelligence.",
+        );
       }
+      const provider = creds.provider;
+      const model = creds.model;
+      const customBaseUrl = creds.customBaseUrl || undefined;
 
       const res = await parseJobDescription({
         provider,
         model,
-        api_key: "vault_key",
+        api_key: creds.apiKey,
+        custom_base_url: customBaseUrl,
         raw_jd: rawJobDescription,
         job_url: jobUrl.trim() || null,
       });

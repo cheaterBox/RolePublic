@@ -24,7 +24,7 @@ import { LatexEditor } from "@/components/editor/LatexEditor";
 import { IconButton, IconLink } from "@/components/ui/IconButton";
 import { getJob, updateJobStatus } from "@/features/jobs/api";
 import { getResume, listResumes, tailorResume } from "@/features/resumes/api";
-import { getAiConfig } from "@/features/settings/api";
+import { resolveAiCredentials } from "@/lib/ai/storage";
 import { apiFetch } from "@/lib/api/client";
 import type {
   CoverLetterItem,
@@ -170,15 +170,19 @@ export default function JobDetailPage({
     if (!job) return;
     setIsGenerating(true);
     try {
-      const cfg = await getAiConfig().catch(() => ({
-        provider: "gemini",
-        model: "gemini-1.5-pro",
-      }));
+      const creds = resolveAiCredentials();
+
+      if (!creds?.apiKey) {
+        throw new Error(
+          "AI API key not configured. Please set it in Settings \u2192 AI Intelligence.",
+        );
+      }
       if (activeMode === "resume") {
         const res = await tailorResume({
-          provider: cfg.provider || "gemini",
-          model: cfg.model || "gemini-1.5-pro",
-          api_key: "vault_key",
+          provider: creds.provider,
+          model: creds.model,
+          api_key: creds.apiKey,
+          custom_base_url: creds.customBaseUrl || undefined,
           job_id: job.id,
           base_resume_id:
             selectedResumeTemplateId || resumeTemplates[0]?.id || "",
@@ -189,9 +193,10 @@ export default function JobDetailPage({
         const res = await apiFetch<TailoredContent>("/cover_letters/tailor", {
           method: "POST",
           body: {
-            provider: cfg.provider || "gemini",
-            model: cfg.model || "gemini-1.5-pro",
-            api_key: "vault_key",
+            provider: creds.provider,
+            model: creds.model,
+            api_key: creds.apiKey,
+            custom_base_url: creds.customBaseUrl || undefined,
             job_id: job.id,
             base_cl_id: selectedClTemplateId || clTemplates[0]?.id || "",
             custom_instruction: clGuidance || null,
@@ -253,16 +258,20 @@ export default function JobDetailPage({
     if (!compilationError) return;
     setIsFixing(true);
     try {
-      const cfg = await getAiConfig().catch(() => ({
-        provider: "gemini",
-        model: "gemini-1.5-pro",
-      }));
+      const creds = resolveAiCredentials();
+
+      if (!creds?.apiKey) {
+        throw new Error(
+          "AI API key not configured. Please set it in Settings \u2192 AI Intelligence.",
+        );
+      }
       const res = await apiFetch<{ latex: string }>("/pdf/fix", {
         method: "POST",
         body: {
-          provider: cfg.provider || "gemini",
-          model: cfg.model || "gemini-1.5-pro",
-          api_key: "vault_key",
+          provider: creds.provider,
+          model: creds.model,
+          api_key: creds.apiKey,
+          custom_base_url: creds.customBaseUrl || undefined,
           broken_latex: activeLatex,
           error_logs: compilationError,
         },
@@ -284,16 +293,20 @@ export default function JobDetailPage({
     if (!refinementInstruction.trim()) return;
     setIsRefining(true);
     try {
-      const cfg = await getAiConfig().catch(() => ({
-        provider: "gemini",
-        model: "gemini-1.5-pro",
-      }));
+      const creds = resolveAiCredentials();
+
+      if (!creds?.apiKey) {
+        throw new Error(
+          "AI API key not configured. Please set it in Settings \u2192 AI Intelligence.",
+        );
+      }
       const res = await apiFetch<{ latex: string }>("/pdf/refine", {
         method: "POST",
         body: {
-          provider: cfg.provider || "gemini",
-          model: cfg.model || "gemini-1.5-pro",
-          api_key: "vault_key",
+          provider: creds.provider,
+          model: creds.model,
+          api_key: creds.apiKey,
+          custom_base_url: creds.customBaseUrl || undefined,
           current_latex: activeLatex,
           instruction: refinementInstruction,
         },
@@ -327,16 +340,20 @@ export default function JobDetailPage({
     setIsScoring(true);
     setShowMatchPanel(true);
     try {
-      const cfg = await getAiConfig().catch(() => ({
-        provider: "gemini",
-        model: "gemini-1.5-pro",
-      }));
+      const creds = resolveAiCredentials();
+
+      if (!creds?.apiKey) {
+        throw new Error(
+          "AI API key not configured. Please set it in Settings \u2192 AI Intelligence.",
+        );
+      }
       const res = await apiFetch<ScoreResumeResult>("/scoring/score", {
         method: "POST",
         body: {
-          provider: cfg.provider || "gemini",
-          model: cfg.model || "gemini-1.5-pro",
-          api_key: "vault_key",
+          provider: creds.provider,
+          model: creds.model,
+          api_key: creds.apiKey,
+          custom_base_url: creds.customBaseUrl || undefined,
           resume_id: selectedResumeTemplateId,
           job_id: job.id,
         },

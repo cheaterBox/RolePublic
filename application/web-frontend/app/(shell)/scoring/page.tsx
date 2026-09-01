@@ -6,7 +6,7 @@ import { Suspense, useEffect, useState } from "react";
 import { IconButton, IconLink } from "@/components/ui/IconButton";
 import { listJobs } from "@/features/jobs/api";
 import { listResumes } from "@/features/resumes/api";
-import { getAiConfig } from "@/features/settings/api";
+import { resolveAiCredentials } from "@/lib/ai/storage";
 import { apiFetch } from "@/lib/api/client";
 import type {
   JobPayload,
@@ -54,16 +54,19 @@ function ScoringContent() {
     if (!selectedResumeId || !selectedJobId) return;
     setScoring(true);
     try {
-      const cfg = await getAiConfig().catch(() => ({
-        provider: "gemini",
-        model: "gemini-2.5-pro",
-      }));
+      const creds = resolveAiCredentials();
+      if (!creds?.apiKey) {
+        throw new Error(
+          "AI API key not configured. Please set it in Settings → AI Intelligence.",
+        );
+      }
       const res = await apiFetch<ScoreResumeResult>("/scoring/score", {
         method: "POST",
         body: {
-          provider: cfg.provider || "gemini",
-          model: cfg.model || "gemini-2.5-pro",
-          api_key: "vault_key",
+          provider: creds.provider,
+          model: creds.model,
+          api_key: creds.apiKey,
+          custom_base_url: creds.customBaseUrl || undefined,
           resume_id: selectedResumeId,
           job_id: selectedJobId,
         },

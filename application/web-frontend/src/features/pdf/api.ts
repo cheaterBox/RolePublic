@@ -12,8 +12,9 @@ export function refineLatex(p: {
   api_key: string;
   current_latex: string;
   instruction: string;
+  custom_base_url?: string | null;
 }) {
-  return apiFetch<{ content: string }>("/pdf/refine", {
+  return apiFetch<{ latex: string }>("/pdf/refine", {
     method: "POST",
     body: p,
   });

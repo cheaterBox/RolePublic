@@ -18,7 +18,7 @@ import { useRouter } from "next/navigation";
 import { use, useEffect, useState } from "react";
 import { LatexEditor } from "@/components/editor/LatexEditor";
 import { IconButton } from "@/components/ui/IconButton";
-import { getAiConfig } from "@/features/settings/api";
+import { resolveAiCredentials } from "@/lib/ai/storage";
 import { apiFetch } from "@/lib/api/client";
 import type { CoverLetterDetail } from "@/lib/api/types";
 import { buildApiUrl, getApiToken } from "@/lib/config/env";
@@ -150,16 +150,20 @@ export default function CoverLetterDetailPage({
     if (!compilationError) return;
     setIsFixing(true);
     try {
-      const cfg = await getAiConfig().catch(() => ({
-        provider: "gemini",
-        model: "gemini-1.5-pro",
-      }));
+      const creds = resolveAiCredentials();
+
+      if (!creds?.apiKey) {
+        throw new Error(
+          "AI API key not configured. Please set it in Settings \u2192 AI Intelligence.",
+        );
+      }
       const res = await apiFetch<{ latex: string }>("/pdf/fix", {
         method: "POST",
         body: {
-          provider: cfg.provider || "gemini",
-          model: cfg.model || "gemini-1.5-pro",
-          api_key: "vault_key",
+          provider: creds.provider,
+          model: creds.model,
+          api_key: creds.apiKey,
+          custom_base_url: creds.customBaseUrl || undefined,
           broken_latex: latex,
           error_logs: compilationError,
         },

@@ -40,7 +40,7 @@ import { writeTrackedFile } from "@/features/documents/api";
 import { CollaboratorsModal } from "@/features/documents/components/CollaboratorsModal";
 import { CommentsSidebar } from "@/features/documents/components/CommentsSidebar";
 import { HistoryDrawer } from "@/features/documents/components/HistoryDrawer";
-import { getAiConfig } from "@/features/settings/api";
+import { resolveAiCredentials } from "@/lib/ai/storage";
 import { apiFetch } from "@/lib/api/client";
 import type {
   DocumentFileEntry,
@@ -429,16 +429,20 @@ export default function DocumentDetailPage({
     if (!compilationError || !activeFileRel) return;
     setIsFixing(true);
     try {
-      const cfg = await getAiConfig().catch(() => ({
-        provider: "gemini",
-        model: "gemini-1.5-pro",
-      }));
+      const creds = resolveAiCredentials();
+
+      if (!creds?.apiKey) {
+        throw new Error(
+          "AI API key not configured. Please set it in Settings \u2192 AI Intelligence.",
+        );
+      }
       const res = await apiFetch<{ latex: string }>("/pdf/fix", {
         method: "POST",
         body: {
-          provider: cfg.provider || "gemini",
-          model: cfg.model || "gemini-1.5-pro",
-          api_key: "vault_key",
+          provider: creds.provider,
+          model: creds.model,
+          api_key: creds.apiKey,
+          custom_base_url: creds.customBaseUrl || undefined,
           broken_latex: activeContent,
           error_logs: compilationError,
         },
@@ -464,20 +468,24 @@ export default function DocumentDetailPage({
     if (!refinePrompt.trim() || !activeFileRel) return;
     setIsRefining(true);
     try {
-      const cfg = await getAiConfig().catch(() => ({
-        provider: "gemini",
-        model: "gemini-1.5-pro",
-      }));
+      const creds = resolveAiCredentials();
+
+      if (!creds?.apiKey) {
+        throw new Error(
+          "AI API key not configured. Please set it in Settings \u2192 AI Intelligence.",
+        );
+      }
       const res = await apiFetch<{ refined_latex?: string; latex?: string }>(
         "/pdf/refine",
         {
           method: "POST",
           body: {
-            provider: cfg.provider || "gemini",
-            model: cfg.model || "gemini-1.5-pro",
-            api_key: "vault_key",
+            provider: creds.provider,
+            model: creds.model,
+            api_key: creds.apiKey,
+            custom_base_url: creds.customBaseUrl || undefined,
             current_latex: activeContent,
-            prompt: refinePrompt,
+            instruction: refinePrompt,
           },
         },
       );

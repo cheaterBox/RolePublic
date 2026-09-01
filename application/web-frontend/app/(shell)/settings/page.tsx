@@ -39,6 +39,11 @@ import {
   testS3Connection,
   uploadS3Backup,
 } from "@/features/settings/api";
+import {
+  getStoredAiConfig,
+  resolveAiCredentials,
+  saveStoredAiConfig,
+} from "@/lib/ai/storage";
 import { apiFetch } from "@/lib/api/client";
 import { getApiToken } from "@/lib/config/env";
 
@@ -150,7 +155,7 @@ const PROVIDER_OPTIONS: {
     docs: "https://aistudio.google.com/",
   },
   {
-    id: "claude",
+    id: "anthropic",
     name: "Anthropic Claude",
     defaultModel: "claude-opus-4-7",
     defaultBaseUrl: "https://api.anthropic.com",
@@ -439,6 +444,7 @@ export default function SettingsPage() {
     void (async () => {
       setLoading(true);
       try {
+        const local = getStoredAiConfig();
         const [aiCfg, extCfg, portRes, s3Res, stackRes, urlRes, customModRes] =
           await Promise.allSettled([
             getAiConfig(),
@@ -450,8 +456,20 @@ export default function SettingsPage() {
             getSetting("ai_custom_model", ""),
           ]);
 
-        if (aiCfg.status === "fulfilled") {
-          if (aiCfg.value.provider) setProvider(aiCfg.value.provider);
+        if (local) {
+          const normalized =
+            local.provider === "claude" ? "anthropic" : local.provider;
+          setProvider(normalized);
+          setModel(local.model);
+          setCustomModel(local.customModel || "");
+          setCustomBaseUrl(local.customBaseUrl || "");
+          setHasKey(!!local.apiKey);
+        } else if (aiCfg.status === "fulfilled") {
+          const prov =
+            aiCfg.value.provider === "claude"
+              ? "anthropic"
+              : aiCfg.value.provider;
+          if (prov) setProvider(prov);
           if (aiCfg.value.model) setModel(aiCfg.value.model);
           setHasKey(aiCfg.value.has_key);
         }
@@ -471,11 +489,13 @@ export default function SettingsPage() {
         if (stackRes.status === "fulfilled") {
           setStackSizeMb(Number(stackRes.value.value) || 100);
         }
-        if (urlRes.status === "fulfilled") {
-          setCustomBaseUrl(urlRes.value.value);
-        }
-        if (customModRes.status === "fulfilled") {
-          setCustomModel(customModRes.value.value);
+        if (!local) {
+          if (urlRes.status === "fulfilled") {
+            setCustomBaseUrl(urlRes.value.value);
+          }
+          if (customModRes.status === "fulfilled") {
+            setCustomModel(customModRes.value.value);
+          }
         }
       } catch (err) {
         console.error(err);
@@ -490,9 +510,19 @@ export default function SettingsPage() {
     setSaving(true);
     try {
       const activeModel = customModel.trim() || model;
+      const normalizedProvider = provider === "claude" ? "anthropic" : provider;
+      const existing = getStoredAiConfig();
+      const effectiveApiKey = apiKey.trim() || existing?.apiKey || "";
+      saveStoredAiConfig({
+        provider: normalizedProvider,
+        model: activeModel,
+        apiKey: effectiveApiKey,
+        customModel: customModel.trim() || undefined,
+        customBaseUrl: customBaseUrl.trim() || undefined,
+      });
       await Promise.all([
         saveAiConfig({
-          provider,
+          provider: normalizedProvider,
           model: activeModel,
           api_key: apiKey.trim() ? apiKey.trim() : undefined,
         }),
@@ -507,6 +537,8 @@ export default function SettingsPage() {
       if (apiKey.trim()) {
         setHasKey(true);
         setApiKey("");
+      } else if (effectiveApiKey) {
+        setHasKey(true);
       }
 
       setSaveSuccess(true);
@@ -525,15 +557,32 @@ export default function SettingsPage() {
     setAiTestResult(null);
     try {
       const activeModel = customModel.trim() || model;
+      const normalizedProvider = provider === "claude" ? "anthropic" : provider;
+      const effectiveKey =
+        apiKey.trim() ||
+        getStoredAiConfig()?.apiKey ||
+        resolveAiCredentials()?.apiKey ||
+        "";
+      if (!effectiveKey) {
+        setAiTestResult({
+          ok: false,
+          msg: "API key missing. Please enter your key above.",
+        });
+        setIsTestingAi(false);
+        return;
+      }
+      const effectiveBase =
+        customBaseUrl.trim() || getStoredAiConfig()?.customBaseUrl || undefined;
       const res = await apiFetch<{ latex: string }>("/pdf/refine", {
         method: "POST",
         body: {
-          provider,
+          provider: normalizedProvider,
           model: activeModel,
-          api_key: apiKey.trim() || "vault_key",
+          api_key: effectiveKey,
+          custom_base_url: effectiveBase,
           current_latex:
             "\\documentclass{article}\\begin{document}AI Probe\\end{document}",
-          prompt: "Return valid LaTeX document with text 'Probe Success'",
+          instruction: "Return valid LaTeX document with text 'Probe Success'",
         },
       });
       if (res?.latex) {
@@ -704,63 +753,71 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[var(--bg)] overflow-hidden animate-in fade-in-50 duration-150">
-      {/* 1. Pro Header Toolbar (52px / h-13) */}
-      <header className="h-13 flex items-center justify-between px-6 bg-[var(--bg-accent)] border-b border-[var(--line)] shrink-0 z-20 select-none">
-        <div className="flex items-center gap-3">
-          <div className="h-7 w-7 rounded bg-[var(--accent)]/10 border border-[var(--accent)]/20 flex items-center justify-center text-[var(--accent)]">
+    <div className="flex-1 flex flex-col min-h-0 h-full bg-[var(--bg)] overflow-hidden animate-in fade-in-50 duration-150">
+      {/* 1. Pro Header — responsive, no overflow */}
+      <header className="min-h-13 flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 py-3 bg-[var(--bg-accent)] border-b border-[var(--line)] shrink-0 z-20 select-none">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-[var(--accent)]/10 border border-[var(--accent)]/20 flex items-center justify-center text-[var(--accent)] shrink-0">
             <Server className="h-4 w-4" />
           </div>
-          <div>
-            <h1 className="text-xs font-bold text-[var(--ink)] tracking-tight">
-              System Settings & Architecture
+          <div className="min-w-0">
+            <h1 className="text-xs sm:text-sm font-bold text-[var(--ink)] tracking-tight truncate">
+              System Settings
             </h1>
-            <span className="text-[10px] font-mono text-[var(--muted)]">
+            <span className="text-[10px] font-mono text-[var(--muted)] hidden sm:inline">
               RoleTect Enterprise Engine
+            </span>
+            <span className="text-[10px] font-mono text-[var(--muted)] sm:hidden">
+              Enterprise Engine
             </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           {saveSuccess && (
-            <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-500 animate-in fade-in-50">
+            <span className="hidden sm:inline-flex items-center gap-1 text-xs font-semibold text-emerald-500 animate-in fade-in-50 whitespace-nowrap">
               <Check className="h-3.5 w-3.5" />
-              Settings Saved
+              Saved
             </span>
           )}
-
-          <IconButton
-            label={saving ? "Saving…" : "Save All Changes"}
-            tooltipPlacement="bottom"
-            variant="accent"
-            size="md"
-            icon={<Save />}
+          {/* Mobile: show text label, desktop: icon-only handled by IconButton tooltip is still accessible */}
+          <button
+            type="button"
             onClick={handleSave}
             disabled={saving}
-            loading={saving}
-          />
+            className="inline-flex items-center justify-center gap-2 h-9 sm:h-9 px-4 sm:px-4 rounded-xl bg-[var(--accent)] text-white text-xs sm:text-xs font-bold hover:opacity-90 disabled:opacity-50 shadow-sm transition-all active:scale-[0.98] whitespace-nowrap"
+          >
+            {saving ? (
+              <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Save className="h-3.5 w-3.5" />
+            )}
+            <span className="hidden xs:inline sm:inline">Save All</span>
+            <span className="xs:hidden sm:hidden">Save</span>
+          </button>
         </div>
       </header>
 
-      {/* 2. Navigation Tabs (Clean Underline Tabs) */}
-      <div className="px-6 bg-[var(--surface)] border-b border-[var(--line)] flex items-center gap-6 shrink-0 overflow-x-auto select-none no-scrollbar">
+      {/* 2. Navigation Tabs — responsive, scrollable, no wrap */}
+      <div className="px-4 sm:px-6 bg-[var(--surface)] border-b border-[var(--line)] flex items-center gap-3 sm:gap-5 shrink-0 overflow-x-auto select-none no-scrollbar scroll-smooth">
         <button
           type="button"
           onClick={() => setActiveTab("ai")}
-          className={`flex items-center gap-2 py-3 text-xs font-medium border-b-2 transition-all cursor-pointer -mb-px shrink-0 ${
+          className={`flex items-center gap-1.5 sm:gap-2 py-2.5 sm:py-3 text-[11px] sm:text-xs font-medium border-b-2 transition-all cursor-pointer -mb-px shrink-0 whitespace-nowrap ${
             activeTab === "ai"
               ? "border-[var(--accent)] text-[var(--ink)] font-bold"
               : "border-transparent text-[var(--muted)] hover:text-[var(--ink)] hover:border-[var(--muted)]"
           }`}
         >
           <Key
-            className={`h-4 w-4 ${
+            className={`h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0 ${
               activeTab === "ai"
                 ? "text-[var(--accent)]"
                 : "text-[var(--muted)]"
             }`}
           />
-          <span>AI Intelligence (BYOK)</span>
+          <span className="hidden sm:inline">AI Intelligence (BYOK)</span>
+          <span className="sm:hidden">AI</span>
         </button>
 
         <button
@@ -769,101 +826,106 @@ export default function SettingsPage() {
             setActiveTab("s3");
             if (s3Backups.length === 0) void handleListS3Backups();
           }}
-          className={`flex items-center gap-2 py-3 text-xs font-medium border-b-2 transition-all cursor-pointer -mb-px shrink-0 ${
+          className={`flex items-center gap-1.5 sm:gap-2 py-2.5 sm:py-3 text-[11px] sm:text-xs font-medium border-b-2 transition-all cursor-pointer -mb-px shrink-0 whitespace-nowrap ${
             activeTab === "s3"
               ? "border-[var(--accent)] text-[var(--ink)] font-bold"
               : "border-transparent text-[var(--muted)] hover:text-[var(--ink)] hover:border-[var(--muted)]"
           }`}
         >
           <Cloud
-            className={`h-4 w-4 ${
+            className={`h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0 ${
               activeTab === "s3"
                 ? "text-[var(--accent)]"
                 : "text-[var(--muted)]"
             }`}
           />
-          <span>S3 Cloud Storage</span>
+          <span className="hidden sm:inline">S3 Cloud Storage</span>
+          <span className="sm:hidden">S3</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab("engine")}
-          className={`flex items-center gap-2 py-3 text-xs font-medium border-b-2 transition-all cursor-pointer -mb-px shrink-0 ${
+          className={`flex items-center gap-1.5 sm:gap-2 py-2.5 sm:py-3 text-[11px] sm:text-xs font-medium border-b-2 transition-all cursor-pointer -mb-px shrink-0 whitespace-nowrap ${
             activeTab === "engine"
               ? "border-[var(--accent)] text-[var(--ink)] font-bold"
               : "border-transparent text-[var(--muted)] hover:text-[var(--ink)] hover:border-[var(--muted)]"
           }`}
         >
           <Cpu
-            className={`h-4 w-4 ${
+            className={`h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0 ${
               activeTab === "engine"
                 ? "text-[var(--accent)]"
                 : "text-[var(--muted)]"
             }`}
           />
-          <span>Tectonic LaTeX Engine</span>
+          <span className="hidden sm:inline">Tectonic LaTeX Engine</span>
+          <span className="sm:hidden">Engine</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab("data")}
-          className={`flex items-center gap-2 py-3 text-xs font-medium border-b-2 transition-all cursor-pointer -mb-px shrink-0 ${
+          className={`flex items-center gap-1.5 sm:gap-2 py-2.5 sm:py-3 text-[11px] sm:text-xs font-medium border-b-2 transition-all cursor-pointer -mb-px shrink-0 whitespace-nowrap ${
             activeTab === "data"
               ? "border-[var(--accent)] text-[var(--ink)] font-bold"
               : "border-transparent text-[var(--muted)] hover:text-[var(--ink)] hover:border-[var(--muted)]"
           }`}
         >
           <Database
-            className={`h-4 w-4 ${
+            className={`h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0 ${
               activeTab === "data"
                 ? "text-[var(--accent)]"
                 : "text-[var(--muted)]"
             }`}
           />
-          <span>Data & Backups</span>
+          <span className="hidden sm:inline">Data & Backups</span>
+          <span className="sm:hidden">Data</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab("extension")}
-          className={`flex items-center gap-2 py-3 text-xs font-medium border-b-2 transition-all cursor-pointer -mb-px shrink-0 ${
+          className={`flex items-center gap-1.5 sm:gap-2 py-2.5 sm:py-3 text-[11px] sm:text-xs font-medium border-b-2 transition-all cursor-pointer -mb-px shrink-0 whitespace-nowrap ${
             activeTab === "extension"
               ? "border-[var(--accent)] text-[var(--ink)] font-bold"
               : "border-transparent text-[var(--muted)] hover:text-[var(--ink)] hover:border-[var(--muted)]"
           }`}
         >
           <ShieldCheck
-            className={`h-4 w-4 ${
+            className={`h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0 ${
               activeTab === "extension"
                 ? "text-[var(--accent)]"
                 : "text-[var(--muted)]"
             }`}
           />
-          <span>Browser Extension & Security</span>
+          <span className="hidden lg:inline">Browser Extension & Security</span>
+          <span className="hidden sm:inline lg:hidden">Extension</span>
+          <span className="sm:hidden">Ext</span>
         </button>
       </div>
 
-      {/* 3. Settings Main Viewport */}
-      <main className="flex-1 overflow-y-auto p-6 max-w-4xl w-full mx-auto space-y-6">
+      {/* 3. Settings Main Viewport — responsive padding */}
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6 max-w-4xl w-full mx-auto space-y-5 sm:space-y-6">
         {/* TAB 1: AI Intelligence */}
         {activeTab === "ai" && (
           <div className="space-y-6 animate-in fade-in-50 duration-150">
-            <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5 space-y-4 shadow-sm">
-              <div className="flex items-center justify-between border-b border-[var(--line)] pb-3">
-                <div className="flex items-center gap-2">
-                  <Key className="h-4 w-4 text-[var(--accent)]" />
-                  <div>
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--ink)]">
+            <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4 sm:p-5 space-y-4 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[var(--line)] pb-3">
+                <div className="flex items-start gap-2 min-w-0">
+                  <Key className="h-4 w-4 text-[var(--accent)] shrink-0 mt-0.5" />
+                  <div className="min-w-0">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--ink)] leading-tight">
                       AI Provider & Model Credentials (BYOK)
                     </h3>
-                    <p className="text-[11px] text-[var(--muted)]">
+                    <p className="text-[11px] text-[var(--muted)] leading-snug">
                       Keys are encrypted at rest with the master key and never
                       logged.
                     </p>
                   </div>
                 </div>
                 <span
-                  className={`tag-pill text-[11px] font-bold ${
+                  className={`tag-pill text-[11px] font-bold shrink-0 self-start sm:self-auto ${
                     hasKey ? "tag-pill-success" : "tag-pill-warning"
                   }`}
                 >
@@ -871,8 +933,8 @@ export default function SettingsPage() {
                 </span>
               </div>
 
-              {/* Provider Grid */}
-              <div className="grid gap-4 sm:grid-cols-2">
+              {/* Provider Grid — responsive, no overflow */}
+              <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold uppercase text-[var(--muted)]">
                     AI Provider
@@ -993,8 +1055,8 @@ export default function SettingsPage() {
                 />
               </div>
 
-              {/* Test AI Probe Action */}
-              <div className="pt-3 border-t border-[var(--line)] flex items-center justify-between">
+              {/* Test AI Probe Action — responsive */}
+              <div className="pt-3 border-t border-[var(--line)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <IconButton
                   label={isTestingAi ? "Probing AI…" : "Test AI Connection"}
                   tooltipPlacement="bottom"
@@ -1008,9 +1070,7 @@ export default function SettingsPage() {
 
                 {aiTestResult && (
                   <span
-                    className={`text-xs font-semibold ${
-                      aiTestResult.ok ? "text-emerald-500" : "text-rose-500"
-                    }`}
+                    className={`text-xs font-semibold break-words leading-snug ${aiTestResult.ok ? "text-emerald-500" : "text-rose-500"}`}
                   >
                     {aiTestResult.msg}
                   </span>
@@ -1023,35 +1083,33 @@ export default function SettingsPage() {
         {/* TAB 2: S3 Cloud Storage */}
         {activeTab === "s3" && (
           <div className="space-y-6 animate-in fade-in-50 duration-150">
-            <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5 space-y-4 shadow-sm">
-              <div className="flex items-center justify-between border-b border-[var(--line)] pb-3">
-                <div className="flex items-center gap-2">
-                  <Cloud className="h-4 w-4 text-[var(--accent)]" />
-                  <div>
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--ink)]">
+            <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4 sm:p-5 space-y-4 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[var(--line)] pb-3">
+                <div className="flex items-start gap-2 min-w-0">
+                  <Cloud className="h-4 w-4 text-[var(--accent)] shrink-0 mt-0.5" />
+                  <div className="min-w-0">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--ink)] leading-tight">
                       S3-Compatible Object Storage & Cloud Sync
                     </h3>
-                    <p className="text-[11px] text-[var(--muted)]">
+                    <p className="text-[11px] text-[var(--muted)] leading-snug">
                       Connect MinIO, AWS S3, Cloudflare R2, or Wasabi for
                       automatic encrypted backups.
                     </p>
                   </div>
                 </div>
                 <span
-                  className={`tag-pill text-[11px] font-bold ${
+                  className={`tag-pill text-[11px] font-bold shrink-0 self-start sm:self-auto ${
                     s3Config?.configured
                       ? "tag-pill-success"
                       : "tag-pill-warning"
                   }`}
                 >
-                  {s3Config?.configured
-                    ? "S3 Storage Connected"
-                    : "S3 Unconfigured"}
+                  {s3Config?.configured ? "S3 Connected" : "S3 Unconfigured"}
                 </span>
               </div>
 
-              {/* S3 Settings Form */}
-              <div className="grid gap-4 sm:grid-cols-2">
+              {/* S3 Settings Form — responsive */}
+              <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold uppercase text-[var(--muted)]">
                     Endpoint URL (Local MinIO or Cloud S3)
@@ -1079,7 +1137,7 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-3 pt-2 border-t border-[var(--line)]">
+              <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 pt-2 border-t border-[var(--line)]">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold uppercase text-[var(--muted)]">
                     Region
@@ -1131,25 +1189,25 @@ export default function SettingsPage() {
               </div>
 
               {/* Force Path Style Toggle */}
-              <div className="flex items-center gap-2 pt-2 border-t border-[var(--line)]">
+              <div className="flex items-start gap-2 pt-2 border-t border-[var(--line)]">
                 <input
                   type="checkbox"
                   id="forcePathStyle"
                   checked={s3ForcePathStyle}
                   onChange={(e) => setS3ForcePathStyle(e.target.checked)}
-                  className="rounded border-[var(--line)] text-[var(--accent)] focus:ring-0 cursor-pointer"
+                  className="mt-0.5 rounded border-[var(--line)] text-[var(--accent)] focus:ring-0 cursor-pointer shrink-0"
                 />
                 <label
                   htmlFor="forcePathStyle"
-                  className="text-xs text-[var(--ink)] cursor-pointer"
+                  className="text-xs text-[var(--ink)] cursor-pointer leading-snug"
                 >
                   Enable Force Path Style (Required for MinIO & local storage)
                 </label>
               </div>
 
-              {/* Actions: Test & Push */}
-              <div className="pt-3 border-t border-[var(--line)] flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
+              {/* Actions: Test & Push — responsive */}
+              <div className="pt-3 border-t border-[var(--line)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2 shrink-0">
                   <IconButton
                     label={isTestingS3 ? "Testing S3…" : "Test S3 Connection"}
                     tooltipPlacement="bottom"
@@ -1173,25 +1231,25 @@ export default function SettingsPage() {
                   />
                 </div>
 
-                {s3TestStatus && (
-                  <span
-                    className={`text-xs font-semibold ${
-                      s3TestStatus.ok ? "text-emerald-500" : "text-rose-500"
-                    }`}
-                  >
-                    {s3TestStatus.msg}
-                  </span>
-                )}
-                {s3UploadMsg && (
-                  <span className="text-xs font-semibold text-[var(--accent)]">
-                    {s3UploadMsg}
-                  </span>
-                )}
+                <div className="flex flex-col sm:flex-row gap-2 sm:items-center text-xs min-w-0">
+                  {s3TestStatus && (
+                    <span
+                      className={`font-semibold break-words ${s3TestStatus.ok ? "text-emerald-500" : "text-rose-500"}`}
+                    >
+                      {s3TestStatus.msg}
+                    </span>
+                  )}
+                  {s3UploadMsg && (
+                    <span className="font-semibold text-[var(--accent)] break-words">
+                      {s3UploadMsg}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 
-            {/* Remote S3 Backups List */}
-            <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5 space-y-4 shadow-sm">
+            {/* Remote S3 Backups List — responsive */}
+            <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4 sm:p-5 space-y-4 shadow-sm">
               <div className="flex items-center justify-between border-b border-[var(--line)] pb-3">
                 <div className="flex items-center gap-2">
                   <Archive className="h-4 w-4 text-[var(--accent)]" />
@@ -1216,27 +1274,35 @@ export default function SettingsPage() {
                   {s3Backups.map((b) => (
                     <div
                       key={b.key}
-                      className="p-2.5 bg-[var(--surface-soft)] border border-[var(--line)] rounded-lg flex items-center justify-between text-xs"
+                      className="p-2.5 sm:p-3 bg-[var(--surface-soft)] border border-[var(--line)] rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-xs"
                     >
-                      <div className="flex items-center gap-2 min-w-0 font-mono">
+                      <div className="flex items-center gap-2 min-w-0 font-mono flex-1">
                         <HardDrive className="h-3.5 w-3.5 text-[var(--muted)] shrink-0" />
-                        <span className="truncate text-[var(--ink)]">
+                        <span className="truncate text-[var(--ink)] text-[11px] sm:text-xs">
                           {b.key}
                         </span>
-                        <span className="text-[10px] text-[var(--muted)] shrink-0">
+                        <span className="text-[10px] text-[var(--muted)] shrink-0 hidden sm:inline">
                           ({(b.size / 1024).toFixed(1)} KB)
                         </span>
                       </div>
-                      <span className="text-[10px] font-mono text-[var(--muted)] shrink-0">
-                        {b.last_modified}
-                      </span>
+                      <div className="flex items-center gap-2 shrink-0 sm:justify-end">
+                        <span className="text-[10px] text-[var(--muted)] sm:hidden">
+                          {(b.size / 1024).toFixed(1)} KB •
+                        </span>
+                        <span className="text-[10px] font-mono text-[var(--muted)]">
+                          {b.last_modified?.split("T")[0] || b.last_modified}
+                        </span>
+                      </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-xs text-[var(--muted)] py-4 text-center">
+                <p className="text-xs text-[var(--muted)] py-4 text-center leading-relaxed px-2">
                   No remote backups found in S3 bucket. Click{" "}
-                  <strong>Push Cloud Backup</strong> to snapshot your workspace.
+                  <strong className="text-[var(--ink)]">
+                    Push Cloud Backup
+                  </strong>{" "}
+                  to snapshot your workspace.
                 </p>
               )}
             </div>
@@ -1246,22 +1312,24 @@ export default function SettingsPage() {
         {/* TAB 3: Tectonic LaTeX Engine */}
         {activeTab === "engine" && (
           <div className="space-y-6 animate-in fade-in-50 duration-150">
-            <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5 space-y-4 shadow-sm">
-              <div className="flex items-center justify-between border-b border-[var(--line)] pb-3">
-                <div className="flex items-center gap-2">
-                  <Cpu className="h-4 w-4 text-[var(--accent)]" />
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--ink)]">
+            <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4 sm:p-5 space-y-4 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[var(--line)] pb-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Cpu className="h-4 w-4 text-[var(--accent)] shrink-0" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--ink)] truncate">
                     Tectonic XeTeX Compilation Runtime
                   </h3>
                 </div>
-                <span className="tag-pill tag-pill-success text-[11px] font-bold">
+                <span className="tag-pill tag-pill-success text-[11px] font-bold shrink-0 self-start sm:self-auto">
                   Isolated Thread Stack
                 </span>
               </div>
 
               <div className="space-y-3">
-                <div className="flex items-center justify-between text-xs font-bold text-[var(--ink)]">
-                  <span>Compiler Thread Stack Memory:</span>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs font-bold text-[var(--ink)]">
+                  <span className="text-[11px] sm:text-xs">
+                    Compiler Thread Stack Memory:
+                  </span>
                   <span className="font-mono text-[var(--accent)] text-sm">
                     {stackSizeMb} MB
                   </span>
@@ -1277,20 +1345,26 @@ export default function SettingsPage() {
                   className="w-full h-2 bg-[var(--surface-soft)] rounded appearance-none cursor-pointer accent-[var(--accent)]"
                 />
 
-                <div className="flex justify-between text-[10px] font-mono text-[var(--muted)]">
-                  <span>32 MB (Embedded)</span>
-                  <span>100 MB (Recommended FAANG Default)</span>
-                  <span>256 MB (Massive TikZ)</span>
+                <div className="grid grid-cols-3 gap-2 text-[9px] sm:text-[10px] font-mono text-[var(--muted)] text-center">
+                  <span className="truncate">32 MB</span>
+                  <span className="truncate font-bold text-[var(--accent)]">
+                    100 MB • Recommended
+                  </span>
+                  <span className="truncate">256 MB</span>
+                </div>
+                <div className="hidden sm:flex justify-between text-[10px] font-mono text-[var(--muted)] px-1">
+                  <span>Embedded</span>
+                  <span>Massive TikZ</span>
                 </div>
               </div>
 
-              {/* Pre-cache LaTeX packages */}
-              <div className="pt-4 border-t border-[var(--line)] flex items-center justify-between">
-                <div>
+              {/* Pre-cache LaTeX packages — responsive */}
+              <div className="pt-4 border-t border-[var(--line)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="min-w-0">
                   <h4 className="text-xs font-bold text-[var(--ink)]">
                     Pre-Cache 85+ Scientific Packages
                   </h4>
-                  <p className="text-[11px] text-[var(--muted)] mt-0.5">
+                  <p className="text-[11px] text-[var(--muted)] mt-0.5 leading-snug">
                     Pre-fetches packages into local cache for sub-second offline
                     compilations.
                   </p>
@@ -1319,22 +1393,22 @@ export default function SettingsPage() {
 
         {/* TAB 4: Data & Backup */}
         {activeTab === "data" && (
-          <div className="space-y-6 animate-in fade-in-50 duration-150">
-            <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5 space-y-4 shadow-sm">
-              <div className="flex items-center gap-2 border-b border-[var(--line)] pb-3">
-                <Database className="h-4 w-4 text-[var(--accent)]" />
-                <div>
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--ink)]">
+          <div className="space-y-5 sm:space-y-6 animate-in fade-in-50 duration-150">
+            <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4 sm:p-5 space-y-4 shadow-sm">
+              <div className="flex items-start gap-2 border-b border-[var(--line)] pb-3">
+                <Database className="h-4 w-4 text-[var(--accent)] shrink-0 mt-0.5" />
+                <div className="min-w-0">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--ink)] leading-tight">
                     Local Database Export & Restore
                   </h3>
-                  <p className="text-[11px] text-[var(--muted)]">
+                  <p className="text-[11px] text-[var(--muted)] leading-snug">
                     Canonical JSON archive compatible across Tauri Desktop, Axum
                     VPS, and Cloud S3.
                   </p>
                 </div>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2 pt-2">
+              <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 pt-2">
                 {/* Export Card */}
                 <div className="p-4 bg-[var(--surface-soft)] border border-[var(--line)] rounded-xl space-y-3">
                   <div>
@@ -1407,23 +1481,23 @@ export default function SettingsPage() {
 
         {/* TAB 5: Extension & Security */}
         {activeTab === "extension" && (
-          <div className="space-y-6 animate-in fade-in-50 duration-150">
+          <div className="space-y-5 sm:space-y-6 animate-in fade-in-50 duration-150">
             {/* Extension Pairing */}
-            <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5 space-y-4 shadow-sm">
-              <div className="flex items-center gap-2 border-b border-[var(--line)] pb-3">
-                <ShieldCheck className="h-4 w-4 text-[var(--accent)]" />
-                <div>
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--ink)]">
+            <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4 sm:p-5 space-y-4 shadow-sm">
+              <div className="flex items-start gap-2 border-b border-[var(--line)] pb-3">
+                <ShieldCheck className="h-4 w-4 text-[var(--accent)] shrink-0 mt-0.5" />
+                <div className="min-w-0">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--ink)] leading-tight">
                     Browser Companion Extension
                   </h3>
-                  <p className="text-[11px] text-[var(--muted)]">
+                  <p className="text-[11px] text-[var(--muted)] leading-snug">
                     Pair the RoleTect Chrome/Firefox extension to 1-click parse
                     LinkedIn, Indeed, and Greenhouse jobs.
                   </p>
                 </div>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
                 <div className="sm:col-span-2 space-y-1.5">
                   <div className="flex items-center justify-between">
                     <label className="text-[10px] font-bold uppercase text-[var(--muted)]">
@@ -1464,15 +1538,15 @@ export default function SettingsPage() {
             </div>
 
             {/* Master VPS Token */}
-            <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5 space-y-4 shadow-sm">
-              <div className="flex items-center justify-between border-b border-[var(--line)] pb-3">
-                <div className="flex items-center gap-2">
-                  <Terminal className="h-4 w-4 text-[var(--accent)]" />
-                  <div>
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--ink)]">
+            <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4 sm:p-5 space-y-4 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[var(--line)] pb-3">
+                <div className="flex items-start gap-2 min-w-0">
+                  <Terminal className="h-4 w-4 text-[var(--accent)] shrink-0 mt-0.5" />
+                  <div className="min-w-0">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--ink)] leading-tight">
                       Master Bearer API Token
                     </h3>
-                    <p className="text-[11px] text-[var(--muted)]">
+                    <p className="text-[11px] text-[var(--muted)] leading-snug">
                       Use this token for programmatic REST API access and CLI
                       automations.
                     </p>
@@ -1494,7 +1568,7 @@ export default function SettingsPage() {
                 />
               </div>
 
-              <div className="bg-[var(--surface-soft)] border border-[var(--line)] rounded px-3 py-2 font-mono text-xs text-[var(--ink)] truncate select-all">
+              <div className="bg-[var(--surface-soft)] border border-[var(--line)] rounded px-3 py-2 font-mono text-xs text-[var(--ink)] break-all select-all">
                 {getApiToken() || "roletect_vps_master_token_2026"}
               </div>
             </div>

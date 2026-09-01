@@ -72,6 +72,7 @@ export type ParseJobRequest = {
   api_key: string;
   raw_jd: string;
   job_url?: string | null;
+  custom_base_url?: string | null;
 };
 
 // Resumes
@@ -105,6 +106,7 @@ export type TailorResumeRequest = {
   job_id: string;
   base_resume_id: string;
   custom_instruction?: string | null;
+  custom_base_url?: string | null;
 };
 
 export type TailoredContent = {
@@ -144,6 +146,7 @@ export type TailorCoverLetterRequest = {
   job_id: string;
   base_cl_id: string;
   custom_instruction?: string | null;
+  custom_base_url?: string | null;
 };
 
 // Downloads
@@ -216,6 +219,7 @@ export type RefineLatexRequest = {
   api_key: string;
   current_latex: string;
   instruction: string;
+  custom_base_url?: string | null;
 };
 
 export type FixLatexRequest = {
@@ -224,6 +228,7 @@ export type FixLatexRequest = {
   api_key: string;
   broken_latex: string;
   error_logs: string;
+  custom_base_url?: string | null;
 };
 
 // Documents
@@ -272,6 +277,7 @@ export type ScoreResumeRequest = {
   api_key: string;
   resume_id: string;
   job_id: string;
+  custom_base_url?: string | null;
 };
 
 export type ScoreResumeResult = {

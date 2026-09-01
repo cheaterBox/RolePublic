@@ -55,6 +55,7 @@ export function parseJd(payload: {
   api_key: string;
   raw_jd: string;
   job_url?: string | null;
+  custom_base_url?: string | null;
 }) {
   return apiFetch<JobParseResult>("/jobs/parse", {
     method: "POST",

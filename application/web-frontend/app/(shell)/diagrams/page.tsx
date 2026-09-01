@@ -24,7 +24,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { CodeEditor } from "@/components/editor/CodeEditor";
 import { IconButton } from "@/components/ui/IconButton";
-import { getAiConfig } from "@/features/settings/api";
+import { resolveAiCredentials } from "@/lib/ai/storage";
 import { apiFetch } from "@/lib/api/client";
 import "github-markdown-css/github-markdown.css";
 
@@ -444,10 +444,13 @@ export default function DiagramsPage() {
     if (!aiPrompt.trim()) return;
     setIsGenerating(true);
     try {
-      const cfg = await getAiConfig().catch(() => ({
-        provider: "gemini",
-        model: "gemini-1.5-pro",
-      }));
+      const creds = resolveAiCredentials();
+
+      if (!creds?.apiKey) {
+        throw new Error(
+          "AI API key not configured. Please set it in Settings \u2192 AI Intelligence.",
+        );
+      }
       const isMd = mode === "markdown";
       const current = isMd ? markdownCode : code;
       const instruction = isMd
@@ -456,9 +459,10 @@ export default function DiagramsPage() {
       const res = await apiFetch<{ latex: string }>("/pdf/refine", {
         method: "POST",
         body: {
-          provider: cfg.provider || "gemini",
-          model: cfg.model || "gemini-1.5-pro",
-          api_key: "vault_key",
+          provider: creds.provider,
+          model: creds.model,
+          api_key: creds.apiKey,
+          custom_base_url: creds.customBaseUrl || undefined,
           current_latex: current,
           instruction,
         },

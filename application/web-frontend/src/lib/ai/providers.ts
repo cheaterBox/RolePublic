@@ -1,4 +1,5 @@
 export type AiProvider =
+  | "ollama"
   | "deepseek"
   | "openrouter"
   | "openai"
@@ -19,6 +20,7 @@ export const AI_PROVIDERS: {
   { id: "anthropic", label: "Anthropic", needsKey: true },
   { id: "groq", label: "Groq", needsKey: true },
   { id: "bedrock", label: "Bedrock (AWS)", needsKey: true },
+  { id: "ollama", label: "Ollama (Local)", needsKey: false },
 ];
 
 export function isBedrockEnvAuth(apiKey: string): boolean {

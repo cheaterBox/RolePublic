@@ -15,6 +15,7 @@ export function useParse() {
     api_key: string;
     raw_jd: string;
     job_url?: string | null;
+    custom_base_url?: string | null;
   }) => {
     setLoading(true);
     setError(null);

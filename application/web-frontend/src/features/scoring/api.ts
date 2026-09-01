@@ -7,6 +7,7 @@ export function scoreResume(p: {
   api_key: string;
   resume_id: string;
   job_id: string;
+  custom_base_url?: string | null;
 }) {
   return apiFetch<ScoreResumeResult>("/scoring/score", {
     method: "POST",
