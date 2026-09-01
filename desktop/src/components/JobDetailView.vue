@@ -13,7 +13,7 @@ import { useDialogStore } from '../store/dialog';
 import { useJobsStore, Job } from '../store/jobs';
 import { useScoringStore } from '../store/scoring';
 import CustomSelect from './CustomSelect.vue';
-import VuePdfEmbed from 'vue-pdf-embed';
+import VirtualizedPdfViewer from './VirtualizedPdfViewer.vue';
 // Codemirror imports
 import { Codemirror } from 'vue-codemirror';
 import { latex, latexLanguage, autoCloseTags } from 'codemirror-lang-latex';
@@ -1301,7 +1301,7 @@ const deleteJob = async () => {
               BASE TEMPLATE
               <RotateCw v-if="!basePdfUrl && isCompilingBase" :size="14" class="spinner" />
             </div>
-            <VuePdfEmbed v-if="basePdfUrl" :source="basePdfUrl" class="pdf-embed-component" />
+            <VirtualizedPdfViewer v-if="basePdfUrl" :source="basePdfUrl" />
           </div>
 
           <!-- Code Editor -->
@@ -1373,7 +1373,7 @@ const deleteJob = async () => {
 
           <div v-if="activePdfUrl && (activeMode === 'resume' ? isResumeCompiled : isClCompiled)" class="pdf-viewer tailored-pdf-viewer" :style="isComparing ? { flex: 1, width: 'auto' } : { width: previewWidth + 'px', flex: 'none' }">
             <div v-if="isComparing" class="compare-header" style="padding: 8px; text-align: center; font-size: 0.8rem; font-weight: 800; background: var(--surface-soft); border-bottom: 1px solid var(--line); color: var(--accent);">TAILORED VERSION</div>
-            <VuePdfEmbed :key="isComparing.toString()" :source="activePdfUrl" class="pdf-embed-component" @error="onPdfError" />
+            <VirtualizedPdfViewer :key="isComparing.toString()" :source="activePdfUrl" @error="onPdfError" />
           </div>
         </div>
       </div>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useJobsStore, Job } from '../store/jobs';
 import { Motion, AnimatePresence } from 'motion-v';
@@ -36,37 +36,24 @@ const selectedJobs = ref<Set<string>>(new Set());
 
 const statuses = ['All', 'Drafting', 'Applied', 'Interviewing', 'Offer', 'Rejected'];
 
-// Grid Layout Logic for Virtualization
-const columns = ref(3);
-const updateColumns = () => {
-  const width = window.innerWidth;
-  if (width < 768) columns.value = 1;
-  else if (width < 1100) columns.value = 2;
-  else columns.value = 3;
-};
-
 const loadJobs = async () => {
   allJobs.value = await jobsStore.loadAllJobs();
-  selectedJobs.value.clear();
+  selectedJobs.value = new Set();
 };
 
 onMounted(() => {
   loadJobs();
-  window.addEventListener('resize', updateColumns);
-  updateColumns();
-});
-
-onUnmounted(() => {
-  window.removeEventListener('resize', updateColumns);
 });
 
 const handleCardClick = (id: string) => {
   if (isSelectionMode.value) {
-    if (selectedJobs.value.has(id)) {
-      selectedJobs.value.delete(id);
+    const next = new Set(selectedJobs.value);
+    if (next.has(id)) {
+      next.delete(id);
     } else {
-      selectedJobs.value.add(id);
+      next.add(id);
     }
+    selectedJobs.value = next;
   } else {
     router.push(`/job/${id}`);
   }
@@ -108,14 +95,12 @@ const deleteAllJobs = async () => {
 };
 
 const selectAllVisible = () => {
-  filteredAndSortedJobs.value.forEach(job => {
-    selectedJobs.value.add(job.id);
-  });
+  selectedJobs.value = new Set(filteredAndSortedJobs.value.map(job => job.id));
 };
 
 const exitSelectionMode = () => {
   isSelectionMode.value = false;
-  selectedJobs.value.clear();
+  selectedJobs.value = new Set();
 };
 
 const filteredAndSortedJobs = computed(() => {
@@ -125,8 +110,8 @@ const filteredAndSortedJobs = computed(() => {
   if (searchQuery.value) {
     const q = searchQuery.value.toLowerCase();
     result = result.filter(j => 
-      j.job_title.toLowerCase().includes(q) || 
-      j.company_name.toLowerCase().includes(q)
+      (j.job_title || '').toLowerCase().includes(q) || 
+      (j.company_name || '').toLowerCase().includes(q)
     );
   }
 
@@ -143,9 +128,9 @@ const filteredAndSortedJobs = computed(() => {
       case 'date-asc':
         return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
       case 'title':
-        return a.job_title.localeCompare(b.job_title);
+        return (a.job_title || '').localeCompare(b.job_title || '');
       case 'company':
-        return a.company_name.localeCompare(b.company_name);
+        return (a.company_name || '').localeCompare(b.company_name || '');
       default:
         return 0;
     }
@@ -154,20 +139,8 @@ const filteredAndSortedJobs = computed(() => {
   return result;
 });
 
-const chunkedJobs = computed(() => {
-  const jobs = filteredAndSortedJobs.value;
-  const chunks = [];
-  for (let i = 0; i < jobs.length; i += columns.value) {
-    chunks.push({
-      id: `row-${i}`,
-      items: jobs.slice(i, i + columns.value)
-    });
-  }
-  return chunks;
-});
-
 const getStatusClass = (status: string) => {
-  return `status-badge ${status.toLowerCase()}`;
+  return `status-badge ${(status || 'drafting').toLowerCase()}`;
 };
 </script>
 
@@ -374,46 +347,38 @@ const getStatusClass = (status: string) => {
         <p>Try adjusting your search or filters.</p>
       </div>
       
-      <RecycleScroller
-        v-else
-        class="scroller"
-        :items="chunkedJobs"
-        :item-size="300"
-        key-field="id"
-        v-slot="{ item }"
-      >
-        <div class="job-row">
-          <div 
-            v-for="job in item.items" 
-            :key="job.id"
-            class="job-card"
-            :class="{ 'selected': selectedJobs.has(job.id), 'selection-mode': isSelectionMode }"
-            @click="handleCardClick(job.id)"
-          >
-            <div class="card-top">
-              <div v-if="isSelectionMode" class="checkbox-indicator" :class="{ 'checked': selectedJobs.has(job.id) }">
-                <span v-if="selectedJobs.has(job.id)">✓</span>
-              </div>
-              <span :class="getStatusClass(job.status)">{{ job.status }}</span>
-              <span class="date">{{ job.created_at?.split(' ')[0] }}</span>
+      <div v-else class="jobs-grid">
+        <Motion
+          v-for="(job, idx) in filteredAndSortedJobs"
+          :key="job.id"
+          :initial="{ opacity: 0, y: 12 }"
+          :animate="{ opacity: 1, y: 0 }"
+          :transition="{ duration: 0.2, delay: Math.min(idx * 0.02, 0.3) }"
+          class="job-card"
+          :class="{ 'selected': selectedJobs.has(job.id), 'selection-mode': isSelectionMode }"
+          @click="handleCardClick(job.id)"
+        >
+          <div class="card-top">
+            <div v-if="isSelectionMode" class="checkbox-indicator" :class="{ 'checked': selectedJobs.has(job.id) }">
+              <span v-if="selectedJobs.has(job.id)">✓</span>
             </div>
-            
-            <h2 class="job-title">{{ job.job_title }}</h2>
-            <p class="company-name">{{ job.company_name }}</p>
-            
-            <div class="tags">
-              <span class="tag">{{ job.work_model }}</span>
-              <span class="tag">{{ job.employment_type }}</span>
-            </div>
-            
-            <div class="card-footer">
-              <span class="view-link">View Details <ChevronRight :size="14" /></span>
-            </div>
+            <span :class="getStatusClass(job.status)">{{ job.status }}</span>
+            <span class="date">{{ job.created_at?.split(' ')[0] }}</span>
           </div>
-          <!-- Spacer for grid alignment if row is not full -->
-          <div v-for="n in (columns - item.items.length)" :key="'spacer-' + n" class="job-card-spacer"></div>
-        </div>
-      </RecycleScroller>
+          
+          <h2 class="job-title">{{ job.job_title }}</h2>
+          <p class="company-name">{{ job.company_name }}</p>
+          
+          <div class="tags" v-if="job.work_model || job.employment_type">
+            <span v-if="job.work_model" class="tag">{{ job.work_model }}</span>
+            <span v-if="job.employment_type" class="tag">{{ job.employment_type }}</span>
+          </div>
+          
+          <div class="card-footer">
+            <span class="view-link">View Details <ChevronRight :size="14" /></span>
+          </div>
+        </Motion>
+      </div>
     </div>
   </div>
 </template>
@@ -433,25 +398,11 @@ const getStatusClass = (status: string) => {
   min-height: 400px;
 }
 
-.scroller {
-  height: 100%;
-  padding: 0 12px;
-}
-
-.job-row {
-  display: flex;
-  gap: 24px;
-  padding: 8px 12px 32px;
-}
-
-.job-card, .job-card-spacer {
-  flex: 1;
-  min-width: 0;
-}
-
-.job-card-spacer {
-  visibility: hidden;
-  pointer-events: none;
+.jobs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 20px;
+  padding-bottom: 32px;
 }
 
 .page-header {

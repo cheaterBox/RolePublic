@@ -42,7 +42,7 @@ import {
 } from '@lucide/vue';
 
 import { Codemirror } from 'vue-codemirror';
-import VuePdfEmbed from 'vue-pdf-embed';
+import VirtualizedPdfViewer from './VirtualizedPdfViewer.vue';
 import { latex, latexLanguage, autoCloseTags } from 'codemirror-lang-latex';
 import { oneDark } from '@codemirror/theme-one-dark';
 import { EditorView } from '@codemirror/view';
@@ -1231,7 +1231,7 @@ const activeFileName = computed(() => {
             <span>PDF PREVIEW</span>
           </div>
           <div v-if="pdfUrl" class="pdf-viewer">
-            <VuePdfEmbed :source="pdfUrl" class="pdf-embed-component" @error="onPdfError" />
+            <VirtualizedPdfViewer :source="pdfUrl" @error="onPdfError" />
           </div>
           <div v-else class="empty-preview">
             <div class="placeholder-content">
