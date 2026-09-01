@@ -105,10 +105,11 @@ async fn tailor(
     State(state): State<AppState>,
     Json(req): Json<TailorCoverLetterRequest>,
 ) -> AppResult<Json<TailoredContent>> {
-    let api_key = req.api_key.trim();
-    if api_key.is_empty() {
-        return Err(AppError::Validation("api_key is required".into()));
-    }
+    let api_key = crate::features::ai_helpers::resolve_api_key(&state, &req.api_key).await?;
+    let provider = crate::features::ai_helpers::normalize_provider(&req.provider);
+    let model = crate::features::ai_helpers::resolve_model(&state, &req.model).await;
+    let base_url =
+        crate::features::ai_helpers::resolve_base_url(&state, req.custom_base_url.as_deref()).await;
     let base_latex = state
         .repo
         .get_cover_letter_latex(&req.base_cl_id)
@@ -124,10 +125,10 @@ async fn tailor(
         .ok_or(AppError::NotFound)?;
 
     let tailored_latex = crate::ai::tailor_latex_for_cover_letter(
-        &req.provider,
-        &req.model,
-        api_key,
-        None,
+        &provider,
+        &model,
+        &api_key,
+        base_url.as_deref(),
         &base_latex,
         &job.raw_jd,
         req.custom_instruction.as_deref(),

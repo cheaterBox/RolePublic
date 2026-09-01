@@ -3,6 +3,7 @@
 //! Each module exposes a `routes(router) -> Router` function that the
 //! `bootstrap` layer mounts under the `/api/*` prefix.
 
+pub mod ai_helpers;
 pub mod auth;
 pub mod cloud;
 pub mod collaboration;

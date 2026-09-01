@@ -1,3 +1,23 @@
+# Rust Build Artifacts
 /target/
-Cargo.lock
-.env
+
+# Database Files
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Secrets and Dynamic Data
+data/
+*.salt
+
+# TeX / LaTeX Compiler Outputs
+texput.pdf
+*.aux
+*.log
+*.out
+*.toc
+
+# Environment Files
+.env*
+!.env.example

@@ -110,6 +110,8 @@ pub struct ParseJobRequest {
     pub raw_jd: String,
     #[serde(default)]
     pub job_url: Option<String>,
+    #[serde(default)]
+    pub custom_base_url: Option<String>,
 }
 
 // ===========================================================================
@@ -151,6 +153,8 @@ pub struct TailorResumeRequest {
     pub base_resume_id: String,
     #[serde(default)]
     pub custom_instruction: Option<String>,
+    #[serde(default)]
+    pub custom_base_url: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -199,6 +203,8 @@ pub struct TailorCoverLetterRequest {
     pub base_cl_id: String,
     #[serde(default)]
     pub custom_instruction: Option<String>,
+    #[serde(default)]
+    pub custom_base_url: Option<String>,
 }
 
 // ===========================================================================
@@ -301,7 +307,10 @@ pub struct RefineLatexRequest {
     pub model: String,
     pub api_key: String,
     pub current_latex: String,
+    #[serde(alias = "prompt", alias = "instruction")]
     pub instruction: String,
+    #[serde(default)]
+    pub custom_base_url: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -311,6 +320,8 @@ pub struct FixLatexRequest {
     pub api_key: String,
     pub broken_latex: String,
     pub error_logs: String,
+    #[serde(default)]
+    pub custom_base_url: Option<String>,
 }
 
 // ===========================================================================
@@ -426,6 +437,8 @@ pub struct ScoreResumeRequest {
     pub api_key: String,
     pub resume_id: String,
     pub job_id: String,
+    #[serde(default)]
+    pub custom_base_url: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

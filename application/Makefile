@@ -40,11 +40,19 @@ help: ## Show this interactive help menu
 # -----------------------------------------------------------------------------
 
 .PHONY: dev
-dev: db redis s3 ## Start backing services in Docker + run API & Web in real-time
-	@echo -e "$(CYAN)Starting backing services (PostgreSQL, Redis, MinIO)...$(RESET)"
+dev: ## 1. Spin Docker services, 2. Run local Axum API, 3. Run Next.js Web Frontend
+	@echo -e "$(CYAN)Step 1: Starting backing Docker services (PostgreSQL, Redis, MinIO)...$(RESET)"
+	docker compose -f $(COMPOSE_FILE) up -d postgres redis minio minio-init
 	@echo -e "$(GREEN)Backing services active!$(RESET)"
-	@echo -e "$(CYAN)Launch API in one terminal: $(YELLOW)make api$(CYAN)$(RESET)"
-	@echo -e "$(CYAN)Launch Web in another terminal: $(YELLOW)make web$(CYAN)$(RESET)"
+	@echo -e "$(CYAN)Step 2 & 3: Launching Axum API & Next.js Web Frontend concurrently...$(RESET)"
+	@mkdir -p $(API_DIR)/data
+	@trap 'echo -e "\n$(YELLOW)Shutting down API & Web...$(RESET)"; kill 0' EXIT INT TERM; \
+	(cd $(API_DIR) && ROLETECT_DATA_DIR=$${ROLETECT_DATA_DIR:-./data} \
+		ROLETECT_API_TOKEN=$${ROLETECT_API_TOKEN:-roletect_vps_master_token_2026} \
+		DATABASE_URL=$${DATABASE_URL:-postgres://roletect:roletect_secret_password@localhost:5432/roletect} \
+		DB_DRIVER=$${DB_DRIVER:-postgres} \
+		cargo run) & \
+	(cd $(WEB_DIR) && bun run dev)
 
 .PHONY: api
 api: db redis s3 ## Start Axum API locally in dev mode
@@ -65,36 +73,64 @@ web: ## Start Next.js Web Frontend locally with Bun
 # 3. DOCKER ORCHESTRATION (Fast Real-Time Containers)
 # -----------------------------------------------------------------------------
 
-.PHONY: docker
+.PHONY: docker docker-up
 docker: up ## Alias for make up (start all containers)
+docker-up: up ## Alias for make up (start all containers)
 
 .PHONY: up
-up: ## Start all containerized services (Web Bun container + DB + Redis + MinIO)
-	@echo -e "$(CYAN)Starting container stack...$(RESET)"
+up: ## Start containerized services without building images (Web Bun + DB + Redis + MinIO)
+	@echo -e "$(CYAN)Spinning RoleTect container stack (no Rust image build)...$(RESET)"
 	docker compose -f $(COMPOSE_FILE) up -d --remove-orphans
-	@echo -e "$(GREEN)All services running!$(RESET)"
-	@echo -e "  $(BOLD)Web Frontend:$(RESET) http://localhost:3000"
+	@echo -e "$(GREEN)All RoleTect services running!$(RESET)"
+	@echo -e "  $(BOLD)Web Frontend:$(RESET)  http://localhost:3000"
 	@echo -e "  $(BOLD)MinIO Console:$(RESET) http://localhost:9001 (user: minioadmin / pass: minioadmin)"
 	@echo -e "  $(BOLD)PostgreSQL:$(RESET)    localhost:5432"
 	@echo -e "  $(BOLD)Redis:$(RESET)         localhost:6379"
 
-.PHONY: down
-down: ## Stop and remove all containers and network resources (preserves volumes)
-	@echo -e "$(YELLOW)Stopping all containers...$(RESET)"
+.PHONY: docker-down down stop docker-stop
+docker-down: ## Stop & down containers (preserves persistent volumes and data)
+	@echo -e "$(YELLOW)Stopping & downing all RoleTect containers (volumes preserved)...$(RESET)"
 	docker compose -f $(COMPOSE_FILE) down --remove-orphans
 
-.PHONY: stop
-stop: down ## Alias for make down
+down: docker-down ## Alias for make docker-down
+stop: docker-down ## Alias for make docker-down
+docker-stop: docker-down ## Alias for make docker-down
 
-.PHONY: wipe docker-delete docker-wipe dokcer-delete
-wipe: ## Completely wipe all Docker containers, networks, and persistent data volumes
-	@echo -e "$(RED)$(BOLD)Wiping all RoleTect containers, networks, and persistent data volumes...$(RESET)"
+.PHONY: docker-erase dokcer-erase wipe docker-delete docker-wipe dokcer-delete
+docker-erase: down-port ## Terminate ports, remove containers, unmount and delete volumes & networks (preserves images)
+	@echo -e "$(RED)$(BOLD)Erasing all RoleTect containers, unmounting and removing persistent volumes & networks...$(RESET)"
 	docker compose -f $(COMPOSE_FILE) down -v --remove-orphans
-	@echo -e "$(GREEN)All RoleTect containers, networks, and persistent volumes wiped clean.$(RESET)"
+	@docker volume rm -f roletect_postgres_data roletect_redis_data roletect_minio_data roletect_api_data 2>/dev/null || true
+	@echo -e "$(GREEN)All RoleTect containers, volumes, and networks removed clean (Docker images preserved).$(RESET)"
 
-docker-delete: wipe ## Alias for make wipe (complete container, network & volume wipe)
-docker-wipe: wipe ## Alias for make wipe (complete container, network & volume wipe)
-dokcer-delete: wipe ## Convenience typo alias for make docker-delete
+dokcer-erase: docker-erase ## Typo alias for make docker-erase
+wipe: docker-erase ## Alias for make docker-erase
+docker-delete: docker-erase ## Alias for make docker-erase
+docker-wipe: docker-erase ## Alias for make docker-erase
+dokcer-delete: docker-erase ## Typo alias for make docker-erase
+
+.PHONY: down-port port-down ports-down kill-ports
+down-port: ## Terminate all processes & Docker containers holding RoleTect ports (8080, 3000, 5432, 6379, 9000, 9001)
+	@echo -e "$(YELLOW)Releasing all RoleTect ports (8080, 3000, 5432, 6379, 9000, 9001)...$(RESET)"
+	@for port in 8080 3000 5432 6379 9000 9001; do \
+		containers=$$(docker ps -q --filter "publish=$$port" 2>/dev/null); \
+		if [ -n "$$containers" ]; then \
+			names=$$(docker ps --filter "publish=$$port" --format '{{.Names}}' | tr '\n' ' '); \
+			echo -e "  $(YELLOW)Stopping Docker container(s) on port $$port: $$names$(RESET)"; \
+			docker stop $$containers >/dev/null 2>&1 || true; \
+		fi; \
+		fuser -k $$port/tcp >/dev/null 2>&1 || true; \
+		if [ -z "$$(docker ps -q --filter "publish=$$port" 2>/dev/null)" ] && ! ss -tulpn 2>/dev/null | grep -q ":$$port "; then \
+			echo -e "  $(GREEN)Port $$port/tcp is free$(RESET)"; \
+		else \
+			echo -e "  $(GREEN)Port $$port/tcp released$(RESET)"; \
+		fi; \
+	done
+	@echo -e "$(GREEN)All RoleTect ports cleared and available.$(RESET)"
+
+port-down: down-port ## Alias for make down-port
+ports-down: down-port ## Alias for make down-port
+kill-ports: down-port ## Alias for make down-port
 
 .PHONY: restart
 restart: ## Restart all containers
@@ -150,6 +186,17 @@ logs: ## Follow live logs from all containers
 # -----------------------------------------------------------------------------
 # 4. SINGLE SERVICE CONTROLS
 # -----------------------------------------------------------------------------
+
+.PHONY: api-up
+api-up: ## Start only Axum API container in Docker
+	@echo -e "$(CYAN)Starting Axum API container...$(RESET)"
+	docker compose -f $(COMPOSE_FILE) up -d api
+
+.PHONY: api-down
+api-down: ## Stop and remove Axum API container
+	@echo -e "$(YELLOW)Stopping Axum API container...$(RESET)"
+	docker compose -f $(COMPOSE_FILE) stop api
+	docker compose -f $(COMPOSE_FILE) rm -f api
 
 .PHONY: web-up
 web-up: ## Start only Web frontend container in Docker

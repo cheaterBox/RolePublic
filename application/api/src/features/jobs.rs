@@ -126,18 +126,19 @@ async fn get_jd(
 }
 
 async fn parse_jd(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(req): Json<ParseRequest>,
 ) -> AppResult<Json<crate::ai::JobParseResult>> {
-    let api_key = req.api_key.trim();
-    if api_key.is_empty() {
-        return Err(AppError::Validation("api_key is required".into()));
-    }
+    let api_key = crate::features::ai_helpers::resolve_api_key(&state, &req.api_key).await?;
+    let provider = crate::features::ai_helpers::normalize_provider(&req.provider);
+    let model = crate::features::ai_helpers::resolve_model(&state, &req.model).await;
+    let base_url =
+        crate::features::ai_helpers::resolve_base_url(&state, req.custom_base_url.as_deref()).await;
     let result = crate::ai::parse_job_description(
-        &req.provider,
-        &req.model,
-        api_key,
-        None,
+        &provider,
+        &model,
+        &api_key,
+        base_url.as_deref(),
         &req.raw_jd,
         req.job_url.as_deref(),
     )
@@ -176,4 +177,6 @@ struct ParseRequest {
     raw_jd: String,
     #[serde(default)]
     job_url: Option<String>,
+    #[serde(default)]
+    custom_base_url: Option<String>,
 }

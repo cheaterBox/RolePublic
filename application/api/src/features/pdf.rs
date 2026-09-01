@@ -87,16 +87,20 @@ async fn compile_latex(
     Ok(pdf_response(bytes, filename.as_deref()))
 }
 
-async fn refine_latex(Json(req): Json<RefineLatexRequest>) -> AppResult<Json<serde_json::Value>> {
-    let api_key = req.api_key.trim();
-    if api_key.is_empty() {
-        return Err(AppError::Validation("api_key is required".into()));
-    }
+async fn refine_latex(
+    State(state): State<AppState>,
+    Json(req): Json<RefineLatexRequest>,
+) -> AppResult<Json<serde_json::Value>> {
+    let api_key = crate::features::ai_helpers::resolve_api_key(&state, &req.api_key).await?;
+    let provider = crate::features::ai_helpers::normalize_provider(&req.provider);
+    let model = crate::features::ai_helpers::resolve_model(&state, &req.model).await;
+    let base_url =
+        crate::features::ai_helpers::resolve_base_url(&state, req.custom_base_url.as_deref()).await;
     let result = crate::ai::refine_tailored_resume(
-        &req.provider,
-        &req.model,
-        api_key,
-        None,
+        &provider,
+        &model,
+        &api_key,
+        base_url.as_deref(),
         &req.current_latex,
         &req.instruction,
     )
@@ -105,16 +109,20 @@ async fn refine_latex(Json(req): Json<RefineLatexRequest>) -> AppResult<Json<ser
     Ok(Json(serde_json::json!({ "latex": result })))
 }
 
-async fn fix_latex(Json(req): Json<FixLatexRequest>) -> AppResult<Json<serde_json::Value>> {
-    let api_key = req.api_key.trim();
-    if api_key.is_empty() {
-        return Err(AppError::Validation("api_key is required".into()));
-    }
+async fn fix_latex(
+    State(state): State<AppState>,
+    Json(req): Json<FixLatexRequest>,
+) -> AppResult<Json<serde_json::Value>> {
+    let api_key = crate::features::ai_helpers::resolve_api_key(&state, &req.api_key).await?;
+    let provider = crate::features::ai_helpers::normalize_provider(&req.provider);
+    let model = crate::features::ai_helpers::resolve_model(&state, &req.model).await;
+    let base_url =
+        crate::features::ai_helpers::resolve_base_url(&state, req.custom_base_url.as_deref()).await;
     let result = crate::ai::fix_latex_errors(
-        &req.provider,
-        &req.model,
-        api_key,
-        None,
+        &provider,
+        &model,
+        &api_key,
+        base_url.as_deref(),
         &req.broken_latex,
         &req.error_logs,
     )

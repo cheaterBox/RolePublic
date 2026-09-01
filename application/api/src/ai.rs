@@ -25,6 +25,15 @@ trait ProviderAgent: Send + Sync {
 
 /// Per-provider extraction. Lives outside the trait so each impl can be
 /// generic over `T`. The dispatch site is a single match — no duplication.
+pub fn normalize_provider(provider: &str) -> String {
+    let lower = provider.trim().to_lowercase();
+    if lower == "claude" {
+        "anthropic".to_string()
+    } else {
+        lower
+    }
+}
+
 async fn extract_for<T>(
     provider: &str,
     api_key: &str,
@@ -41,7 +50,8 @@ where
         + Sync
         + 'static,
 {
-    match provider {
+    let provider = normalize_provider(provider);
+    match provider.as_str() {
         "gemini" => {
             let client = gemini::Client::new(api_key).map_err(|e| e.to_string())?;
             let extractor = client.extractor::<T>(model).preamble(system).build();
@@ -424,7 +434,8 @@ fn provider_for(
     api_key: &str,
     base_url: Option<&str>,
 ) -> Result<Box<dyn ProviderAgent>, String> {
-    match provider {
+    let provider = normalize_provider(provider);
+    match provider.as_str() {
         "gemini" => Ok(Box::new(GeminiProvider {
             api_key: api_key.into(),
         })),
