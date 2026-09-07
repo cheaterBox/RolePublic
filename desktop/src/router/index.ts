@@ -36,20 +36,70 @@ const routes = [
     name: 'Inbox',
     component: () => import('../components/InboxTab.vue')
   },
+  {
+    path: '/outreach',
+    name: 'Outreach',
+    component: () => import('../components/OutreachTab.vue')
+  },
+  {
+    path: '/audit',
+    name: 'ErrorAudit',
+    component: () => import('../components/ErrorAuditTab.vue'),
+    alias: ['/errors', '/logs']
+  },
   { 
     path: '/settings', 
     name: 'Settings', 
     component: SettingsTab 
   },
   {
+    path: '/templates',
+    component: () => import('../components/TemplatesHub.vue'),
+    children: [
+      {
+        path: '',
+        redirect: '/templates/resumes',
+      },
+      {
+        path: 'resumes',
+        name: 'TemplatesResumes',
+        component: ResumesTab,
+        alias: ['resume'],
+      },
+      {
+        path: 'cover-letters',
+        name: 'TemplatesCoverLetters',
+        component: CoverLettersTab,
+        alias: ['cover-letter', 'coverletter', 'coverletters'],
+      },
+      {
+        path: 'hr-messages',
+        name: 'TemplatesHrMessages',
+        component: () => import('../components/HrMessagesTab.vue'),
+        alias: ['hr-message', 'hr', 'inbox'],
+      },
+    ],
+  },
+  {
+    path: '/template/:type',
+    redirect: (to: any) => {
+      const type = ((to.params.type as string) || '').toLowerCase();
+      if (type.includes('cl') || type.includes('cover')) return '/templates/cover-letters';
+      if (type.includes('hr') || type.includes('message') || type.includes('inbox')) return '/templates/hr-messages';
+      return '/templates/resumes';
+    },
+  },
+  {
     path: '/resumes',
-    name: 'Resumes',
-    component: ResumesTab
+    redirect: '/templates/resumes',
   },
   {
     path: '/cover-letters',
-    name: 'CoverLetters',
-    component: CoverLettersTab
+    redirect: '/templates/cover-letters',
+  },
+  {
+    path: '/hr-messages',
+    redirect: '/templates/hr-messages',
   },
   {
     path: '/jobs',

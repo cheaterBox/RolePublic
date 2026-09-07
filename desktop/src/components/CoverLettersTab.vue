@@ -16,8 +16,10 @@ import {
   Square, 
   Trash2,
   Settings2,
-  Check
+  Check,
+  Copy
 } from '@lucide/vue';
+import { copyToClipboard } from '../utils/clipboard';
 import { Motion, AnimatePresence } from 'motion-v';
 
 const router = useRouter();
@@ -35,6 +37,15 @@ const showNewClForm = ref(false);
 const newClName = ref('');
 const newClCategory = ref('');
 const isCreating = ref(false);
+const isErrorCopied = ref(false);
+const handleCopyError = async () => {
+  if (!clStore.error) return;
+  const ok = await copyToClipboard(clStore.error);
+  if (ok) {
+    isErrorCopied.value = true;
+    setTimeout(() => { isErrorCopied.value = false; }, 2000);
+  }
+};
 
 onMounted(async () => {
   await clStore.loadAllCoverLetters();
@@ -229,7 +240,15 @@ const handleCreateCl = async () => {
     </header>
 
     <div v-if="clStore.error" class="error-banner">
-      {{ clStore.error }}
+      <span>{{ clStore.error }}</span>
+      <div class="banner-actions">
+        <button class="banner-copy-btn" @click="handleCopyError" :title="isErrorCopied ? 'Copied!' : 'Copy Error'">
+          <Check v-if="isErrorCopied" :size="13" />
+          <Copy v-else :size="13" />
+          <span>{{ isErrorCopied ? 'Copied!' : 'Copy' }}</span>
+        </button>
+        <button class="banner-close-btn" @click="clStore.error = null" title="Dismiss">✕</button>
+      </div>
     </div>
 
     <transition name="slide-down">
@@ -453,13 +472,55 @@ const handleCreateCl = async () => {
 }
 
 .error-banner {
-  background: rgba(248, 51, 73, 0.1);
-  border: 1px solid rgba(248, 51, 73, 0.2);
+  background: var(--surface-soft);
+  border: 1px solid var(--warning);
   border-radius: 12px;
-  padding: 12px 16px;
+  padding: 10px 16px;
   margin-bottom: 24px;
-  color: #f85149;
+  color: var(--warning);
   font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.banner-copy-btn {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s;
+}
+
+.banner-copy-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.banner-close-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 4px;
+}
+
+.banner-close-btn:hover {
+  color: var(--ink);
 }
 
 .form-card {

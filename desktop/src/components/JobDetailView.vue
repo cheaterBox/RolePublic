@@ -5,10 +5,13 @@ import { invoke } from '@tauri-apps/api/core';
 import { save, message, ask } from '@tauri-apps/plugin-dialog';
 import { writeFile } from '@tauri-apps/plugin-fs';
 import { openUrl } from '@tauri-apps/plugin-opener';
+import { writeText } from '@tauri-apps/plugin-clipboard-manager';
+import { copyToClipboard } from '../utils/clipboard';
 import { Motion, AnimatePresence } from 'motion-v';
 import { useSettingsStore } from '../store/settings';
 import { useResumesStore } from '../store/resumes';
 import { useCoverLettersStore } from '../store/cover_letters';
+import { useHrMessagesStore } from '../store/hr_messages';
 import { useDialogStore } from '../store/dialog';
 import { useJobsStore, Job } from '../store/jobs';
 import { useScoringStore } from '../store/scoring';
@@ -44,6 +47,9 @@ import {
   AlertTriangle,
   CheckCircle2,
   XCircle,
+  MessageSquare,
+  Copy,
+  Check,
 } from '@lucide/vue';
 
 interface TemplateItem {
@@ -61,6 +67,7 @@ const router = useRouter();
 const settingsStore = useSettingsStore();
 const resumesStore = useResumesStore();
 const clStore = useCoverLettersStore();
+const hrStore = useHrMessagesStore();
 const dialog = useDialogStore();
 const jobsStore = useJobsStore();
 const scoringStore = useScoringStore();
@@ -74,9 +81,12 @@ const tailoredClId = ref<string | null>(null);
 // Dirty State Tracking
 const isResumeDirty = ref(false);
 const isClDirty = ref(false);
+const isHrDirty = ref(false);
 
 const hasUnsavedChanges = computed(() => {
-  return activeMode.value === 'resume' ? isResumeDirty.value : isClDirty.value;
+  if (activeMode.value === 'resume') return isResumeDirty.value;
+  if (activeMode.value === 'cl') return isClDirty.value;
+  return isHrDirty.value;
 });
 
 // Codemirror Extensions
@@ -95,14 +105,49 @@ const activeTooltip = ref<string | null>(null);
 const isLoading = ref(true);
 const isGeneratingResume = ref(false);
 const isGeneratingCl = ref(false);
-const isGenerating = computed(() => activeMode.value === 'resume' ? isGeneratingResume.value : isGeneratingCl.value);
+const isGeneratingHr = ref(false);
+const isGenerating = computed(() => {
+  if (activeMode.value === 'resume') return isGeneratingResume.value;
+  if (activeMode.value === 'cl') return isGeneratingCl.value;
+  return isGeneratingHr.value;
+});
 
 const isCompilingResume = ref(false);
 const isCompilingCl = ref(false);
 const isCompilingPDF = computed(() => activeMode.value === 'resume' ? isCompilingResume.value : isCompilingCl.value);
 
 const error = ref<string | null>(null);
-const activeMode = ref<'resume' | 'cl'>('resume');
+const isBannerErrorCopied = ref(false);
+const handleCopyBannerError = async () => {
+  if (!error.value) return;
+  const ok = await copyToClipboard(error.value);
+  if (ok) {
+    isBannerErrorCopied.value = true;
+    setTimeout(() => { isBannerErrorCopied.value = false; }, 2000);
+  }
+};
+
+const isCompErrorCopied = ref(false);
+const handleCopyCompError = async () => {
+  if (!activeCompError.value) return;
+  const ok = await copyToClipboard(activeCompError.value);
+  if (ok) {
+    isCompErrorCopied.value = true;
+    setTimeout(() => { isCompErrorCopied.value = false; }, 2000);
+  }
+};
+
+const isScoringErrorCopied = ref(false);
+const handleCopyScoringError = async () => {
+  if (!scoringStore.error) return;
+  const ok = await copyToClipboard(scoringStore.error);
+  if (ok) {
+    isScoringErrorCopied.value = true;
+    setTimeout(() => { isScoringErrorCopied.value = false; }, 2000);
+  }
+};
+
+const activeMode = ref<'resume' | 'cl' | 'hr'>('resume');
 const jobDetails = ref<Job | null>(null);
 const editorContainer = ref<HTMLElement | null>(null);
 
@@ -122,6 +167,170 @@ const clPdfUrl = ref<any>(null);
 const clPdfBytes = ref<Uint8Array | null>(null);
 const clCompError = ref<string | null>(null);
 
+// HR Specific State
+const hrSelectedId = ref<string>('');
+const hrInstruction = ref('');
+const hrMessageContent = ref('');
+const recruiterName = ref('');
+const recruiterContact = ref('');
+const isCopiedHr = ref(false);
+const isRefiningHr = ref(false);
+
+const hrCharCount = computed(() => hrMessageContent.value.length);
+const hrWordCount = computed(() => {
+  const text = hrMessageContent.value.trim();
+  return text ? text.split(/\s+/).length : 0;
+});
+const isLinkedInSafe = computed(() => hrCharCount.value <= 200);
+
+const applySelectedHrTemplate = (markDirty = true) => {
+  if (!hrSelectedId.value) return;
+  const tmpl = hrStore.templates.find(t => t.id === hrSelectedId.value);
+  if (!tmpl) return;
+
+  const comp = jobDetails.value?.company_name || 'the company';
+  const role = jobDetails.value?.job_title || 'the open role';
+  const rec = recruiterName.value.trim() || 'Hiring Manager';
+  const cand = 'Candidate';
+
+  let text = tmpl.content;
+  text = text.replace(/\{recruiter_name\}/g, rec);
+  text = text.replace(/\{company_name\}/g, comp);
+  text = text.replace(/\{job_title\}/g, role);
+  text = text.replace(/\{candidate_name\}/g, cand);
+
+  hrMessageContent.value = text;
+  if (markDirty) isHrDirty.value = true;
+};
+
+const copyHrMessage = async () => {
+  if (!hrMessageContent.value) return;
+  try {
+    await writeText(hrMessageContent.value);
+    isCopiedHr.value = true;
+    setTimeout(() => { isCopiedHr.value = false; }, 2000);
+  } catch (e) {
+    console.error("Failed to copy HR message:", e);
+  }
+};
+
+const openRecruiterContact = async () => {
+  const contact = recruiterContact.value.trim();
+  if (!contact) return;
+  try {
+    if (contact.includes('@') && !contact.startsWith('http')) {
+      const subject = encodeURIComponent(`Regarding ${jobDetails.value?.job_title || 'the role'} at ${jobDetails.value?.company_name || 'your team'}`);
+      const body = encodeURIComponent(hrMessageContent.value);
+      await openUrl(`mailto:${contact}?subject=${subject}&body=${body}`);
+    } else if (contact.startsWith('http://') || contact.startsWith('https://')) {
+      await openUrl(contact);
+    } else {
+      await openUrl(`https://${contact}`);
+    }
+  } catch (e) {
+    console.error('Failed to open recruiter contact:', e);
+  }
+};
+
+const saveHrMessage = async (silent = false) => {
+  try {
+    await hrStore.saveTailoredMessage(props.id, hrMessageContent.value);
+    isHrDirty.value = false;
+    if (!silent) await message('HR message saved successfully.', { title: 'Success', kind: 'info' });
+  } catch (err: any) {
+    console.error("Save Error:", err);
+    if (!silent) await message(`Failed to save changes: ${err.toString()}`, { title: 'Save Failed', kind: 'error' });
+  }
+};
+
+const generateHrContent = async () => {
+  if (!jobDetails.value) return;
+  isGeneratingHr.value = true;
+  error.value = null;
+  try {
+    const apiKey = await settingsStore.getDecryptedKey();
+    if (!apiKey) throw new Error("API Key not found. Please set it in Settings.");
+
+    const provider = settingsStore.selectedAiProvider;
+    const model = settingsStore.selectedAiModel;
+
+    const baseTmpl = hrStore.templates.find(t => t.id === hrSelectedId.value);
+    const baseText = hrMessageContent.value.trim() || (baseTmpl ? baseTmpl.content : '');
+    if (!baseText) {
+      throw new Error("Please select an HR template or enter an outreach message to tailor.");
+    }
+
+    const promptInstruction = `You are an elite career outreach messaging expert. Tailor the following outreach message specifically for this job and company.
+Target Company: ${jobDetails.value.company_name}
+Role Title: ${jobDetails.value.job_title}
+Recruiter / Contact Name: ${recruiterName.value || 'Hiring Manager'}
+Job Requirements & Overview:
+${jobDetails.value.raw_jd?.slice(0, 1200) || jobDetails.value.core_responsibilities || ''}
+
+Custom Guidance: ${hrInstruction.value || 'Make it persuasive, authentic, direct, and concise.'}
+
+Mandatory Rules:
+1. STRICT FACTUAL HONESTY: Do NOT invent, exaggerate, or fabricate any skills, tools, or experiences that the candidate does not have. Only reference genuine capabilities.
+2. TONE & LENGTH: Keep the outreach authentic, direct, and concise. STRICTLY keep the message at or under 200 characters total (aim ~150-200). Front-load the hook, cut filler openers, one single call-to-action.
+3. Output ONLY the final message text. No markdown fences, no explanatory preamble, no sign-off notes.
+4. Replace all placeholders like {recruiter_name}, {company_name}, {job_title}, {candidate_name} with concrete, appropriate values.`;
+
+    const tailored = await invoke<string>('refine_diagram_with_ai', {
+      provider,
+      model,
+      apiKey,
+      currentCode: baseText,
+      instruction: promptInstruction,
+      contentType: 'HR Outreach Message'
+    });
+
+    if (tailored && tailored.trim()) {
+      hrMessageContent.value = tailored.trim();
+      await hrStore.saveTailoredMessage(props.id, tailored.trim());
+      isHrDirty.value = false;
+    }
+  } catch (err: any) {
+    console.error("HR Tailoring Error:", err);
+    error.value = `HR tailoring failed: ${err.toString()}`;
+  } finally {
+    isGeneratingHr.value = false;
+  }
+};
+
+const refineHrWithAi = async () => {
+  const instruction = refinementInstruction.value.trim();
+  if (!hrMessageContent.value || !instruction || isRefiningHr.value) return;
+  isRefiningHr.value = true;
+  error.value = null;
+  try {
+    const apiKey = await settingsStore.getDecryptedKey();
+    if (!apiKey) throw new Error("API Key not found. Please set it in Settings.");
+
+    const provider = settingsStore.selectedAiProvider;
+    const model = settingsStore.selectedAiModel;
+
+    const refined = await invoke<string>('refine_diagram_with_ai', {
+      provider,
+      model,
+      apiKey,
+      currentCode: hrMessageContent.value,
+      instruction: `Refine this outreach message according to this instruction: "${instruction}". Mandatory rule: strictly factual, do NOT invent or fabricate skills or background the candidate does not have. Return ONLY the revised raw message text with no markdown formatting, quotes, or code fences.`,
+      contentType: 'HR Outreach Message'
+    });
+
+    if (refined && refined.trim()) {
+      hrMessageContent.value = refined.trim();
+      refinementInstruction.value = '';
+      isHrDirty.value = true;
+    }
+  } catch (err: any) {
+    console.error("HR Refine Error:", err);
+    error.value = `AI Refinement failed: ${err.toString()}`;
+  } finally {
+    isRefiningHr.value = false;
+  }
+};
+
 // Common Editor/Preview State (Active)
 const isDownloading = ref(false);
 const isFixingResume = ref(false);
@@ -130,7 +339,11 @@ const isFixing = computed(() => activeMode.value === 'resume' ? isFixingResume.v
 
 const isRefiningResume = ref(false);
 const isRefiningCl = ref(false);
-const isRefining = computed(() => activeMode.value === 'resume' ? isRefiningResume.value : isRefiningCl.value);
+const isRefining = computed(() => {
+  if (activeMode.value === 'resume') return isRefiningResume.value;
+  if (activeMode.value === 'cl') return isRefiningCl.value;
+  return isRefiningHr.value;
+});
 
 const refinementInstruction = ref('');
 
@@ -197,7 +410,7 @@ const toggleCompare = async () => {
         filename: baseFilename
       });
       
-      const port = await invoke<string>('get_setting', { key: 'active_server_port', default_value: '1420' });
+      const port = await invoke<string>('get_setting', { key: 'active_server_port', defaultValue: '1420' });
       basePdfUrl.value = {
         url: `http://127.0.0.1:${port}/static-pdf/${baseFilename}?cache-bust=${Date.now()}`,
         disableRange: false,
@@ -249,23 +462,40 @@ const stopResizingPreview = () => {
 
 // Computed bindings for active mode
 const activeLatex = computed({
-  get: () => activeMode.value === 'resume' ? resumeLatex.value : clLatex.value,
+  get: () => {
+    if (activeMode.value === 'resume') return resumeLatex.value;
+    if (activeMode.value === 'cl') return clLatex.value;
+    return '';
+  },
   set: (val) => {
     if (activeMode.value === 'resume') resumeLatex.value = val;
-    else clLatex.value = val;
+    else if (activeMode.value === 'cl') clLatex.value = val;
   }
 });
 
-const activePdfUrl = computed(() => activeMode.value === 'resume' ? resumePdfUrl.value : clPdfUrl.value);
+const activePdfUrl = computed(() => {
+  if (activeMode.value === 'resume') return resumePdfUrl.value;
+  if (activeMode.value === 'cl') return clPdfUrl.value;
+  return null;
+});
+
 const activeCompError = computed({
-  get: () => activeMode.value === 'resume' ? resumeCompError.value : clCompError.value,
+  get: () => {
+    if (activeMode.value === 'resume') return resumeCompError.value;
+    if (activeMode.value === 'cl') return clCompError.value;
+    return null;
+  },
   set: (val) => {
     if (activeMode.value === 'resume') resumeCompError.value = val;
-    else clCompError.value = val;
+    else if (activeMode.value === 'cl') clCompError.value = val;
   }
 });
 
-const activePdfBytes = computed(() => activeMode.value === 'resume' ? resumePdfBytes.value : clPdfBytes.value);
+const activePdfBytes = computed(() => {
+  if (activeMode.value === 'resume') return resumePdfBytes.value;
+  if (activeMode.value === 'cl') return clPdfBytes.value;
+  return null;
+});
 
 // Match Score helpers
 const matchColor = (score: number): string => {
@@ -303,6 +533,10 @@ onMounted(async () => {
     jobDetails.value = await jobsStore.getJobById(props.id);
     resumeInstruction.value = jobDetails.value.custom_instruction || '';
     clInstruction.value = jobDetails.value.custom_instruction || '';
+    if (jobDetails.value.reference_name) recruiterName.value = jobDetails.value.reference_name;
+    if (jobDetails.value.reference_email || jobDetails.value.social_link) {
+      recruiterContact.value = jobDetails.value.reference_email || jobDetails.value.social_link || '';
+    }
     
     // 2. Load templates
     isLoadingTemplates.value = true;
@@ -348,10 +582,23 @@ onMounted(async () => {
       clSelectedId.value = latestCl.base_template_id;
     }
 
+    // 4. Setup HR templates and load tailored HR message
+    await hrStore.loadTemplates();
+    if (hrStore.templates.length > 0) {
+      hrSelectedId.value = hrStore.templates[0].id;
+    }
+    const savedHr = await hrStore.getTailoredMessage(props.id);
+    if (savedHr && savedHr.trim()) {
+      hrMessageContent.value = savedHr;
+    } else if (hrStore.templates.length > 0) {
+      applySelectedHrTemplate(false);
+    }
+
     // Initialize dirty state tracking after initial load
     setTimeout(() => {
       watch(resumeLatex, () => { isResumeDirty.value = true; });
       watch(clLatex, () => { isClDirty.value = true; });
+      watch(hrMessageContent, () => { isHrDirty.value = true; });
     }, 500);
 
   } catch (err: any) {
@@ -373,6 +620,10 @@ onUnmounted(() => {
 // Trigger AI Generation
 const generateContent = async () => {
   const targetMode = activeMode.value;
+  if (targetMode === 'hr') {
+    await generateHrContent();
+    return;
+  }
   const isResume = targetMode === 'resume';
   const selectedTemplate = isResume ? resumeSelectedId.value : clSelectedId.value;
   
@@ -426,6 +677,10 @@ const generateContent = async () => {
 
 const refineWithAi = async () => {
   const targetMode = activeMode.value;
+  if (targetMode === 'hr') {
+    await refineHrWithAi();
+    return;
+  }
   const currentLatex = targetMode === 'resume' ? resumeLatex.value : clLatex.value;
   const instruction = refinementInstruction.value.trim();
   const isCurrentlyRefining = targetMode === 'resume' ? isRefiningResume.value : isRefiningCl.value;
@@ -492,7 +747,14 @@ const doSaveLatexContent = async (targetMode: 'resume' | 'cl', silent = false) =
   }
 };
 
-const saveLatexContent = (silent = false) => doSaveLatexContent(activeMode.value, typeof silent === 'boolean' ? silent : false);
+const saveLatexContent = async (silent = false) => {
+  const isSilent = typeof silent === 'boolean' ? silent : false;
+  if (activeMode.value === 'hr') {
+    await saveHrMessage(isSilent);
+    return;
+  }
+  await doSaveLatexContent(activeMode.value, isSilent);
+};
 
 const doCompilePdf = async (targetMode: 'resume' | 'cl') => {
   const currentLatex = targetMode === 'resume' ? resumeLatex.value : clLatex.value;
@@ -515,7 +777,7 @@ const doCompilePdf = async (targetMode: 'resume' | 'cl') => {
     const bytes = new Uint8Array(pdfBytes);
     
     // Fetch port from DB
-    const port = await invoke<string>('get_setting', { key: 'active_server_port', default_value: '1420' });
+    const port = await invoke<string>('get_setting', { key: 'active_server_port', defaultValue: '1420' });
     const sourceObj = {
       url: `http://127.0.0.1:${port}/static-pdf/${pdfFilename}?cache-bust=${Date.now()}`,
       disableRange: false,
@@ -545,7 +807,10 @@ const doCompilePdf = async (targetMode: 'resume' | 'cl') => {
   }
 };
 
-const compilePdf = () => doCompilePdf(activeMode.value);
+const compilePdf = () => {
+  if (activeMode.value === 'hr') return;
+  return doCompilePdf(activeMode.value);
+};
 
 const onPdfError = (err: any) => {
   console.error("PDF Rendering Error:", err);
@@ -557,12 +822,13 @@ const onPdfError = (err: any) => {
   }
 };
 
-const handleTabSwitch = async (mode: 'resume' | 'cl') => {
+const handleTabSwitch = async (mode: 'resume' | 'cl' | 'hr') => {
   if (activeMode.value === mode) return;
   
   if (hasUnsavedChanges.value) {
+    const label = activeMode.value === 'resume' ? 'resume' : activeMode.value === 'cl' ? 'cover letter' : 'HR outreach message';
     const confirmed = await ask(
-      `You have unsaved changes in your tailored ${activeMode.value === 'resume' ? 'resume' : 'cover letter'}. Are you sure you want to switch tabs? Changes will be lost unless saved.`,
+      `You have unsaved changes in your tailored ${label}. Are you sure you want to switch tabs? Changes will be lost unless saved.`,
       { title: 'Unsaved Changes', kind: 'warning' }
     );
     if (!confirmed) return;
@@ -579,9 +845,19 @@ const handleTabSwitch = async (mode: 'resume' | 'cl') => {
   clPdfBytes.value = null;
   
   activeMode.value = mode;
+
+  if (mode === 'hr' && !hrMessageContent.value) {
+    const saved = await hrStore.getTailoredMessage(props.id);
+    if (saved && saved.trim()) {
+      hrMessageContent.value = saved;
+    } else {
+      applySelectedHrTemplate(false);
+    }
+  }
 };
 
 const fixWithAi = async () => {
+  if (activeMode.value === 'hr') return;
   const targetMode = activeMode.value;
   const currentLatex = targetMode === 'resume' ? resumeLatex.value : clLatex.value;
   const currentCompError = targetMode === 'resume' ? resumeCompError.value : clCompError.value;
@@ -812,8 +1088,14 @@ const deleteJob = async () => {
         :exit="{ height: 0, opacity: 0 }"
         class="error-banner"
       >
-        <span>{{ error }}</span>
-        <button @click="error = null">✕</button>
+        <span class="error-banner-text">{{ error }}</span>
+        <div class="banner-actions">
+          <button class="banner-copy-btn" @click="handleCopyBannerError" :title="isBannerErrorCopied ? 'Copied!' : 'Copy Error'">
+            <Check v-if="isBannerErrorCopied" :size="13" />
+            <Copy v-else :size="13" />
+          </button>
+          <button class="banner-close-btn" @click="error = null" title="Dismiss">✕</button>
+        </div>
       </Motion>
     </AnimatePresence>
 
@@ -947,7 +1229,7 @@ const deleteJob = async () => {
           <div class="section-header-icon" @mouseenter="activeTooltip = 'config-sec'" @mouseleave="activeTooltip = null">
             <Settings :size="16" />
             <AnimatePresence>
-              <Motion v-if="activeTooltip === 'config-sec'" class="flying-message sidebar-tooltip" :initial="{ opacity: 0, x: 5 }" :animate="{ opacity: 1, x: 12 }">Configuration ({{ activeMode === 'resume' ? 'Resume' : 'CL' }})</Motion>
+              <Motion v-if="activeTooltip === 'config-sec'" class="flying-message sidebar-tooltip" :initial="{ opacity: 0, x: 5 }" :animate="{ opacity: 1, x: 12 }">Configuration ({{ activeMode === 'resume' ? 'Resume' : activeMode === 'cl' ? 'CL' : 'HR Message' }})</Motion>
             </AnimatePresence>
           </div>
           
@@ -959,14 +1241,42 @@ const deleteJob = async () => {
               :options="standardResumes.map(r => ({ value: r.id, label: r.name }))" 
             />
             <CustomSelect 
-              v-else 
+              v-else-if="activeMode === 'cl'" 
               v-model="clSelectedId" 
               :options="standardCls.map(c => ({ value: c.id, label: c.name }))" 
             />
+            <CustomSelect 
+              v-else 
+              v-model="hrSelectedId" 
+              :options="hrStore.templates.map(t => ({ value: t.id, label: t.name }))" 
+              @update:model-value="() => applySelectedHrTemplate(true)"
+            />
           </div>
 
+          <template v-if="activeMode === 'hr'">
+            <div class="form-group">
+              <label>Recruiter / Contact Name</label>
+              <input 
+                v-model="recruiterName" 
+                type="text" 
+                class="form-input-compact" 
+                placeholder="e.g. Sarah Jenkins or Hiring Team"
+                @change="() => applySelectedHrTemplate(true)"
+              />
+            </div>
+            <div class="form-group">
+              <label>Recruiter Email / Profile Link</label>
+              <input 
+                v-model="recruiterContact" 
+                type="text" 
+                class="form-input-compact" 
+                placeholder="e.g. recruiter@company.com or linkedin.com/in/..."
+              />
+            </div>
+          </template>
+
           <div class="form-group">
-            <label>Tailor Logic</label>
+            <label>{{ activeMode === 'hr' ? 'Outreach Guidance' : 'Tailor Logic' }}</label>
             <textarea 
               v-if="activeMode === 'resume'"
               v-model="resumeInstruction" 
@@ -974,15 +1284,21 @@ const deleteJob = async () => {
               placeholder="Resume tailoring rules..."
             ></textarea>
             <textarea 
-              v-else
+              v-else-if="activeMode === 'cl'"
               v-model="clInstruction" 
               class="compact-textarea" 
               placeholder="Cover letter rules..."
             ></textarea>
+            <textarea 
+              v-else
+              v-model="hrInstruction" 
+              class="compact-textarea" 
+              placeholder="Outreach instructions (e.g. emphasize Vue/Rust, keep under 200 chars)..."
+            ></textarea>
           </div>
 
           <div class="btn-tooltip-wrapper" @mouseenter="activeTooltip = 'run-intelligence'" @mouseleave="activeTooltip = null">
-            <button class="btn-accent w-full" @click="generateContent" :disabled="isGenerating || (activeMode === 'resume' ? !resumeSelectedId : !clSelectedId)">
+            <button class="btn-accent w-full" @click="generateContent" :disabled="isGenerating || (activeMode === 'resume' ? !resumeSelectedId : activeMode === 'cl' ? !clSelectedId : !hrSelectedId)">
               <Play v-if="!isGenerating" :size="14" />
               <RotateCw v-else :size="14" class="spinner" />
             </button>
@@ -995,7 +1311,7 @@ const deleteJob = async () => {
                 :transition="{ duration: 0.15 }"
                 class="flying-message info-tooltip"
               >
-                {{ isGenerating ? 'Tailoring...' : 'Run Intelligence' }}
+                {{ isGenerating ? (activeMode === 'hr' ? 'Crafting Outreach...' : 'Tailoring...') : (activeMode === 'hr' ? 'Tailor HR Message' : 'Run Intelligence') }}
               </Motion>
             </AnimatePresence>
           </div>
@@ -1031,6 +1347,19 @@ const deleteJob = async () => {
                 <Motion v-if="activeTooltip === 'cl-mode'" class="flying-message tab-tooltip" :initial="{ opacity: 0, y: 5 }" :animate="{ opacity: 1, y: 0 }">Cover Letter Workspace</Motion>
               </AnimatePresence>
             </div>
+            <div class="btn-tooltip-wrapper" @mouseenter="activeTooltip = 'hr-mode'" @mouseleave="activeTooltip = null">
+              <button 
+                class="tab-btn-mode" 
+                :class="{ active: activeMode === 'hr' }" 
+                @click="handleTabSwitch('hr')"
+              >
+                <MessageSquare :size="14" />
+                <span>HR MESSAGES</span>
+              </button>
+              <AnimatePresence>
+                <Motion v-if="activeTooltip === 'hr-mode'" class="flying-message tab-tooltip" :initial="{ opacity: 0, y: 5 }" :animate="{ opacity: 1, y: 0 }">HR Outreach Workspace</Motion>
+              </AnimatePresence>
+            </div>
             <div class="divider"></div>
             <div class="btn-tooltip-wrapper" @mouseenter="activeTooltip = 'save-content'" @mouseleave="activeTooltip = null">
               <button class="tab-btn" @click="saveLatexContent(false)"><Save :size="14" /></button>
@@ -1043,110 +1372,151 @@ const deleteJob = async () => {
                   :transition="{ duration: 0.15 }"
                   class="flying-message tab-tooltip"
                 >
-                  Save LaTeX
+                  Save {{ activeMode === 'hr' ? 'HR Message' : 'LaTeX' }}
                 </Motion>
               </AnimatePresence>
             </div>
           </div>
           <div class="right-tabs">
-            <AnimatePresence>
-              <div class="btn-tooltip-wrapper" v-if="activeCompError" @mouseenter="activeTooltip = 'ai-fix'" @mouseleave="activeTooltip = null">
-                <Motion
-                  :initial="{ scale: 0.9, opacity: 0 }"
-                  :animate="{ scale: 1, opacity: 1 }"
-                  class="tab-btn ai-btn"
-                  @click="fixWithAi"
-                  :disabled="isFixing"
-                >
-                  <Wand2 :size="14" />
-                </Motion>
+            <template v-if="activeMode === 'hr'">
+              <div class="btn-tooltip-wrapper" @mouseenter="activeTooltip = 'copy-hr'" @mouseleave="activeTooltip = null">
+                <button class="tab-btn" :class="{ 'accent-btn': isCopiedHr }" @click="copyHrMessage" :disabled="!hrMessageContent">
+                  <Check v-if="isCopiedHr" :size="14" />
+                  <Copy v-else :size="14" />
+                </button>
                 <AnimatePresence>
                   <Motion
-                    v-if="activeTooltip === 'ai-fix'"
+                    v-if="activeTooltip === 'copy-hr'"
                     :initial="{ opacity: 0, y: 5, scale: 0.9 }"
                     :animate="{ opacity: 1, y: 0, scale: 1 }"
                     :exit="{ opacity: 0, y: 5, scale: 0.9 }"
                     :transition="{ duration: 0.15 }"
                     class="flying-message tab-tooltip"
                   >
-                    AI Debug & Fix
+                    {{ isCopiedHr ? 'Copied!' : 'Copy to Clipboard' }}
                   </Motion>
                 </AnimatePresence>
               </div>
-            </AnimatePresence>
-            <div class="btn-tooltip-wrapper" @mouseenter="activeTooltip = 'build-pdf'" @mouseleave="activeTooltip = null">
-              <button class="tab-btn accent-btn" @click="compilePdf" :disabled="!activeLatex || isCompilingPDF">
-                <Hammer v-if="!isCompilingPDF" :size="14" />
-                <RotateCw v-else :size="14" class="spinner" />
-              </button>
+
+              <div v-if="recruiterContact" class="btn-tooltip-wrapper" @mouseenter="activeTooltip = 'reachout'" @mouseleave="activeTooltip = null">
+                <button class="tab-btn" @click="openRecruiterContact">
+                  <ExternalLink :size="14" />
+                </button>
+                <AnimatePresence>
+                  <Motion
+                    v-if="activeTooltip === 'reachout'"
+                    :initial="{ opacity: 0, y: 5, scale: 0.9 }"
+                    :animate="{ opacity: 1, y: 0, scale: 1 }"
+                    :exit="{ opacity: 0, y: 5, scale: 0.9 }"
+                    :transition="{ duration: 0.15 }"
+                    class="flying-message tab-tooltip"
+                  >
+                    Open Contact ({{ recruiterContact.includes('@') ? 'Email' : 'Link' }})
+                  </Motion>
+                </AnimatePresence>
+              </div>
+            </template>
+
+            <template v-else>
               <AnimatePresence>
-                <Motion
-                  v-if="activeTooltip === 'build-pdf'"
-                  :initial="{ opacity: 0, y: 5, scale: 0.9 }"
-                  :animate="{ opacity: 1, y: 0, scale: 1 }"
-                  :exit="{ opacity: 0, y: 5, scale: 0.9 }"
-                  :transition="{ duration: 0.15 }"
-                  class="flying-message tab-tooltip"
-                >
-                  Compile PDF
-                </Motion>
+                <div class="btn-tooltip-wrapper" v-if="activeCompError" @mouseenter="activeTooltip = 'ai-fix'" @mouseleave="activeTooltip = null">
+                  <Motion
+                    :initial="{ scale: 0.9, opacity: 0 }"
+                    :animate="{ scale: 1, opacity: 1 }"
+                    class="tab-btn ai-btn"
+                    @click="fixWithAi"
+                    :disabled="isFixing"
+                  >
+                    <Wand2 :size="14" />
+                  </Motion>
+                  <AnimatePresence>
+                    <Motion
+                      v-if="activeTooltip === 'ai-fix'"
+                      :initial="{ opacity: 0, y: 5, scale: 0.9 }"
+                      :animate="{ opacity: 1, y: 0, scale: 1 }"
+                      :exit="{ opacity: 0, y: 5, scale: 0.9 }"
+                      :transition="{ duration: 0.15 }"
+                      class="flying-message tab-tooltip"
+                    >
+                      AI Debug & Fix
+                    </Motion>
+                  </AnimatePresence>
+                </div>
               </AnimatePresence>
-            </div>
-            <div class="btn-tooltip-wrapper" v-if="activeMode === 'resume' ? isResumeCompiled : isClCompiled" @mouseenter="activeTooltip = 'compare'" @mouseleave="activeTooltip = null">
-              <button class="tab-btn" :class="{ 'active': isComparing }" @click="toggleCompare" :disabled="isCompilingBase">
-                <Columns v-if="!isCompilingBase && !isComparing" :size="14" />
-                <FileText v-else-if="!isCompilingBase && isComparing" :size="14" />
-                <RotateCw v-else :size="14" class="spinner" />
-              </button>
-              <AnimatePresence>
-                <Motion
-                  v-if="activeTooltip === 'compare'"
-                  :initial="{ opacity: 0, y: 5, scale: 0.9 }"
-                  :animate="{ opacity: 1, y: 0, scale: 1 }"
-                  :exit="{ opacity: 0, y: 5, scale: 0.9 }"
-                  :transition="{ duration: 0.15 }"
-                  class="flying-message tab-tooltip"
-                >
-                  {{ isComparing ? 'Exit Compare' : 'Compare with Base' }}
-                </Motion>
-              </AnimatePresence>
-            </div>
-            <div class="btn-tooltip-wrapper" v-if="activePdfBytes" @mouseenter="activeTooltip = 'export-pdf'" @mouseleave="activeTooltip = null">
-              <button class="tab-btn" @click="downloadPdf" :disabled="isDownloading">
-                <Download v-if="!isDownloading" :size="14" />
-                <RotateCw v-else :size="14" class="spinner" />
-              </button>
-              <AnimatePresence>
-                <Motion
-                  v-if="activeTooltip === 'export-pdf'"
-                  :initial="{ opacity: 0, y: 5, scale: 0.9 }"
-                  :animate="{ opacity: 1, y: 0, scale: 1 }"
-                  :exit="{ opacity: 0, y: 5, scale: 0.9 }"
-                  :transition="{ duration: 0.15 }"
-                  class="flying-message tab-tooltip"
-                >
-                  Download PDF
-                </Motion>
-              </AnimatePresence>
-            </div>
-            <div class="btn-tooltip-wrapper" @mouseenter="activeTooltip = 'match-score'" @mouseleave="activeTooltip = null">
-              <button class="tab-btn" :class="{ 'active': showMatchPanel }" @click="runMatchScore" :disabled="scoringStore.isScoring">
-                <Gauge v-if="!scoringStore.isScoring" :size="14" />
-                <RotateCw v-else :size="14" class="spinner" />
-              </button>
-              <AnimatePresence>
-                <Motion
-                  v-if="activeTooltip === 'match-score'"
-                  :initial="{ opacity: 0, y: 5, scale: 0.9 }"
-                  :animate="{ opacity: 1, y: 0, scale: 1 }"
-                  :exit="{ opacity: 0, y: 5, scale: 0.9 }"
-                  :transition="{ duration: 0.15 }"
-                  class="flying-message tab-tooltip"
-                >
-                  Match Score
-                </Motion>
-              </AnimatePresence>
-            </div>
+              <div class="btn-tooltip-wrapper" @mouseenter="activeTooltip = 'build-pdf'" @mouseleave="activeTooltip = null">
+                <button class="tab-btn accent-btn" @click="compilePdf" :disabled="!activeLatex || isCompilingPDF">
+                  <Hammer v-if="!isCompilingPDF" :size="14" />
+                  <RotateCw v-else :size="14" class="spinner" />
+                </button>
+                <AnimatePresence>
+                  <Motion
+                    v-if="activeTooltip === 'build-pdf'"
+                    :initial="{ opacity: 0, y: 5, scale: 0.9 }"
+                    :animate="{ opacity: 1, y: 0, scale: 1 }"
+                    :exit="{ opacity: 0, y: 5, scale: 0.9 }"
+                    :transition="{ duration: 0.15 }"
+                    class="flying-message tab-tooltip"
+                  >
+                    Compile PDF
+                  </Motion>
+                </AnimatePresence>
+              </div>
+              <div class="btn-tooltip-wrapper" v-if="activeMode === 'resume' ? isResumeCompiled : isClCompiled" @mouseenter="activeTooltip = 'compare'" @mouseleave="activeTooltip = null">
+                <button class="tab-btn" :class="{ 'active': isComparing }" @click="toggleCompare" :disabled="isCompilingBase">
+                  <Columns v-if="!isCompilingBase && !isComparing" :size="14" />
+                  <FileText v-else-if="!isCompilingBase && isComparing" :size="14" />
+                  <RotateCw v-else :size="14" class="spinner" />
+                </button>
+                <AnimatePresence>
+                  <Motion
+                    v-if="activeTooltip === 'compare'"
+                    :initial="{ opacity: 0, y: 5, scale: 0.9 }"
+                    :animate="{ opacity: 1, y: 0, scale: 1 }"
+                    :exit="{ opacity: 0, y: 5, scale: 0.9 }"
+                    :transition="{ duration: 0.15 }"
+                    class="flying-message tab-tooltip"
+                  >
+                    {{ isComparing ? 'Exit Compare' : 'Compare with Base' }}
+                  </Motion>
+                </AnimatePresence>
+              </div>
+              <div class="btn-tooltip-wrapper" v-if="activePdfBytes" @mouseenter="activeTooltip = 'export-pdf'" @mouseleave="activeTooltip = null">
+                <button class="tab-btn" @click="downloadPdf" :disabled="isDownloading">
+                  <Download v-if="!isDownloading" :size="14" />
+                  <RotateCw v-else :size="14" class="spinner" />
+                </button>
+                <AnimatePresence>
+                  <Motion
+                    v-if="activeTooltip === 'export-pdf'"
+                    :initial="{ opacity: 0, y: 5, scale: 0.9 }"
+                    :animate="{ opacity: 1, y: 0, scale: 1 }"
+                    :exit="{ opacity: 0, y: 5, scale: 0.9 }"
+                    :transition="{ duration: 0.15 }"
+                    class="flying-message tab-tooltip"
+                  >
+                    Download PDF
+                  </Motion>
+                </AnimatePresence>
+              </div>
+              <div class="btn-tooltip-wrapper" @mouseenter="activeTooltip = 'match-score'" @mouseleave="activeTooltip = null">
+                <button class="tab-btn" :class="{ 'active': showMatchPanel }" @click="runMatchScore" :disabled="scoringStore.isScoring">
+                  <Gauge v-if="!scoringStore.isScoring" :size="14" />
+                  <RotateCw v-else :size="14" class="spinner" />
+                </button>
+                <AnimatePresence>
+                  <Motion
+                    v-if="activeTooltip === 'match-score'"
+                    :initial="{ opacity: 0, y: 5, scale: 0.9 }"
+                    :animate="{ opacity: 1, y: 0, scale: 1 }"
+                    :exit="{ opacity: 0, y: 5, scale: 0.9 }"
+                    :transition="{ duration: 0.15 }"
+                    class="flying-message tab-tooltip"
+                  >
+                    Match Score
+                  </Motion>
+                </AnimatePresence>
+              </div>
+            </template>
           </div>
         </div>
 
@@ -1196,8 +1566,20 @@ const deleteJob = async () => {
 
               <!-- Error state -->
               <div v-else-if="scoringStore.error" class="match-error">
-                <AlertTriangle :size="14" />
-                <span>{{ scoringStore.error }}</span>
+                <div class="match-error-content">
+                  <AlertTriangle :size="14" />
+                  <span>{{ scoringStore.error }}</span>
+                </div>
+                <button
+                  type="button"
+                  class="copy-err-inline-btn"
+                  @click="handleCopyScoringError"
+                  :title="isScoringErrorCopied ? 'Copied!' : 'Copy Error'"
+                >
+                  <Check v-if="isScoringErrorCopied" :size="12" />
+                  <Copy v-else :size="12" />
+                  <span>{{ isScoringErrorCopied ? 'Copied!' : 'Copy' }}</span>
+                </button>
               </div>
 
               <!-- Breakdown -->
@@ -1279,21 +1661,117 @@ const deleteJob = async () => {
 
         <AnimatePresence>
           <Motion
-            v-if="activeCompError"
+            v-if="activeCompError && activeMode !== 'hr'"
             :initial="{ height: 0 }"
             :animate="{ height: 'auto' }"
             :exit="{ height: 0 }"
             class="error-log"
           >
             <header>
-              <span>COMPILATION ERROR</span>
-              <button @click="activeCompError = null">✕</button>
+              <div class="error-log-title">
+                <span>COMPILATION ERROR</span>
+              </div>
+              <div class="error-log-actions">
+                <button
+                  type="button"
+                  class="action-btn-inline"
+                  @click="handleCopyCompError"
+                  :title="isCompErrorCopied ? 'Copied!' : 'Copy Error'"
+                >
+                  <Check v-if="isCompErrorCopied" :size="13" />
+                  <Copy v-else :size="13" />
+                  <span>{{ isCompErrorCopied ? 'Copied!' : 'Copy' }}</span>
+                </button>
+                <button @click="activeCompError = null" title="Close">✕</button>
+              </div>
             </header>
             <pre>{{ activeCompError }}</pre>
           </Motion>
         </AnimatePresence>
 
-        <div class="split-pane" ref="splitPaneRef" :class="{ 'is-resizing': isResizingPreview }">
+        <!-- HR Message Workspace -->
+        <div v-if="activeMode === 'hr'" class="hr-workspace">
+          <!-- AI Loading Overlay -->
+          <AnimatePresence>
+            <Motion
+              v-if="isGeneratingHr || isRefiningHr"
+              :initial="{ opacity: 0 }"
+              :animate="{ opacity: 1 }"
+              :exit="{ opacity: 0 }"
+              class="loading-overlay"
+            >
+              <div class="loader-content">
+                <RotateCw :size="32" class="spinner" />
+                <h3>{{ isGeneratingHr ? 'TAILORING HR OUTREACH...' : 'REFINING MESSAGE...' }}</h3>
+              </div>
+            </Motion>
+          </AnimatePresence>
+
+          <!-- HR Toolbar strip -->
+          <div class="hr-editor-bar">
+            <div class="hr-meta-tags">
+              <span class="hr-badge-stat">
+                <strong>{{ hrCharCount }}</strong> chars
+              </span>
+              <span class="hr-badge-stat">
+                <strong>{{ hrWordCount }}</strong> words
+              </span>
+              <span 
+                class="hr-badge-pill" 
+                :class="isLinkedInSafe ? 'pill-safe' : 'pill-warn'"
+              >
+                {{ isLinkedInSafe ? '✓ Fits LinkedIn Note (≤ 200)' : '⚠️ Exceeds 200 Chars' }}
+              </span>
+              <span v-if="recruiterContact" class="hr-badge-contact" @click="openRecruiterContact" title="Click to open link or email">
+                <ExternalLink :size="12" />
+                {{ recruiterContact }}
+              </span>
+            </div>
+
+            <div class="hr-actions">
+              <button class="hr-action-btn" :class="{ 'copied': isCopiedHr }" @click="copyHrMessage">
+                <Check v-if="isCopiedHr" :size="14" />
+                <Copy v-else :size="14" />
+                <span>{{ isCopiedHr ? 'Copied!' : 'Copy to Clipboard' }}</span>
+              </button>
+
+              <button v-if="recruiterContact" class="hr-action-btn btn-send" @click="openRecruiterContact">
+                <ExternalLink :size="14" />
+                <span>{{ recruiterContact.includes('@') ? 'Open Mail' : 'Open Link' }}</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Editor Body -->
+          <div class="hr-textarea-container">
+            <textarea
+              v-model="hrMessageContent"
+              class="hr-message-editor"
+              placeholder="Type or tailor your message to recruiters or hiring managers here..."
+              spellcheck="true"
+            ></textarea>
+          </div>
+
+          <!-- Bottom Refinement Bar for HR -->
+          <div class="hr-refine-bottom">
+            <div class="hr-refine-input-group">
+              <input
+                v-model="refinementInstruction"
+                type="text"
+                class="hr-refine-input"
+                placeholder="Ask AI to refine this message (e.g. 'Make it shorter and punchier', 'Emphasize leadership experience')..."
+                @keyup.enter="refineHrWithAi"
+              />
+              <button class="hr-refine-btn" @click="refineHrWithAi" :disabled="isRefiningHr || !refinementInstruction.trim()">
+                <Loader2 v-if="isRefiningHr" :size="14" class="spinner" />
+                <span v-else>Refine</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- LaTeX & PDF Workspace -->
+        <div v-else class="split-pane" ref="splitPaneRef" :class="{ 'is-resizing': isResizingPreview }">
           
           <!-- Base PDF Viewer (Compare Mode) -->
           <div v-if="isComparing" class="pdf-viewer base-pdf-viewer" style="flex: 1; border-right: 1px solid var(--line); display: flex; flex-direction: column; overflow-y: auto;">
@@ -1414,15 +1892,49 @@ const deleteJob = async () => {
 
 .error-banner {
   background: var(--warning);
-  color: #fff;
-  padding: 4px 12px;
+  color: var(--surface);
+  padding: 6px 14px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   font-size: 0.75rem;
+  font-weight: 500;
   z-index: 10;
+  gap: 8px;
 }
-.error-banner button { background: none; border: none; color: #fff; cursor: pointer; }
+
+.error-banner-text {
+  flex: 1;
+  word-break: break-word;
+  user-select: text !important;
+  -webkit-user-select: text !important;
+}
+
+.banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.banner-copy-btn,
+.banner-close-btn {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 2px 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.banner-copy-btn:hover,
+.banner-close-btn:hover {
+  background: rgba(0, 0, 0, 0.35);
+}
 
 .split-view {
   flex: 1;
@@ -1781,7 +2293,7 @@ const deleteJob = async () => {
 .ai-btn { color: #a371f7; }
 
 .error-log {
-  background: #1e1e1e;
+  background: var(--bg);
   border-bottom: 1px solid var(--warning);
   max-height: 200px;
   overflow: hidden;
@@ -1789,22 +2301,50 @@ const deleteJob = async () => {
   flex-direction: column;
 }
 .error-log header {
-  padding: 4px 12px;
+  padding: 6px 12px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   font-size: 0.65rem;
   color: var(--warning);
   font-weight: 700;
+  background: var(--surface-soft);
+  border-bottom: 1px solid var(--line);
 }
-.error-log header button { background: none; border: none; color: var(--muted); cursor: pointer; }
+.error-log-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.error-log-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.error-log-actions button {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  padding: 2px 4px;
+  transition: all 0.2s;
+}
+.error-log-actions button:hover {
+  color: var(--ink);
+}
 .error-log pre {
   margin: 0;
   padding: 8px 12px;
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.7rem;
-  color: #f85149;
+  color: var(--warning);
   overflow: auto;
+  user-select: text !important;
+  -webkit-user-select: text !important;
 }
 
 .editor-container {
@@ -2020,9 +2560,23 @@ const deleteJob = async () => {
 .match-error {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--warning);
+  background: var(--surface-soft);
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  margin: 8px 0;
+}
+
+.match-error-content {
+  display: flex;
+  align-items: center;
   gap: 6px;
-  color: #e94560;
+  text-align: left;
+  user-select: text !important;
+  -webkit-user-select: text !important;
 }
 
 .match-body {
@@ -2171,5 +2725,210 @@ const deleteJob = async () => {
 
 .tab-btn.active {
   color: var(--accent);
+}
+
+.form-input-compact {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  font-size: 0.75rem;
+  padding: 6px;
+  outline: none;
+}
+.form-input-compact:focus {
+  border-color: var(--accent);
+}
+
+.hr-workspace {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  position: relative;
+  background: var(--bg);
+  flex: 1;
+  min-height: 0;
+}
+
+.hr-editor-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: var(--bg-accent);
+  border-bottom: 1px solid var(--line);
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.hr-meta-tags {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.hr-badge-stat {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.hr-badge-stat strong {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.hr-badge-pill {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pill-safe {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+}
+
+.pill-warn {
+  background: rgba(248, 81, 73, 0.15);
+  color: var(--warning);
+  border: 1px solid var(--warning);
+}
+
+.hr-badge-contact {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  color: var(--accent);
+  cursor: pointer;
+  background: var(--surface);
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+}
+.hr-badge-contact:hover {
+  text-decoration: underline;
+}
+
+.hr-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hr-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.hr-action-btn:hover {
+  background: var(--surface-soft);
+  border-color: var(--accent);
+}
+
+.hr-action-btn.copied {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.btn-send {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+.btn-send:hover {
+  opacity: 0.9;
+}
+
+.hr-textarea-container {
+  flex: 1;
+  padding: 16px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.hr-message-editor {
+  width: 100%;
+  height: 100%;
+  resize: none;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+  font-size: 0.88rem;
+  line-height: 1.6;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.hr-message-editor:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.hr-refine-bottom {
+  padding: 12px 16px;
+  background: var(--bg-accent);
+  border-top: 1px solid var(--line);
+}
+
+.hr-refine-input-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hr-refine-input {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 0.8rem;
+  color: var(--ink);
+  outline: none;
+}
+.hr-refine-input:focus {
+  border-color: var(--accent);
+}
+
+.hr-refine-btn {
+  padding: 8px 16px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border-radius: 6px;
+  border: none;
+  background: var(--accent);
+  color: white;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 80px;
+}
+.hr-refine-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 </style>

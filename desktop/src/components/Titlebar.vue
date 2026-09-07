@@ -11,15 +11,18 @@ import {
   Maximize2,
   X,
   Settings,
-  RefreshCw
+  RefreshCw,
+  AlertTriangle
 } from '@lucide/vue';
 import { useLicenseStore } from "../store/license";
+import { useErrorAuditStore } from "../store/error_audit";
 import { useRouter } from "vue-router";
 import { Motion, AnimatePresence } from "motion-v";
 
 const appWindow = getCurrentWindow();
 const isMaximized = ref(false);
 const licenseStore = useLicenseStore();
+const errorAuditStore = useErrorAuditStore();
 const router = useRouter();
 
 const showProfileMenu = ref(false);
@@ -49,6 +52,25 @@ const handleSyncLicense = async () => {
 const goToSettings = () => {
   showProfileMenu.value = false;
   router.push('/settings');
+};
+
+const goToActivation = () => {
+  router.push({ path: '/settings', hash: '#license-activation' }).then(() => {
+    setTimeout(() => {
+      const el = document.getElementById('license-activation');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const input = document.getElementById('upgrade-key-input') as HTMLInputElement | null;
+        if (input) {
+          setTimeout(() => {
+            input.focus();
+            input.classList.add('pulse-focus');
+            setTimeout(() => input.classList.remove('pulse-focus'), 1600);
+          }, 300);
+        }
+      }
+    }, 100);
+  });
 };
 
 const trialDaysRemaining = computed(() => {
@@ -82,6 +104,7 @@ onMounted(async () => {
     isMaximized.value = await appWindow.isMaximized();
   });
   document.addEventListener('click', handleClickOutside);
+  errorAuditStore.loadStats();
 });
 
 onUnmounted(() => {
@@ -90,7 +113,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="titlebar" data-tauri-drag-region>
+  <div class="titlebar">
     <!-- Left Logo & Branding -->
     <div class="titlebar-left" data-tauri-drag-region>
       <div class="logo-dot" data-tauri-drag-region></div>
@@ -101,7 +124,7 @@ onUnmounted(() => {
     <div class="titlebar-center" data-tauri-drag-region></div>
 
     <!-- Right Section: Profile Badge & Window Controls -->
-    <div class="titlebar-right">
+    <div class="titlebar-right" data-tauri-drag-region="false">
       <!-- License Profile Badge (Only shown when licensed) -->
       <div 
         v-if="licenseStore.isLicensed" 
@@ -169,14 +192,39 @@ onUnmounted(() => {
         </AnimatePresence>
       </div>
 
+      <!-- Free Tier Badge / Upgrade Button -->
+      <button 
+        v-else 
+        type="button" 
+        class="license-badge-btn free" 
+        @click="goToActivation" 
+        title="Running Free Tier — Click to Activate Pro"
+      >
+        <Sparkles :size="12" class="badge-icon free" />
+        <span class="badge-label desktop-only">Free Tier</span>
+      </button>
+
+      <!-- Error Audit Logs Button -->
+      <button 
+        type="button" 
+        class="titlebar-button error-audit-titlebar-btn" 
+        @click="errorAuditStore.openViewer()" 
+        :title="errorAuditStore.stats.total > 0 ? `${errorAuditStore.stats.total} error task(s) logged in audit trail` : 'System Error Audit Trail'"
+      >
+        <AlertTriangle :size="13" :class="{ 'has-errors': errorAuditStore.stats.total > 0 }" />
+        <span v-if="errorAuditStore.stats.total > 0" class="audit-counter-badge">
+          {{ errorAuditStore.stats.total > 99 ? '99+' : errorAuditStore.stats.total }}
+        </span>
+      </button>
+
       <!-- Window Control Buttons -->
-      <button class="titlebar-button" @click="minimize" title="Minimize">
+      <button type="button" class="titlebar-button" @click="minimize" title="Minimize">
         <Minus :size="14" />
       </button>
-      <button class="titlebar-button" @click="toggleMaximize" :title="isMaximized ? 'Restore' : 'Maximize'">
+      <button type="button" class="titlebar-button" @click="toggleMaximize" :title="isMaximized ? 'Restore' : 'Maximize'">
         <component :is="isMaximized ? Square : Maximize2" :size="isMaximized ? 10 : 12" />
       </button>
-      <button class="titlebar-button close-button" @click="close" title="Close">
+      <button type="button" class="titlebar-button close-button" @click="close" title="Close">
         <X :size="14" />
       </button>
     </div>
@@ -234,6 +282,8 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   height: 100%;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
 }
 
 /* License Profile Badge */
@@ -255,6 +305,8 @@ onUnmounted(() => {
   color: var(--ink);
   font-size: 11px;
   cursor: pointer;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
   transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
@@ -264,11 +316,29 @@ onUnmounted(() => {
 }
 
 .badge-icon.active {
-  color: var(--accent, #238636);
+  color: var(--accent);
 }
 
 .badge-icon.trial {
-  color: #fabd2f;
+  color: var(--warning);
+}
+
+.license-badge-btn.free {
+  border-color: var(--line);
+  margin-right: 8px;
+}
+
+.license-badge-btn.free:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.badge-icon.free {
+  color: var(--muted);
+}
+
+.license-badge-btn.free:hover .badge-icon.free {
+  color: var(--accent);
 }
 
 
@@ -291,11 +361,11 @@ onUnmounted(() => {
   top: 32px;
   right: 0;
   width: 240px;
-  background: var(--surface, #1e1e2e);
-  border: 1px solid var(--line, rgba(255, 255, 255, 0.15));
+  background: var(--surface);
+  border: 1px solid var(--line);
   border-radius: 10px;
   padding: 10px;
-  box-shadow: 0 12px 28px -6px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  box-shadow: var(--shadow);
   z-index: 10001;
   display: flex;
   flex-direction: column;
@@ -313,9 +383,9 @@ onUnmounted(() => {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: var(--accent-soft, rgba(35, 134, 54, 0.15));
-  border: 1px solid var(--accent, #238636);
-  color: var(--accent, #238636);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  color: var(--accent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -329,7 +399,7 @@ onUnmounted(() => {
 }
 
 .user-name {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--ink);
   white-space: nowrap;
@@ -356,10 +426,10 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 4px;
-  font-size: 11px;
 }
 
 .status-label {
+  font-size: 10px;
   color: var(--muted);
 }
 
@@ -368,8 +438,8 @@ onUnmounted(() => {
   font-weight: 500;
   padding: 2px 6px;
   border-radius: 4px;
-  background: var(--accent-soft, rgba(35, 134, 54, 0.15));
-  color: var(--accent, #238636);
+  background: var(--accent-soft);
+  color: var(--accent);
   max-width: 140px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -377,8 +447,9 @@ onUnmounted(() => {
 }
 
 .status-pill.is-trial {
-  background: rgba(250, 189, 47, 0.15);
-  color: #fabd2f;
+  background: var(--surface-soft);
+  color: var(--warning);
+  border: 1px solid var(--warning);
 }
 
 
@@ -399,7 +470,7 @@ onUnmounted(() => {
 }
 
 .dropdown-item:hover {
-  background: var(--surface-soft, rgba(255, 255, 255, 0.08));
+  background: var(--surface-soft);
   color: var(--accent);
 }
 
@@ -413,7 +484,9 @@ onUnmounted(() => {
   background: none;
   border: none;
   color: var(--muted);
-  cursor: default;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   border-radius: 0;
 }
@@ -423,9 +496,36 @@ onUnmounted(() => {
   color: var(--ink);
 }
 
+.error-audit-titlebar-btn {
+  position: relative;
+  width: 38px;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.error-audit-titlebar-btn .has-errors {
+  color: var(--warning);
+}
+
+.audit-counter-badge {
+  position: absolute;
+  top: 5px;
+  right: 4px;
+  background: var(--warning);
+  color: var(--bg);
+  font-size: 0.62rem;
+  font-weight: 800;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 8px;
+  min-width: 14px;
+  text-align: center;
+}
+
 .close-button:hover {
-  background: #e81123 !important;
-  color: white !important;
+  background: var(--warning) !important;
+  color: var(--ink) !important;
 }
 
 .titlebar::before {

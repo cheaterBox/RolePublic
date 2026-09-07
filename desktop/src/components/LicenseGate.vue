@@ -12,15 +12,52 @@ import {
   Lock,
   Loader2,
   Power,
-  ClipboardPaste
+  ClipboardPaste,
+  ArrowRight,
+  Copy,
+  Check
 } from '@lucide/vue';
+import { copyToClipboard } from '../utils/clipboard';
 import { Motion } from 'motion-v';
+
+const emit = defineEmits<{
+  (e: 'skip'): void;
+}>();
 
 const licenseStore = useLicenseStore();
 const licenseKeyInput = ref('');
+const isErrorCopied = ref(false);
+
+const handleCopyActivationError = async () => {
+  if (!licenseStore.activationError) return;
+  const ok = await copyToClipboard(licenseStore.activationError);
+  if (ok) {
+    isErrorCopied.value = true;
+    setTimeout(() => { isErrorCopied.value = false; }, 2000);
+  }
+};
 
 // Central public repo / website redirect hub for downloads & license purchasing
 const purchaseUrl = 'https://github.com/AhmedTrooper/roletect-app';
+
+const handleSkip = async (e?: Event) => {
+  if (e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+  licenseStore.isGateDismissed = true;
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      localStorage.setItem('license_gate_skipped', 'true');
+    }
+  } catch {}
+  try {
+    await licenseStore.dismissGate();
+  } catch (err) {
+    console.error('Failed to dismiss gate:', err);
+  }
+  emit('skip');
+};
 
 const handleActivate = async () => {
   if (!licenseKeyInput.value.trim()) return;
@@ -83,6 +120,33 @@ const handleExit = async () => {
         </span>
       </div>
 
+      <!-- Most Visible Action: Skip & Continue with Free Version -->
+      <div class="skip-action-container" @click="handleSkip">
+        <button
+          type="button"
+          class="btn-skip-primary"
+          @click.stop="handleSkip"
+        >
+          <div class="skip-btn-badge-row">
+            <span class="skip-btn-badge">CONTINUE TO WORKSPACE</span>
+            <span class="skip-btn-tag">100% FREE TIER</span>
+          </div>
+          <div class="skip-btn-main-row">
+            <div class="skip-btn-info">
+              <span class="skip-btn-title">Skip &amp; Use Free Version</span>
+              <span class="skip-btn-desc">Full AI tailoring, LaTeX compiling &amp; vault access • Themes capped</span>
+            </div>
+            <div class="skip-btn-arrow-circle">
+              <ArrowRight :size="18" />
+            </div>
+          </div>
+        </button>
+      </div>
+
+      <div class="or-divider">
+        <span>OR ACTIVATE PRO LICENSE</span>
+      </div>
+
       <!-- Activation Form -->
       <form @submit.prevent="handleActivate" class="activation-form">
         <div class="input-group">
@@ -114,8 +178,20 @@ const handleExit = async () => {
 
         <!-- Error Message -->
         <div v-if="licenseStore.activationError" class="error-box">
-          <AlertCircle :size="16" class="error-icon" />
-          <span>{{ licenseStore.activationError }}</span>
+          <div class="error-box-main">
+            <AlertCircle :size="16" class="error-icon" />
+            <span>{{ licenseStore.activationError }}</span>
+          </div>
+          <button
+            type="button"
+            class="copy-err-inline-btn"
+            @click="handleCopyActivationError"
+            :title="isErrorCopied ? 'Copied!' : 'Copy Error'"
+          >
+            <Check v-if="isErrorCopied" :size="12" />
+            <Copy v-else :size="12" />
+            <span>{{ isErrorCopied ? 'Copied!' : 'Copy' }}</span>
+          </button>
         </div>
 
         <!-- Action Buttons -->
@@ -243,6 +319,138 @@ const handleExit = async () => {
   shrink: 0;
 }
 
+.skip-action-container {
+  margin: 2px 0 6px 0;
+}
+
+.btn-skip-primary {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, rgba(35, 134, 54, 0.22) 0%, rgba(46, 160, 67, 0.38) 100%);
+  border: 2px solid var(--accent, #238636);
+  border-radius: 12px;
+  color: var(--ink, #ffffff);
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(35, 134, 54, 0.3);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  text-align: left;
+  box-sizing: border-box;
+}
+
+.btn-skip-primary:hover {
+  background: linear-gradient(135deg, rgba(35, 134, 54, 0.32) 0%, rgba(46, 160, 67, 0.5) 100%);
+  border-color: #2ea043;
+  box-shadow: 0 6px 28px rgba(35, 134, 54, 0.45);
+  transform: translateY(-2px);
+}
+
+.btn-skip-primary:active {
+  transform: translateY(0);
+}
+
+.btn-skip-primary * {
+  pointer-events: none;
+}
+
+.skip-btn-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.skip-btn-badge {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: var(--accent, #238636);
+  color: #ffffff;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+.skip-btn-tag {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #a7f3d0;
+  background: rgba(16, 185, 129, 0.15);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.skip-btn-main-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+
+.skip-btn-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.skip-btn-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.01em;
+}
+
+.skip-btn-desc {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.82);
+  line-height: 1.35;
+}
+
+.skip-btn-arrow-circle {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--accent, #238636);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  transition: transform 0.2s ease;
+}
+
+.btn-skip-primary:hover .skip-btn-arrow-circle {
+  transform: translateX(3px);
+}
+
+.or-divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 2px 0;
+}
+
+.or-divider::before,
+.or-divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid var(--line, rgba(255, 255, 255, 0.1));
+}
+
+.or-divider span {
+  padding: 0 10px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--muted, #8b949e);
+  text-transform: uppercase;
+}
 
 .activation-form {
   display: flex;
@@ -316,13 +524,23 @@ const handleExit = async () => {
 .error-box {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
   padding: 10px 12px;
-  background: rgba(248, 81, 73, 0.1);
-  border: 1px solid rgba(248, 81, 73, 0.3);
+  background: var(--surface-soft);
+  border: 1px solid var(--warning);
   border-radius: 8px;
   font-size: 12px;
-  color: var(--warning, #f85149);
+  color: var(--warning);
+}
+
+.error-box-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  text-align: left;
 }
 
 .error-icon {

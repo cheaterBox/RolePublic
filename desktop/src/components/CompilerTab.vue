@@ -361,7 +361,7 @@ const setMainFile = async (path: string) => {
 
 const loadMainFile = async () => {
   if (!workspacePath.value) return;
-  const saved = await invoke<string>('get_setting', { key: `main_file:${workspacePath.value}`, default_value: '' });
+  const saved = await invoke<string>('get_setting', { key: `main_file:${workspacePath.value}`, defaultValue: '' });
   if (saved && await exists(saved)) {
     mainFilePath.value = saved;
   } else {
@@ -839,7 +839,7 @@ const compilePdf = async () => {
       
       if (workspacePath.value) {
         await refreshFileTree();
-        const port = await invoke<string>('get_setting', { key: 'active_server_port', default_value: '1420' });
+        const port = await invoke<string>('get_setting', { key: 'active_server_port', defaultValue: '1420' });
         pdfUrl.value = {
           url: `http://127.0.0.1:${port}/static-pdf/latex_workspace_roletect.pdf?cache-bust=${Date.now()}`,
           disableRange: false,
@@ -861,7 +861,7 @@ const compilePdf = async () => {
     pdfBytesBuffer.value = new Uint8Array(pdfBytes);
     
     // Fetch port from DB
-    const port = await invoke<string>('get_setting', { key: 'active_server_port', default_value: '1420' });
+    const port = await invoke<string>('get_setting', { key: 'active_server_port', defaultValue: '1420' });
     
     // Pass configuration object to vue-pdf-embed for chunking
     pdfUrl.value = {

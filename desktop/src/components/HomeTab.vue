@@ -5,7 +5,7 @@ import { useSettingsStore } from '../store/settings';
 import { useJobsStore, Job } from '../store/jobs';
 import { Motion, AnimatePresence } from 'motion-v';
 
-import { Activity, Plus, FileText, LayoutGrid, Mail } from '@lucide/vue';
+import { Activity, Plus, FileText, LayoutGrid, Mail, MessageSquare, Send } from '@lucide/vue';
 
 const router = useRouter();
 const route = useRoute();
@@ -75,7 +75,7 @@ watch(() => route.fullPath, async () => {
           </AnimatePresence>
         </div>
         <div class="btn-tooltip-wrapper" @mouseenter="activeTooltip = 'resumes'" @mouseleave="activeTooltip = null">
-          <button class="btn-secondary" @click="$router.push('/resumes')"><FileText :size="18" /></button>
+          <button class="btn-secondary" @click="$router.push('/templates/resumes')"><FileText :size="18" /></button>
           <AnimatePresence>
             <Motion
               v-if="activeTooltip === 'resumes'"
@@ -90,7 +90,7 @@ watch(() => route.fullPath, async () => {
           </AnimatePresence>
         </div>
         <div class="btn-tooltip-wrapper" @mouseenter="activeTooltip = 'cls'" @mouseleave="activeTooltip = null">
-          <button class="btn-secondary" @click="$router.push('/cover-letters')"><Mail :size="18" /></button>
+          <button class="btn-secondary" @click="$router.push('/templates/cover-letters')"><Mail :size="18" /></button>
           <AnimatePresence>
             <Motion
               v-if="activeTooltip === 'cls'"
@@ -101,6 +101,36 @@ watch(() => route.fullPath, async () => {
               class="floating-message tooltip-top"
             >
               CL Templates
+            </Motion>
+          </AnimatePresence>
+        </div>
+        <div class="btn-tooltip-wrapper" @mouseenter="activeTooltip = 'hr-messages'" @mouseleave="activeTooltip = null">
+          <button class="btn-secondary" @click="$router.push('/templates/hr-messages')"><MessageSquare :size="18" /></button>
+          <AnimatePresence>
+            <Motion
+              v-if="activeTooltip === 'hr-messages'"
+              :initial="{ opacity: 0, y: 5, scale: 0.9 }"
+              :animate="{ opacity: 1, y: 0, scale: 1 }"
+              :exit="{ opacity: 0, y: 5, scale: 0.9 }"
+              :transition="{ duration: 0.15 }"
+              class="floating-message tooltip-top"
+            >
+              HR Templates
+            </Motion>
+          </AnimatePresence>
+        </div>
+        <div class="btn-tooltip-wrapper" @mouseenter="activeTooltip = 'outreach'" @mouseleave="activeTooltip = null">
+          <button class="btn-secondary" @click="$router.push('/outreach')"><Send :size="18" /></button>
+          <AnimatePresence>
+            <Motion
+              v-if="activeTooltip === 'outreach'"
+              :initial="{ opacity: 0, y: 5, scale: 0.9 }"
+              :animate="{ opacity: 1, y: 0, scale: 1 }"
+              :exit="{ opacity: 0, y: 5, scale: 0.9 }"
+              :transition="{ duration: 0.15 }"
+              class="floating-message tooltip-top"
+            >
+              Direct Outreach
             </Motion>
           </AnimatePresence>
         </div>

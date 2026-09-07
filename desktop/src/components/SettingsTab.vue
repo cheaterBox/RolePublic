@@ -22,8 +22,13 @@ import {
   LogOut,
   ExternalLink,
   Sparkles,
-  ClipboardPaste
+  ClipboardPaste,
+  Lock,
+  Copy,
+  Check,
+  AlertTriangle
 } from '@lucide/vue';
+import { copyToClipboard } from '../utils/clipboard';
 import { Motion, AnimatePresence } from 'motion-v';
 import { invoke } from '@tauri-apps/api/core';
 import { save as saveDialog, open as openDialog } from '@tauri-apps/plugin-dialog';
@@ -33,15 +38,32 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager';
 import { useDialogStore } from '../store/dialog';
 import { ask } from '@tauri-apps/plugin-dialog';
+import { useRoute } from 'vue-router';
 import CustomSelect from './CustomSelect.vue';
+import ErrorAuditViewer from './ErrorAuditViewer.vue';
 
 const store = useSettingsStore();
 const licenseStore = useLicenseStore();
+const route = useRoute();
 const dialog = useDialogStore();
 const isDeactivatingLicense = ref(false);
 const upgradeKeyInput = ref('');
 const isActivatingUpgrade = ref(false);
 const isSyncingLicenseSettings = ref(false);
+const copiedInlineError = ref<string | null>(null);
+
+const handleCopyInlineError = async (text: string) => {
+  if (!text) return;
+  const ok = await copyToClipboard(text);
+  if (ok) {
+    copiedInlineError.value = text;
+    setTimeout(() => {
+      if (copiedInlineError.value === text) {
+        copiedInlineError.value = null;
+      }
+    }, 2000);
+  }
+};
 
 const handleSyncLicenseSettings = async () => {
   isSyncingLicenseSettings.value = true;
@@ -772,8 +794,8 @@ const syncFromStore = async () => {
   modelInput.value = store.selectedAiModel;
   apiKeyInput.value = ''; // Reset the input buffer
 
-  const url = await invoke('get_setting', { key: `${providerInput.value}_custom_base_url`, default_value: '' }) as string;
-  const customModel = await invoke('get_setting', { key: `${providerInput.value}_custom_model`, default_value: '' }) as string;
+  const url = await invoke('get_setting', { key: `${providerInput.value}_custom_base_url`, defaultValue: '' }) as string;
+  const customModel = await invoke('get_setting', { key: `${providerInput.value}_custom_model`, defaultValue: '' }) as string;
   
   customBaseUrlInput.value = url;
   customModelInput.value = customModel;
@@ -783,12 +805,12 @@ const syncFromStore = async () => {
   await store.loadProviderKeyStatus(providerInput.value);
 
   // Load S3 settings
-  s3Endpoint.value = await invoke('get_setting', { key: 's3_endpoint_url', default_value: '' }) as string;
-  s3Bucket.value = await invoke('get_setting', { key: 's3_bucket_name', default_value: '' }) as string;
-  s3Region.value = await invoke('get_setting', { key: 's3_region', default_value: 'us-east-1' }) as string;
-  s3ForcePathStyle.value = await invoke('get_setting', { key: 's3_force_path_style', default_value: 'true' }) === 'true';
-  s3SetupOk.value = await invoke('get_setting', { key: 's3_setup_ok', default_value: 'false' }) === 'true';
-  s3LastUpload.value = await invoke('get_setting', { key: 's3_last_upload', default_value: 'Never' }) as string;
+  s3Endpoint.value = await invoke('get_setting', { key: 's3_endpoint_url', defaultValue: '' }) as string;
+  s3Bucket.value = await invoke('get_setting', { key: 's3_bucket_name', defaultValue: '' }) as string;
+  s3Region.value = await invoke('get_setting', { key: 's3_region', defaultValue: 'us-east-1' }) as string;
+  s3ForcePathStyle.value = await invoke('get_setting', { key: 's3_force_path_style', defaultValue: 'true' }) === 'true';
+  s3SetupOk.value = await invoke('get_setting', { key: 's3_setup_ok', defaultValue: 'false' }) === 'true';
+  s3LastUpload.value = await invoke('get_setting', { key: 's3_last_upload', defaultValue: 'Never' }) as string;
   s3AccessKey.value = '';
   s3SecretKey.value = '';
   
@@ -797,11 +819,37 @@ const syncFromStore = async () => {
   hasS3AccessKey.value = !!s3Ak;
   hasS3SecretKey.value = !!s3Sk;
   
-  autoCloudBackup.value = (await invoke<string>('get_setting', { key: 'auto_cloud_backup', default_value: 'true' })) === 'true';
-  autoLocalBackup.value = (await invoke<string>('get_setting', { key: 'auto_local_backup', default_value: 'true' })) === 'true';
+  autoCloudBackup.value = (await invoke<string>('get_setting', { key: 'auto_cloud_backup', defaultValue: 'true' })) === 'true';
+  autoLocalBackup.value = (await invoke<string>('get_setting', { key: 'auto_local_backup', defaultValue: 'true' })) === 'true';
 };
 
-onMounted(syncFromStore);
+const scrollToActivation = () => {
+  const el = document.getElementById('license-activation');
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const input = document.getElementById('upgrade-key-input') as HTMLInputElement | null;
+    if (input) {
+      setTimeout(() => {
+        input.focus();
+        input.classList.add('pulse-focus');
+        setTimeout(() => input.classList.remove('pulse-focus'), 1600);
+      }, 350);
+    }
+  }
+};
+
+onMounted(async () => {
+  await syncFromStore();
+  if (route.hash === '#license-activation' || route.hash === '#license') {
+    setTimeout(scrollToActivation, 250);
+  }
+});
+
+watch(() => route.hash, (newHash) => {
+  if (newHash === '#license-activation' || newHash === '#license') {
+    setTimeout(scrollToActivation, 100);
+  }
+});
 
 watch(autoCloudBackup, (val) => {
   invoke('save_setting', { key: 'auto_cloud_backup', value: val ? 'true' : 'false' });
@@ -816,8 +864,8 @@ watch(providerInput, async (newProvider) => {
   if (!newProvider) return;
   const availableModels = modelsByProvider[newProvider];
 
-  const url = await invoke('get_setting', { key: `${newProvider}_custom_base_url`, default_value: '' }) as string;
-  const customModel = await invoke('get_setting', { key: `${newProvider}_custom_model`, default_value: '' }) as string;
+  const url = await invoke('get_setting', { key: `${newProvider}_custom_base_url`, defaultValue: '' }) as string;
+  const customModel = await invoke('get_setting', { key: `${newProvider}_custom_model`, defaultValue: '' }) as string;
   
   customBaseUrlInput.value = url;
   customModelInput.value = customModel;
@@ -838,12 +886,28 @@ const sortedThemes = computed(() => {
   return [...store.availableThemes].sort((a, b) => a.name.localeCompare(b.name));
 });
 
+const alertFeatureCapped = async (featureName: string) => {
+  await dialog.showAlert(
+    `${featureName} is a Pro feature that is capped in the Free Tier.\n\nAll core features (AI tailoring, LaTeX documents, compiler & vault) remain fully available. Activate your license to unlock full theme & typography customization.`,
+    'Pro Feature'
+  );
+  scrollToActivation();
+};
+
 const handleThemeChange = async (val: string | Event) => {
+  if (!licenseStore.isLicensed) {
+    await alertFeatureCapped('Theme customization');
+    return;
+  }
   const actualVal = typeof val === 'string' ? val : (val.target as HTMLSelectElement).value;
   await store.setTheme(actualVal);
 };
 
 const handleImportTheme = async () => {
+  if (!licenseStore.isLicensed) {
+    await alertFeatureCapped('Theme import');
+    return;
+  }
   try {
     themeError.value = '';
     await store.importCustomTheme(customThemeJson.value);
@@ -856,6 +920,10 @@ const handleImportTheme = async () => {
 };
 
 const handleDeleteTheme = async (id: string) => {
+  if (!licenseStore.isLicensed) {
+    await alertFeatureCapped('Theme management');
+    return;
+  }
   const confirmed = await dialog.showConfirm('Are you sure you want to delete this custom theme?', 'Delete Theme');
   if (confirmed) {
     try {
@@ -881,26 +949,46 @@ const showThemeSchema = () => {
 };
 
 const handleFontFamilyChange = async (val: string | Event) => {
+  if (!licenseStore.isLicensed) {
+    await alertFeatureCapped('Font family customization');
+    return;
+  }
   const actualVal = typeof val === 'string' ? val : (val.target as HTMLSelectElement).value;
   await store.setFontFamily(actualVal);
 };
 
 const handleFontSizeChange = async (event: Event) => {
+  if (!licenseStore.isLicensed) {
+    await alertFeatureCapped('Font size customization');
+    return;
+  }
   const target = event.target as HTMLInputElement;
   await store.setFontSize(parseInt(target.value));
 };
 
 const handleFontWeightChange = async (val: string | Event) => {
+  if (!licenseStore.isLicensed) {
+    await alertFeatureCapped('Font weight customization');
+    return;
+  }
   const actualVal = typeof val === 'string' ? val : (val.target as HTMLSelectElement).value;
   await store.setFontWeight(actualVal);
 };
 
 const handleFontStyleChange = async (val: string | Event) => {
+  if (!licenseStore.isLicensed) {
+    await alertFeatureCapped('Font style customization');
+    return;
+  }
   const actualVal = typeof val === 'string' ? val : (val.target as HTMLSelectElement).value;
   await store.setFontStyle(actualVal);
 };
 
 const handleResetTypography = async () => {
+  if (!licenseStore.isLicensed) {
+    await alertFeatureCapped('Typography reset');
+    return;
+  }
   const confirmed = await dialog.showConfirm('Reset all typography settings to default?', 'Reset Typography');
   if (confirmed) {
     await store.resetTypography();
@@ -985,20 +1073,38 @@ const handleSave = async () => {
       <div class="settings-card">
         <div class="card-header">
           <div class="title-row">
-            <h3>Visual Persona</h3>
+            <div class="title-with-badge">
+              <h3>Visual Persona</h3>
+              <span v-if="!licenseStore.isLicensed" class="capped-badge">
+                <Lock :size="11" /> Capped (Free Tier)
+              </span>
+            </div>
             <div class="header-btns">
-              <button class="text-btn secondary" @click="store.setTheme('github-dark')">
+              <button class="text-btn secondary" :disabled="!licenseStore.isLicensed" @click="store.setTheme('github-dark')">
                 <RotateCcw :size="14" /> Reset
               </button>
-              <button class="text-btn secondary" @click="copyDemoTheme">
+              <button class="text-btn secondary" :disabled="!licenseStore.isLicensed" @click="copyDemoTheme">
                 <Download :size="14" /> Copy Demo
               </button>
-              <button class="text-btn" @click="isImportingTheme = !isImportingTheme">
+              <button class="text-btn" :disabled="!licenseStore.isLicensed" @click="isImportingTheme = !isImportingTheme">
                 <Plus :size="14" /> {{ isImportingTheme ? 'Cancel' : 'Import Theme' }}
               </button>
             </div>
           </div>
           <p>Choose a premium built-in theme or import your own surgical palette.</p>
+        </div>
+
+        <div v-if="!licenseStore.isLicensed" class="feature-capped-banner">
+          <div class="banner-content">
+            <Lock :size="15" class="banner-icon" />
+            <div class="banner-text">
+              <strong>Theme Customization is Locked</strong>
+              <p>The free tier uses the GitHub Dark theme. All core features (AI tailoring, LaTeX documents, tectonic compiler & local vault) are completely free. Upgrade to customize or import surgical themes.</p>
+            </div>
+          </div>
+          <button class="btn-activate-inline" @click="scrollToActivation">
+            <Sparkles :size="13" /> Activate License
+          </button>
         </div>
 
         <div class="theme-selector-row">
@@ -1007,6 +1113,7 @@ const handleSave = async () => {
             <div class="theme-picker-wrapper" style="width: 100%;">
               <CustomSelect 
                 :model-value="store.activeThemeId" 
+                :disabled="!licenseStore.isLicensed"
                 @change="handleThemeChange" 
                 :options="sortedThemes.map(theme => ({ value: theme.id, label: theme.name + (theme.is_builtin ? ' (Built-in)' : '') }))"
               >
@@ -1020,6 +1127,7 @@ const handleSave = async () => {
           <button 
             v-if="!store.availableThemes.find(t => t.id === store.activeThemeId)?.is_builtin"
             class="delete-theme-btn"
+            :disabled="!licenseStore.isLicensed"
             @click="handleDeleteTheme(store.activeThemeId)"
           >
             <Trash2 :size="16" />
@@ -1044,7 +1152,19 @@ const handleSave = async () => {
               class="theme-textarea"
             ></textarea>
             <div class="import-actions-row">
-              <span v-if="themeError" class="error-inline">{{ themeError }}</span>
+              <span v-if="themeError" class="error-inline">
+                <span>{{ themeError }}</span>
+                <button
+                  type="button"
+                  class="copy-err-inline-btn"
+                  @click="handleCopyInlineError(themeError)"
+                  :title="copiedInlineError === themeError ? 'Copied!' : 'Copy Error'"
+                >
+                  <Check v-if="copiedInlineError === themeError" :size="11" />
+                  <Copy v-else :size="11" />
+                  <span>{{ copiedInlineError === themeError ? 'Copied!' : 'Copy' }}</span>
+                </button>
+              </span>
               <button class="btn-import-confirm" @click="handleImportTheme">Import & Apply</button>
             </div>
           </Motion>
@@ -1055,12 +1175,30 @@ const handleSave = async () => {
       <div class="settings-card">
         <div class="card-header">
           <div class="title-row">
-            <h3>Typography</h3>
-            <button class="text-btn secondary" @click="handleResetTypography">
+            <div class="title-with-badge">
+              <h3>Typography</h3>
+              <span v-if="!licenseStore.isLicensed" class="capped-badge">
+                <Lock :size="11" /> Capped (Free Tier)
+              </span>
+            </div>
+            <button class="text-btn secondary" :disabled="!licenseStore.isLicensed" @click="handleResetTypography">
               <RotateCcw :size="14" /> Reset
             </button>
           </div>
           <p>Adjust the interface fonts to suit your surgical workflow.</p>
+        </div>
+
+        <div v-if="!licenseStore.isLicensed" class="feature-capped-banner">
+          <div class="banner-content">
+            <Lock :size="15" class="banner-icon" />
+            <div class="banner-text">
+              <strong>Typography Customization is Locked</strong>
+              <p>The free tier uses standard Inter typography. Upgrade to personalize font families, weights, styles, and interface scale.</p>
+            </div>
+          </div>
+          <button class="btn-activate-inline" @click="scrollToActivation">
+            <Sparkles :size="13" /> Activate License
+          </button>
         </div>
 
         <div class="typography-row">
@@ -1069,6 +1207,7 @@ const handleSave = async () => {
             <div class="theme-picker-wrapper" style="width: 100%;">
               <CustomSelect 
                 :model-value="store.fontFamily" 
+                :disabled="!licenseStore.isLicensed"
                 @change="handleFontFamilyChange" 
                 :options="fontFamilies.map(font => ({ value: font.id, label: font.name }))"
               >
@@ -1083,6 +1222,7 @@ const handleSave = async () => {
             <label>Font Weight</label>
             <CustomSelect 
               :model-value="store.fontWeight" 
+              :disabled="!licenseStore.isLicensed"
               @change="handleFontWeightChange" 
               :options="fontWeights.map(weight => ({ value: weight.id, label: weight.name }))"
             />
@@ -1093,6 +1233,7 @@ const handleSave = async () => {
             <div class="theme-picker-wrapper" style="width: 100%;">
               <CustomSelect 
                 :model-value="store.fontStyle" 
+                :disabled="!licenseStore.isLicensed"
                 @change="handleFontStyleChange" 
                 :options="fontStyles.map(style => ({ value: style.id, label: style.name }))"
               >
@@ -1111,6 +1252,7 @@ const handleSave = async () => {
               max="20" 
               step="1" 
               :value="store.fontSize" 
+              :disabled="!licenseStore.isLicensed"
               @input="handleFontSizeChange" 
               class="font-size-slider"
             />
@@ -1252,7 +1394,19 @@ const handleSave = async () => {
 
           <div class="credentials-actions">
             <div class="status-area-inline">
-              <span v-if="saveError" class="error-msg">{{ saveError }}</span>
+              <span v-if="saveError" class="error-msg">
+                <span>{{ saveError }}</span>
+                <button
+                  type="button"
+                  class="copy-err-inline-btn"
+                  @click="handleCopyInlineError(saveError)"
+                  :title="copiedInlineError === saveError ? 'Copied!' : 'Copy Error'"
+                >
+                  <Check v-if="copiedInlineError === saveError" :size="11" />
+                  <Copy v-else :size="11" />
+                  <span>{{ copiedInlineError === saveError ? 'Copied!' : 'Copy' }}</span>
+                </button>
+              </span>
               <transition name="fade">
                 <span v-if="showSuccess" class="success-msg">
                   <CheckCircle :size="16" /> Saved
@@ -1426,7 +1580,19 @@ const handleSave = async () => {
           </div>
           <div class="status-area-inline">
             <span v-if="s3TestSuccess" class="success-msg"><CheckCircle :size="14"/> {{ isSavingS3 ? '' : 'Settings saved.' }}</span>
-            <span v-if="s3TestError" class="error-msg">{{ s3TestError }}</span>
+            <span v-if="s3TestError" class="error-msg">
+              <span>{{ s3TestError }}</span>
+              <button
+                type="button"
+                class="copy-err-inline-btn"
+                @click="handleCopyInlineError(s3TestError)"
+                :title="copiedInlineError === s3TestError ? 'Copied!' : 'Copy Error'"
+              >
+                <Check v-if="copiedInlineError === s3TestError" :size="11" />
+                <Copy v-else :size="11" />
+                <span>{{ copiedInlineError === s3TestError ? 'Copied!' : 'Copy' }}</span>
+              </button>
+            </span>
             <span v-if="!s3TestError && !s3TestSuccess && s3SetupOk" style="font-size: 0.75rem; color: var(--muted); display: flex; flex-direction: column; text-align: right;">
               <strong style="color: var(--accent);">Auto-Backup: Active</strong>
               <span>Last Upload: {{ s3LastUpload }}</span>
@@ -1451,7 +1617,19 @@ const handleSave = async () => {
             </button>
           </div>
           <div class="status-message">
-            <span v-if="fetchBackupsError" class="error-msg">{{ fetchBackupsError }}</span>
+            <span v-if="fetchBackupsError" class="error-msg">
+              <span>{{ fetchBackupsError }}</span>
+              <button
+                type="button"
+                class="copy-err-inline-btn"
+                @click="handleCopyInlineError(fetchBackupsError)"
+                :title="copiedInlineError === fetchBackupsError ? 'Copied!' : 'Copy Error'"
+              >
+                <Check v-if="copiedInlineError === fetchBackupsError" :size="11" />
+                <Copy v-else :size="11" />
+                <span>{{ copiedInlineError === fetchBackupsError ? 'Copied!' : 'Copy' }}</span>
+              </button>
+            </span>
             <span v-if="!s3SetupOk" class="warning-msg" style="color: var(--warning); font-size: 0.85rem;">S3 not active.</span>
           </div>
         </div>
@@ -1535,8 +1713,25 @@ const handleSave = async () => {
         </div>
       </div>
 
+      <!-- Diagnostics & Error Audit Trail -->
+      <div class="settings-card error-audit-card">
+        <div class="card-header">
+          <div class="title-row">
+            <div class="title-with-badge">
+              <AlertTriangle :size="16" style="color: var(--warning);" />
+              <h3>Diagnostics & Error Audit Trail</h3>
+            </div>
+          </div>
+          <p>Time-by-time error ledger capturing creating, compiling, fetching, and AI tasks with diagnostic filters and 1-click copying.</p>
+        </div>
+
+        <div class="error-audit-card-body" style="margin-top: 14px;">
+          <ErrorAuditViewer />
+        </div>
+      </div>
+
       <!-- License & Activation -->
-      <div class="settings-card">
+      <div class="settings-card" id="license-activation">
         <div class="card-header">
           <div class="title-row">
             <h3>License & Subscription</h3>
@@ -1544,6 +1739,10 @@ const handleSave = async () => {
               <span v-if="licenseStore.isLicensed" class="badge-status-active">
                 <ShieldCheck :size="14" />
                 {{ licenseStore.licenseStatus?.trial ? 'Trial Active' : 'Licensed' }}
+              </span>
+              <span v-else class="badge-status-free">
+                <Lock :size="12" />
+                Free Tier
               </span>
             </div>
           </div>
@@ -1590,6 +1789,7 @@ const handleSave = async () => {
               </p>
               <div style="display: flex; gap: 8px;">
                 <input
+                  id="upgrade-key-input"
                   v-model="upgradeKeyInput"
                   type="text"
                   placeholder="XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
@@ -1915,6 +2115,9 @@ label {
   color: var(--warning);
   font-size: 0.75rem;
   font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .export-row {
@@ -2124,11 +2327,136 @@ label {
 }
 
 .success-msg { color: var(--accent); font-weight: 600; display: flex; align-items: center; gap: 8px; font-size: 0.8rem; }
-.error-msg { color: var(--warning); font-weight: 600; font-size: 0.8rem; }
+.error-msg { color: var(--warning); font-weight: 600; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 6px; }
+
+.title-with-badge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.capped-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-radius: 12px;
+  background: rgba(234, 179, 8, 0.12);
+  border: 1px solid rgba(234, 179, 8, 0.35);
+  color: #eab308;
+}
+
+.feature-capped-banner {
+  margin: 12px 0 16px 0;
+  padding: 12px 14px;
+  background: rgba(234, 179, 8, 0.06);
+  border: 1px dashed rgba(234, 179, 8, 0.3);
+  border-radius: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.banner-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.banner-icon {
+  color: #eab308;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.banner-text strong {
+  display: block;
+  font-size: 0.82rem;
+  color: var(--ink);
+  margin-bottom: 2px;
+}
+
+.banner-text p {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.btn-activate-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  flex-shrink: 0;
+}
+
+.btn-activate-inline:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.badge-status-active {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--accent-soft, rgba(35, 134, 54, 0.15));
+  border: 1px solid var(--accent, #238636);
+  border-radius: 20px;
+  color: var(--accent, #238636);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.badge-status-free {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--line, rgba(255, 255, 255, 0.1));
+  border-radius: 20px;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.font-size-slider:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+@keyframes inputPulse {
+  0% { box-shadow: 0 0 0 0 rgba(35, 134, 54, 0.7); }
+  50% { box-shadow: 0 0 0 6px rgba(35, 134, 54, 0.25); }
+  100% { box-shadow: 0 0 0 0 rgba(35, 134, 54, 0); }
+}
+
+.pulse-focus {
+  animation: inputPulse 0.9s ease-out 2;
+  border-color: var(--accent) !important;
+  outline: none;
+}
 
 @media (max-width: 600px) {
   .input-row { flex-direction: column; }
   .typography-row { flex-direction: column; align-items: stretch; }
   .credentials-actions { flex-direction: column; gap: 20px; align-items: flex-start; }
+  .feature-capped-banner { flex-direction: column; align-items: flex-start; gap: 10px; }
 }
 </style>

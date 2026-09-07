@@ -11,8 +11,11 @@ import {
   Trash2, 
   X, 
   Save, 
-  RotateCw 
+  RotateCw,
+  Copy,
+  Check
 } from '@lucide/vue';
+import { copyToClipboard } from '../utils/clipboard';
 
 // Codemirror imports
 import { Codemirror } from 'vue-codemirror';
@@ -48,6 +51,15 @@ const isEditing = ref(false);
 const isSaving = ref(false);
 const isDeleting = ref(false);
 const error = ref<string | null>(null);
+const isErrorCopied = ref(false);
+const handleCopyError = async () => {
+  if (!error.value) return;
+  const ok = await copyToClipboard(error.value);
+  if (ok) {
+    isErrorCopied.value = true;
+    setTimeout(() => { isErrorCopied.value = false; }, 2000);
+  }
+};
 
 const resume = ref<ResumeDetail | null>(null);
 const editedName = ref('');
@@ -225,7 +237,17 @@ const hasLatexContent = () => {
     </header>
 
     <div class="content-wrapper">
-      <div v-if="error" class="error-banner">{{ error }}</div>
+      <div v-if="error" class="error-banner">
+        <span>{{ error }}</span>
+        <div class="banner-actions">
+          <button class="banner-copy-btn" @click="handleCopyError" :title="isErrorCopied ? 'Copied!' : 'Copy Error'">
+            <Check v-if="isErrorCopied" :size="13" />
+            <Copy v-else :size="13" />
+            <span>{{ isErrorCopied ? 'Copied!' : 'Copy' }}</span>
+          </button>
+          <button class="banner-close-btn" @click="error = null" title="Dismiss">✕</button>
+        </div>
+      </div>
 
       <div class="latex-section">
         <div class="section-header">
@@ -385,12 +407,55 @@ const hasLatexContent = () => {
 }
 
 .error-banner {
-  background: rgba(248, 81, 73, 0.1);
+  background: var(--surface-soft);
   color: var(--warning);
-  padding: 12px 16px;
+  border: 1px solid var(--warning);
+  padding: 10px 16px;
   border-radius: 8px;
   font-size: 0.85rem;
   margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.banner-copy-btn {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s;
+}
+
+.banner-copy-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.banner-close-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 4px;
+}
+
+.banner-close-btn:hover {
+  color: var(--ink);
 }
 
 .latex-section {

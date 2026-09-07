@@ -9,6 +9,7 @@ import { useDocumentsStore, type DocumentSummary, type DocumentFileEntry } from 
 import { useSettingsStore } from '../store/settings';
 import { useDialogStore } from '../store/dialog';
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
+import { copyToClipboard } from '../utils/clipboard';
 import {
   ArrowLeft,
   Hammer,
@@ -74,6 +75,16 @@ const contentMap = ref<Record<string, string>>({}); // in-memory file cache
 
 const isLoadingDoc = ref(true);
 const loadError = ref<string | null>(null);
+const isLoadErrorCopied = ref(false);
+
+const handleCopyLoadError = async () => {
+  if (!loadError.value) return;
+  const ok = await copyToClipboard(loadError.value);
+  if (ok) {
+    isLoadErrorCopied.value = true;
+    setTimeout(() => { isLoadErrorCopied.value = false; }, 2000);
+  }
+};
 
 const isSidebarVisible = ref(true);
 const sidebarWidth = ref(240);
@@ -652,7 +663,7 @@ const compilePdf = async () => {
     // Fetch port from DB
     const port = await invoke<string>('get_setting', {
       key: 'active_server_port',
-      default_value: '1420',
+      defaultValue: '1420',
     });
 
     pdfUrl.value = {
@@ -981,7 +992,19 @@ const tagList = computed(() => {
 
           <div v-else-if="loadError" class="sidebar-empty">
             <p class="error-text">{{ loadError }}</p>
-            <button class="btn-primary-sm" @click="loadDocument">Retry</button>
+            <div class="empty-actions" style="display: flex; gap: 8px; align-items: center;">
+              <button
+                type="button"
+                class="copy-err-inline-btn"
+                @click="handleCopyLoadError"
+                :title="isLoadErrorCopied ? 'Copied!' : 'Copy Error'"
+              >
+                <Check v-if="isLoadErrorCopied" :size="12" />
+                <Copy v-else :size="12" />
+                <span>{{ isLoadErrorCopied ? 'Copied!' : 'Copy' }}</span>
+              </button>
+              <button class="btn-primary-sm" @click="loadDocument">Retry</button>
+            </div>
           </div>
 
           <div v-else-if="fileTree.length === 0" class="sidebar-empty">

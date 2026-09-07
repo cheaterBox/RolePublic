@@ -20,7 +20,9 @@ import {
   Hash,
   Check,
   ArrowRight,
+  Copy
 } from '@lucide/vue';
+import { copyToClipboard } from '../utils/clipboard';
 
 const router = useRouter();
 const documentsStore = useDocumentsStore();
@@ -33,6 +35,16 @@ const showCreateForm = ref(false);
 const isSelectionMode = ref(false);
 const selectedIds = ref<Set<string>>(new Set());
 const isSubmitting = ref(false);
+const isErrorCopied = ref(false);
+
+const handleCopyError = async () => {
+  if (!documentsStore.error) return;
+  const ok = await copyToClipboard(documentsStore.error);
+  if (ok) {
+    isErrorCopied.value = true;
+    setTimeout(() => { isErrorCopied.value = false; }, 2000);
+  }
+};
 
 // Create form
 const newTitle = ref('');
@@ -222,6 +234,18 @@ const formatRelative = (s: string | null) => {
         </div>
       </div>
     </header>
+ 
+    <div v-if="documentsStore.error" class="error-banner">
+      <span>{{ documentsStore.error }}</span>
+      <div class="banner-actions">
+        <button class="banner-copy-btn" @click="handleCopyError" :title="isErrorCopied ? 'Copied!' : 'Copy Error'">
+          <Check v-if="isErrorCopied" :size="13" />
+          <Copy v-else :size="13" />
+          <span>{{ isErrorCopied ? 'Copied!' : 'Copy' }}</span>
+        </button>
+        <button class="banner-close-btn" @click="documentsStore.error = null" title="Dismiss">✕</button>
+      </div>
+    </div>
 
     <div class="content">
       <div v-if="documentsStore.isLoading && documentsStore.documents.length === 0" class="loading">
@@ -984,5 +1008,57 @@ textarea.field-control {
   .search-input {
     width: 150px;
   }
+}
+
+.error-banner {
+  background: var(--surface-soft);
+  border: 1px solid var(--warning);
+  border-radius: 12px;
+  padding: 10px 16px;
+  margin: 16px 24px 0;
+  color: var(--warning);
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.banner-copy-btn {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s;
+}
+
+.banner-copy-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.banner-close-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 4px;
+}
+
+.banner-close-btn:hover {
+  color: var(--ink);
 }
 </style>

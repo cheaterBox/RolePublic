@@ -5,6 +5,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import Titlebar from "./components/Titlebar.vue";
 import SplashLoader from "./components/SplashLoader.vue";
 import CustomDialog from "./components/CustomDialog.vue";
+import ErrorAuditModal from "./components/ErrorAuditModal.vue";
 import CloudUploadOverlay from "./components/CloudUploadOverlay.vue";
 import LicenseGate from "./components/LicenseGate.vue";
 import { useSettingsStore } from "./store/settings";
@@ -15,9 +16,7 @@ import { exit } from '@tauri-apps/plugin-process';
 import {
     Home,
     Briefcase,
-    FileText,
     Files,
-    Mail,
     Settings,
     Code,
     Video,
@@ -25,17 +24,21 @@ import {
     Info,
     Share2,
     Inbox,
+    Layers,
+    Send,
+    ScrollText,
 } from "@lucide/vue";
 
 const tabs = [
     { path: "/", label: "Home", icon: Home },
     { path: "/jobs", label: "Jobs", icon: Briefcase },
     { path: "/inbox", label: "Inbox", icon: Inbox },
-    { path: "/resumes", label: "Resume Templates", icon: FileText },
-    { path: "/cover-letters", label: "CL Templates", icon: Mail },
+    { path: "/outreach", label: "Outreach", icon: Send },
+    { path: "/templates", label: "Templates", icon: Layers },
     { path: "/documents", label: "Documents", icon: Files },
     { path: "/compiler", label: "Compiler", icon: Cpu },
     { path: "/diagrams", label: "Diagrams", icon: Share2 },
+    { path: "/audit", label: "Audit Logs", icon: ScrollText },
     { path: "/settings", label: "Settings", icon: Settings },
     { path: "/about", label: "About", icon: Info },
 ];
@@ -59,13 +62,34 @@ const activeTooltip = ref<string | null>(null);
 const isAppLoading = ref(true);
 const isUploadingToCloud = ref(false);
 
+const handleGateSkip = () => {
+    licenseStore.isGateDismissed = true;
+    try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+            localStorage.setItem('license_gate_skipped', 'true');
+        }
+    } catch {}
+    licenseStore.dismissGate();
+    settingsStore.enforceFreeTierRestrictions();
+};
+
 onMounted(async () => {
     try {
-        // Load settings and check license validity concurrently
+        // Fast synchronous check from local cache
+        if (typeof window !== 'undefined' && window.localStorage) {
+            if (localStorage.getItem('license_gate_skipped') === 'true') {
+                licenseStore.isGateDismissed = true;
+            }
+        }
+        // Load settings, check license validity, and load persisted gate skip status concurrently
         await Promise.allSettled([
             settingsStore.loadSettings(),
-            licenseStore.checkLicense()
+            licenseStore.checkLicense(),
+            licenseStore.loadGateDismissed()
         ]);
+        if (!licenseStore.isLicensed) {
+            settingsStore.enforceFreeTierRestrictions();
+        }
     } catch (error) {
         console.error("Initialization error:", error);
     } finally {
@@ -92,7 +116,7 @@ onMounted(async () => {
             }
             
             // Check if user wants auto local backup
-            const autoLocal = await invoke<string>('get_setting', { key: 'auto_local_backup', default_value: 'true' });
+            const autoLocal = await invoke<string>('get_setting', { key: 'auto_local_backup', defaultValue: 'true' });
             if (autoLocal === 'true') {
                 try {
                     await invoke('auto_local_backup');
@@ -102,8 +126,8 @@ onMounted(async () => {
             }
             
             // Check if S3 is setup correctly AND auto cloud backup is enabled
-            const isSetupOk = await invoke<string>('get_setting', { key: 's3_setup_ok', default_value: 'false' });
-            const autoCloud = await invoke<string>('get_setting', { key: 'auto_cloud_backup', default_value: 'true' });
+            const isSetupOk = await invoke<string>('get_setting', { key: 's3_setup_ok', defaultValue: 'false' });
+            const autoCloud = await invoke<string>('get_setting', { key: 'auto_cloud_backup', defaultValue: 'true' });
             if (isSetupOk !== 'true' || autoCloud !== 'true') {
                 await exit(0);
                 return;
@@ -174,6 +198,7 @@ const handleExternalClick = (url: string) => {
                     :key="tab.path"
                     :to="tab.path"
                     class="nav-item"
+                    :class="{ active: tab.path === '/templates' ? ($route.path.startsWith('/templates') || $route.path.startsWith('/template')) : undefined }"
                     active-class="active"
                     @mouseenter="activeTooltip = tab.label"
                     @mouseleave="activeTooltip = null"
@@ -247,12 +272,18 @@ const handleExternalClick = (url: string) => {
 
     <!-- Global Bespoke Dialog System -->
     <CustomDialog />
+
+    <!-- Global Error Audit Trail Modal -->
+    <ErrorAuditModal />
     
     <!-- Cloud Upload Overlay -->
     <CloudUploadOverlay :is-visible="isUploadingToCloud" />
 
-    <!-- Strict License Gate Overlay (locks entire app when unlicensed) -->
-    <LicenseGate v-if="!licenseStore.isChecking && !licenseStore.isLicensed" />
+    <!-- Strict License Gate Overlay (locks entire app when unlicensed and not dismissed) -->
+    <LicenseGate 
+      v-if="!licenseStore.isChecking && !licenseStore.isLicensed && !licenseStore.isGateDismissed" 
+      @skip="handleGateSkip"
+    />
 </template>
 
 <style scoped>
