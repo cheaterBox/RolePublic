@@ -3,18 +3,13 @@ import { ref } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { useSettingsStore } from './settings';
 
-export interface LicenseStatus {
-  activated: boolean;
-  valid: boolean;
-  status: string; // "active" | "inactive" | "expired" | "disabled" | "none"
-  trial: boolean;
-  trial_ends_at: string | null;
-  expires_at: string | null; // raw license/trial expiry from LS (via Rust)
-  customer_name: string | null;
-  customer_email: string | null;
-  license_key: string | null;
-  instance_id?: string | null;
-}
+import { 
+  LicenseStatus, 
+  LicenseStatusSchema, 
+  safeValidate 
+} from '../schemas';
+
+export type { LicenseStatus };
 
 // Stronghold Keyring Secret Identifiers
 const KEY_LICENSE_KEY = 'ls_license_key';
@@ -24,6 +19,7 @@ const KEY_STATUS = 'ls_license_status';
 const KEY_EXPIRES_AT = 'ls_expires_at';
 const KEY_CUSTOMER_EMAIL = 'ls_customer_email';
 const KEY_CUSTOMER_NAME = 'ls_customer_name';
+const KEY_LICENSE_GATE_SKIPPED = 'license_gate_skipped';
 
 // 7-day re-validation window for online licenses with a 3-day extra network grace
 const REVALIDATE_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -101,6 +97,57 @@ export const useLicenseStore = defineStore('license', () => {
   const onlineResponseReceived = ref(false);
 
   const settingsStore = useSettingsStore();
+
+  // Free Tier / Gate Dismissal State (Persisted in SQLite app_settings + localStorage)
+  const isGateDismissed = ref(false);
+
+  const loadGateDismissed = async () => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        if (localStorage.getItem(KEY_LICENSE_GATE_SKIPPED) === 'true') {
+          isGateDismissed.value = true;
+          return;
+        }
+      }
+      const val = await invoke<string>('get_setting', { key: KEY_LICENSE_GATE_SKIPPED, defaultValue: 'false' });
+      isGateDismissed.value = val === 'true';
+      if (val === 'true' && typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem(KEY_LICENSE_GATE_SKIPPED, 'true');
+      }
+    } catch {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        isGateDismissed.value = localStorage.getItem(KEY_LICENSE_GATE_SKIPPED) === 'true';
+      } else {
+        isGateDismissed.value = false;
+      }
+    }
+  };
+
+  const dismissGate = async () => {
+    isGateDismissed.value = true;
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem(KEY_LICENSE_GATE_SKIPPED, 'true');
+      }
+    } catch {}
+    try {
+      await invoke('save_setting', { key: KEY_LICENSE_GATE_SKIPPED, value: 'true' });
+    } catch (e) {
+      console.error('Failed to persist skip setting in DB:', e);
+    }
+  };
+
+  const openGate = () => {
+    isGateDismissed.value = false;
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        localStorage.removeItem(KEY_LICENSE_GATE_SKIPPED);
+      }
+    } catch {}
+    try {
+      invoke('save_setting', { key: KEY_LICENSE_GATE_SKIPPED, value: 'false' });
+    } catch {}
+  };
 
   // Remove all license credentials from Stronghold, fully resetting the local license state.
   const wipeLocalCredentials = async () => {
@@ -182,10 +229,11 @@ export const useLicenseStore = defineStore('license', () => {
         // Re-validate with Lemon Squeezy API to detect status/expiry changes.
         // (Also the path taken when the clock was clearly rolled back.)
         try {
-          const result = await invoke<LicenseStatus>('validate_license_api', {
+          const rawResult = await invoke('validate_license_api', {
             licenseKey,
             instanceId,
           });
+          const result = safeValidate(LicenseStatusSchema, rawResult, null as any, 'validate_license_api');
 
           if (result && result.valid) {
             await updateMaxKnownTime(now);
@@ -295,9 +343,10 @@ export const useLicenseStore = defineStore('license', () => {
     isActivating.value = true;
     activationError.value = null;
     try {
-      const status = await invoke<LicenseStatus>('activate_license_api', {
+      const rawStatus = await invoke('activate_license_api', {
         licenseKey: trimmed,
       });
+      const status = safeValidate(LicenseStatusSchema, rawStatus, null as any, 'activate_license_api');
 
       if (status && status.activated && status.instance_id) {
         // Encrypt and persist all license credentials in Stronghold vault
@@ -364,6 +413,12 @@ export const useLicenseStore = defineStore('license', () => {
 
     licenseStatus.value = null;
     isLicensed.value = false;
+    isGateDismissed.value = false;
+    try {
+      await invoke('save_setting', { key: KEY_LICENSE_GATE_SKIPPED, value: 'false' });
+    } catch {
+      /* best effort */
+    }
     return true;
   };
 
@@ -383,10 +438,11 @@ export const useLicenseStore = defineStore('license', () => {
         return false;
       }
 
-      const result = await invoke<LicenseStatus>('validate_license_api', {
+      const rawResult = await invoke('validate_license_api', {
         licenseKey,
         instanceId,
       });
+      const result = safeValidate(LicenseStatusSchema, rawResult, null as any, 'validate_license_api');
 
       if (result && result.valid) {
         onlineResponseReceived.value = true;
@@ -513,6 +569,12 @@ export const useLicenseStore = defineStore('license', () => {
     await settingsStore.saveSecret(KEY_LAST_VALIDATED, '');
 
     isLicensed.value = false;
+    isGateDismissed.value = false;
+    try {
+      await invoke('save_setting', { key: KEY_LICENSE_GATE_SKIPPED, value: 'false' });
+    } catch {
+      /* best effort */
+    }
     licenseStatus.value = build({
       status: 'expired',
       activated: false,
@@ -533,6 +595,10 @@ export const useLicenseStore = defineStore('license', () => {
     isChecking,
     isActivating,
     activationError,
+    isGateDismissed,
+    loadGateDismissed,
+    dismissGate,
+    openGate,
     checkLicense,
     refreshLicense,
     startBackgroundRefresh,

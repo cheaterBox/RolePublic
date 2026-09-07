@@ -2,17 +2,17 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 
-export interface BaseCoverLetter {
-  id: string;
-  name: string;
-  category: string;
-  created_at: string;
-  updated_at: string;
-}
+import { 
+  BaseCoverLetter, 
+  CoverLetterDetail, 
+  CoverLetterListSchema, 
+  CoverLetterDetailSchema, 
+  safeValidate, 
+  validateOrThrow 
+} from '../schemas';
+import { recordAppError } from '../utils/error_logger';
 
-export interface CoverLetterDetail extends BaseCoverLetter {
-  latex_content: string;
-}
+export type { BaseCoverLetter, CoverLetterDetail };
 
 export const useCoverLettersStore = defineStore('cover_letters', () => {
   const coverLetters = ref<BaseCoverLetter[]>([]);
@@ -24,10 +24,11 @@ export const useCoverLettersStore = defineStore('cover_letters', () => {
     error.value = null;
     
     try {
-      const data = await invoke<BaseCoverLetter[]>('get_all_cover_letters');
-      coverLetters.value = data;
+      const raw = await invoke('get_all_cover_letters');
+      coverLetters.value = safeValidate(CoverLetterListSchema, raw, [], 'loadAllCoverLetters');
     } catch (err: any) {
       error.value = err.toString();
+      recordAppError('fetching', 'DatabaseError', 'Failed to load cover letters list', err.toString(), 'loadAllCoverLetters');
     } finally {
       isLoading.value = false;
     }
@@ -35,9 +36,11 @@ export const useCoverLettersStore = defineStore('cover_letters', () => {
 
   const getCoverLetterById = async (clId: string): Promise<CoverLetterDetail> => {
     try {
-      return await invoke<CoverLetterDetail>('get_cover_letter_by_id', { clId });
+      const raw = await invoke('get_cover_letter_by_id', { clId });
+      return validateOrThrow(CoverLetterDetailSchema, raw, `getCoverLetterById(${clId})`);
     } catch (err: any) {
       error.value = err.toString();
+      recordAppError('fetching', 'DatabaseError', `Failed to load cover letter ${clId}`, err.toString(), 'getCoverLetterById');
       throw err;
     }
   };
@@ -54,6 +57,7 @@ export const useCoverLettersStore = defineStore('cover_letters', () => {
       return clId;
     } catch (err: any) {
       error.value = err.toString();
+      recordAppError('creating', 'CoverLetterCreationError', `Failed to create cover letter "${name}"`, err.toString(), 'createNewCoverLetter');
       throw err;
     } finally {
       isLoading.value = false;

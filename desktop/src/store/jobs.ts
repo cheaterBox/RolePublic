@@ -3,32 +3,17 @@ import { ref } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { useSettingsStore } from './settings';
 
-export interface Job {
-  id: string;
-  company_name: string;
-  job_title: string;
-  work_model: string;
-  employment_type: string;
-  status: string;
-  raw_jd: string;
-  requirements?: string;
-  core_responsibilities?: string;
-  custom_instruction?: string;
-  reference_name?: string;
-  reference_email?: string;
-  social_link?: string;
-  job_url?: string;
-  base_resume_id?: string;
-  base_cl_id?: string;
-  salary?: string;
-  applied_date?: string;
-  interview_date?: string;
-  offer_date?: string;
-  rejected_date?: string;
-  joining_date?: string;
-  created_at?: string;
-  updated_at?: string;
-}
+import { 
+  Job, 
+  JobSchema, 
+  JobListSchema, 
+  JobParseResultSchema, 
+  safeValidate, 
+  validateOrThrow 
+} from '../schemas';
+import { recordAppError } from '../utils/error_logger';
+
+export type { Job };
 
 export const useJobsStore = defineStore('jobs', () => {
   const isLoading = ref(false);
@@ -56,8 +41,8 @@ export const useJobsStore = defineStore('jobs', () => {
       const provider = settingsStore.selectedAiProvider;
       const model = settingsStore.selectedAiModel;
 
-      // 1. Parse Job via AI
-      const result: any = await invoke('parse_job', { 
+      // 1. Parse Job via AI and strictly validate structure
+      const rawResult = await invoke('parse_job', { 
         provider,
         model,
         apiKey, 
@@ -65,11 +50,12 @@ export const useJobsStore = defineStore('jobs', () => {
         jobUrl: jobUrl.trim() || null
       });
 
-      const details = result.details;
-      const finalRawJd = result.raw_description || rawJd;
+      const parsed = validateOrThrow(JobParseResultSchema, rawResult, 'parse_job response');
+      const details = parsed.details;
+      const finalRawJd = parsed.raw_description || rawJd;
 
-      // 2. Augment Data on Frontend
-      const jobPayload: Job = {
+      // 2. Augment Data on Frontend and validate payload with Zod
+      const jobPayload: Job = JobSchema.parse({
         id: generateId(),
         company_name: details.company_name,
         job_title: details.job_title,
@@ -84,7 +70,7 @@ export const useJobsStore = defineStore('jobs', () => {
         reference_email: '',
         social_link: '',
         job_url: jobUrl.trim()
-      };
+      });
 
       // 3. Save to Rust backend
       const savedId: string = await invoke('save_job', { 
@@ -94,6 +80,7 @@ export const useJobsStore = defineStore('jobs', () => {
       return savedId; 
     } catch (err: any) {
       error.value = err.toString();
+      recordAppError('creating', 'JobCreationError', 'Failed to save job', err.toString(), 'saveJob');
       throw err;
     } finally {
       isLoading.value = false;
@@ -104,10 +91,11 @@ export const useJobsStore = defineStore('jobs', () => {
     isLoading.value = true;
     error.value = null;
     try {
-      const jobs: Job[] = await invoke('get_all_jobs');
-      return jobs;
+      const rawJobs = await invoke('get_all_jobs');
+      return safeValidate(JobListSchema, rawJobs, [], 'loadAllJobs');
     } catch (err: any) {
       error.value = err.toString();
+      recordAppError('fetching', 'DatabaseError', 'Failed to load jobs list', err.toString(), 'loadAllJobs');
       return [];
     } finally {
       isLoading.value = false;
@@ -118,10 +106,11 @@ export const useJobsStore = defineStore('jobs', () => {
     isLoading.value = true;
     error.value = null;
     try {
-      const job: Job = await invoke('get_job_by_id', { id });
-      return job;
+      const rawJob = await invoke('get_job_by_id', { id });
+      return validateOrThrow(JobSchema, rawJob, `getJobById(${id})`);
     } catch (err: any) {
       error.value = err.toString();
+      recordAppError('fetching', 'DatabaseError', `Failed to load job ${id}`, err.toString(), 'getJobById');
       throw err;
     } finally {
       isLoading.value = false;
@@ -135,6 +124,7 @@ export const useJobsStore = defineStore('jobs', () => {
       await invoke('delete_job', { id });
     } catch (err: any) {
       error.value = err.toString();
+      recordAppError('deleting', 'DatabaseError', `Failed to delete job ${id}`, err.toString(), 'deleteJob');
       throw err;
     } finally {
       isLoading.value = false;
@@ -148,6 +138,7 @@ export const useJobsStore = defineStore('jobs', () => {
       await invoke('delete_jobs_batch', { ids });
     } catch (err: any) {
       error.value = err.toString();
+      recordAppError('deleting', 'DatabaseError', `Failed to delete ${ids.length} jobs`, err.toString(), 'deleteJobsBatch');
       throw err;
     } finally {
       isLoading.value = false;

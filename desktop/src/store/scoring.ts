@@ -2,19 +2,13 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 
-export interface MatchBreakdown {
-    overall: number;
-    skills_score: number;
-    tfidf_score: number;
-    jaccard_score: number;
-    present_skills: string[];
-    missing_skills: string[];
-    weak_skills: string[];
-    jd_skill_count: number;
-    resume_skill_count: number;
-    jd_token_count: number;
-    resume_token_count: number;
-}
+import { 
+    MatchBreakdown, 
+    MatchBreakdownSchema, 
+    safeValidate 
+} from '../schemas';
+
+export type { MatchBreakdown };
 
 export const useScoringStore = defineStore('scoring', () => {
     const lastBreakdown = ref<MatchBreakdown | null>(null);
@@ -30,12 +24,13 @@ export const useScoringStore = defineStore('scoring', () => {
         isScoring.value = true;
         error.value = null;
         try {
-            const result = await invoke<MatchBreakdown>('score_resume_match', {
+            const raw = await invoke('score_resume_match', {
                 jobId,
                 resumeLatex,
             });
-            lastBreakdown.value = result;
-            return result;
+            const validated = safeValidate(MatchBreakdownSchema, raw, null as any, 'score_resume_match');
+            lastBreakdown.value = validated;
+            return validated;
         } catch (err: any) {
             error.value = err?.toString() ?? 'Scoring failed';
             return null;

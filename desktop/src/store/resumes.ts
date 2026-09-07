@@ -2,17 +2,17 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 
-export interface BaseResume {
-  id: string;
-  name: string;
-  category: string;
-  created_at: string;
-  updated_at: string;
-}
+import { 
+  BaseResume, 
+  ResumeDetail, 
+  ResumeListSchema, 
+  ResumeDetailSchema, 
+  safeValidate, 
+  validateOrThrow 
+} from '../schemas';
+import { recordAppError } from '../utils/error_logger';
 
-export interface ResumeDetail extends BaseResume {
-  latex_content: string;
-}
+export type { BaseResume, ResumeDetail };
 
 export const useResumesStore = defineStore('resumes', () => {
   const resumes = ref<BaseResume[]>([]);
@@ -24,10 +24,11 @@ export const useResumesStore = defineStore('resumes', () => {
     error.value = null;
     
     try {
-      const data = await invoke<BaseResume[]>('get_all_resumes');
-      resumes.value = data;
+      const raw = await invoke('get_all_resumes');
+      resumes.value = safeValidate(ResumeListSchema, raw, [], 'loadAllResumes');
     } catch (err: any) {
       error.value = err.toString();
+      recordAppError('fetching', 'DatabaseError', 'Failed to load resumes list', err.toString(), 'loadAllResumes');
     } finally {
       isLoading.value = false;
     }
@@ -35,9 +36,11 @@ export const useResumesStore = defineStore('resumes', () => {
 
   const getResumeById = async (resumeId: string): Promise<ResumeDetail> => {
     try {
-      return await invoke<ResumeDetail>('get_resume_by_id', { resumeId });
+      const raw = await invoke('get_resume_by_id', { resumeId });
+      return validateOrThrow(ResumeDetailSchema, raw, `getResumeById(${resumeId})`);
     } catch (err: any) {
       error.value = err.toString();
+      recordAppError('fetching', 'DatabaseError', `Failed to load resume ${resumeId}`, err.toString(), 'getResumeById');
       throw err;
     }
   };
@@ -54,6 +57,7 @@ export const useResumesStore = defineStore('resumes', () => {
       return resumeId;
     } catch (err: any) {
       error.value = err.toString();
+      recordAppError('creating', 'ResumeCreationError', `Failed to create resume "${name}"`, err.toString(), 'createNewResume');
       throw err;
     } finally {
       isLoading.value = false;

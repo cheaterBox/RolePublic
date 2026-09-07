@@ -2,18 +2,15 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 
-export interface InboxJob {
-  id: string;
-  url: string | null;
-  raw_description: string;
-  status: 'Pending' | 'Processed';
-  created_at: string;
-}
+import { 
+  InboxJob, 
+  ExtensionConfig, 
+  InboxJobListSchema, 
+  ExtensionConfigSchema, 
+  safeValidate 
+} from '../schemas';
 
-export interface ExtensionConfig {
-  secret: string;
-  port: string;
-}
+export type { InboxJob, ExtensionConfig };
 
 export const useInboxStore = defineStore('inbox', () => {
   const jobs = ref<InboxJob[]>([]);
@@ -23,7 +20,8 @@ export const useInboxStore = defineStore('inbox', () => {
   const loadJobs = async () => {
     isLoading.value = true;
     try {
-      jobs.value = await invoke<InboxJob[]>('get_all_inbox_jobs');
+      const raw = await invoke('get_all_inbox_jobs');
+      jobs.value = safeValidate(InboxJobListSchema, raw, [], 'get_all_inbox_jobs');
     } catch (error) {
       console.error('Failed to load inbox jobs:', error);
     } finally {
@@ -62,7 +60,8 @@ export const useInboxStore = defineStore('inbox', () => {
 
   const loadExtensionConfig = async () => {
     try {
-      extensionConfig.value = await invoke<ExtensionConfig>('get_extension_config');
+      const raw = await invoke('get_extension_config');
+      extensionConfig.value = safeValidate(ExtensionConfigSchema, raw, null as any, 'get_extension_config');
     } catch (error) {
       console.error('Failed to load extension config:', error);
     }

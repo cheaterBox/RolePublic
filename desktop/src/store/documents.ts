@@ -2,26 +2,20 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 
+import { 
+  DocumentSummary, 
+  DocumentFileEntry, 
+  DocumentListSchema, 
+  DocumentSummarySchema, 
+  DocumentFileListSchema, 
+  safeValidate, 
+  validateOrThrow 
+} from '../schemas';
+import { recordAppError } from '../utils/error_logger';
+
 export const TEXT_BACKUP_EXTENSIONS = ['tex', 'bib', 'cls', 'sty', 'md', 'mmd', 'txt', 'cfg'];
 
-export interface DocumentSummary {
-  id: string;
-  title: string;
-  description: string;
-  tags: string;
-  starred: boolean;
-  main_file: string | null;
-  last_compiled_at: string | null;
-  compile_status: 'success' | 'error' | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface DocumentFileEntry {
-  rel_path: string;
-  size_bytes: number;
-  updated_at: string;
-}
+export type { DocumentSummary, DocumentFileEntry };
 
 export const useDocumentsStore = defineStore('documents', () => {
   const documents = ref<DocumentSummary[]>([]);
@@ -32,16 +26,24 @@ export const useDocumentsStore = defineStore('documents', () => {
     isLoading.value = true;
     error.value = null;
     try {
-      documents.value = await invoke<DocumentSummary[]>('get_all_documents');
+      const raw = await invoke('get_all_documents');
+      documents.value = safeValidate(DocumentListSchema, raw, [], 'get_all_documents');
     } catch (err: any) {
       error.value = err.toString();
+      recordAppError('fetching', 'DatabaseError', 'Failed to load documents list', err.toString(), 'loadAllDocuments');
     } finally {
       isLoading.value = false;
     }
   };
 
   const getDocumentById = async (docId: string): Promise<DocumentSummary> => {
-    return await invoke<DocumentSummary>('get_document_by_id', { docId });
+    try {
+      const raw = await invoke('get_document_by_id', { docId });
+      return validateOrThrow(DocumentSummarySchema, raw, 'get_document_by_id');
+    } catch (err: any) {
+      recordAppError('fetching', 'DatabaseError', `Failed to load document ${docId}`, err.toString(), 'getDocumentById');
+      throw err;
+    }
   };
 
   const createDocument = async (payload: {
@@ -64,6 +66,7 @@ export const useDocumentsStore = defineStore('documents', () => {
       return id;
     } catch (err: any) {
       error.value = err.toString();
+      recordAppError('creating', 'DocumentCreationError', `Failed to create document "${payload.title}"`, err.toString(), 'createDocument');
       throw err;
     } finally {
       isLoading.value = false;
@@ -139,7 +142,8 @@ export const useDocumentsStore = defineStore('documents', () => {
   };
 
   const listFiles = async (docId: string): Promise<DocumentFileEntry[]> => {
-    return await invoke<DocumentFileEntry[]>('list_document_files', { docId });
+    const raw = await invoke('list_document_files', { docId });
+    return safeValidate(DocumentFileListSchema, raw, [], 'list_document_files');
   };
 
   const readFile = async (docId: string, relPath: string): Promise<string> => {

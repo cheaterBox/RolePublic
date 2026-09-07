@@ -5,12 +5,16 @@ import { appDataDir, join } from '@tauri-apps/api/path';
 import { readTextFile, writeTextFile, remove, exists } from '@tauri-apps/plugin-fs';
 import { invoke } from '@tauri-apps/api/core';
 
-export interface Theme {
-  id: string;
-  name: string;
-  config: string;
-  is_builtin: boolean;
-}
+import { 
+  Theme, 
+  ThemeSchema, 
+  ThemeListSchema, 
+  CustomThemeImportSchema, 
+  safeValidate, 
+  validateOrThrow 
+} from '../schemas';
+
+export type { Theme };
 
 export const useSettingsStore = defineStore('settings', () => {
   const hasSecureKey = ref(false);
@@ -55,10 +59,14 @@ export const useSettingsStore = defineStore('settings', () => {
 
   const loadThemes = async () => {
     try {
-      availableThemes.value = await invoke<Theme[]>('get_all_themes');
-      const active: Theme = await invoke('get_active_theme');
-      activeThemeId.value = active.id;
-      applyTheme(active.config);
+      const rawThemes = await invoke('get_all_themes');
+      availableThemes.value = safeValidate(ThemeListSchema, rawThemes, [], 'get_all_themes');
+      const rawActive = await invoke('get_active_theme');
+      const active = safeValidate(ThemeSchema, rawActive, null, 'get_active_theme');
+      if (active) {
+        activeThemeId.value = active.id;
+        applyTheme(active.config);
+      }
     } catch (e) {
       console.error("Error loading themes:", e);
     }
@@ -115,8 +123,8 @@ export const useSettingsStore = defineStore('settings', () => {
 
   const importCustomTheme = async (themeJson: string) => {
     try {
-      const parsed = JSON.parse(themeJson);
-      if (!parsed.name || !parsed.colors) throw new Error("Invalid theme format. Missing 'name' or 'colors'.");
+      const raw = JSON.parse(themeJson);
+      const parsed = validateOrThrow(CustomThemeImportSchema, raw, 'importCustomTheme');
       
       // Check if name already exists (Uniqueness Requirement)
       if (availableThemes.value.some(t => t.name.toLowerCase() === parsed.name.toLowerCase())) {
@@ -322,13 +330,13 @@ export const useSettingsStore = defineStore('settings', () => {
       await loadThemes();
 
       // Load Fonts
-      fontFamily.value = await invoke('get_setting', { key: 'font_family', default_value: 'Inter' });
-      const savedFontSize = await invoke('get_setting', { key: 'font_size', default_value: '14' });
+      fontFamily.value = await invoke('get_setting', { key: 'font_family', defaultValue: 'Inter' });
+      const savedFontSize = await invoke('get_setting', { key: 'font_size', defaultValue: '14' });
       fontSize.value = parseInt(savedFontSize as string);
-      fontWeight.value = await invoke('get_setting', { key: 'font_weight', default_value: '400' });
-      fontStyle.value = await invoke('get_setting', { key: 'font_style', default_value: 'normal' });
+      fontWeight.value = await invoke('get_setting', { key: 'font_weight', defaultValue: '400' });
+      fontStyle.value = await invoke('get_setting', { key: 'font_style', defaultValue: 'normal' });
       
-      const autoCompile = await invoke('get_setting', { key: 'auto_compile', default_value: 'true' });
+      const autoCompile = await invoke('get_setting', { key: 'auto_compile', defaultValue: 'true' });
       isAutoCompileEnabled.value = autoCompile === 'true';
 
       applyFonts();
@@ -336,6 +344,23 @@ export const useSettingsStore = defineStore('settings', () => {
     } catch (e) {
       console.error("Error loading settings:", e);
       hasSecureKey.value = false;
+    }
+  };
+
+  const enforceFreeTierRestrictions = () => {
+    try {
+      activeThemeId.value = 'github-dark';
+      const defaultTheme = availableThemes.value.find(t => t.id === 'github-dark');
+      if (defaultTheme) {
+        applyTheme(defaultTheme.config);
+      }
+      fontFamily.value = 'Inter';
+      fontSize.value = 14;
+      fontWeight.value = '400';
+      fontStyle.value = 'normal';
+      applyFonts();
+    } catch (e) {
+      console.error('Failed to enforce free tier restrictions:', e);
     }
   };
 
@@ -350,6 +375,7 @@ export const useSettingsStore = defineStore('settings', () => {
     fontWeight,
     fontStyle,
     isAutoCompileEnabled,
+    enforceFreeTierRestrictions,
     setTheme,
     setFontFamily,
     setFontSize,
