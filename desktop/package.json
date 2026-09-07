@@ -49,6 +49,7 @@
     "vue-pdf-embed": "^2.1.5",
     "vue-router": "^5.0.7",
     "vue-virtual-scroller": "^2.0.0-beta.8",
+    "zod": "^4.5.4",
     "zustand": "^5.0.13"
   },
   "devDependencies": {
