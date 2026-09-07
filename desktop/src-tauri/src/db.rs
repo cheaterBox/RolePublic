@@ -179,10 +179,85 @@ pub fn init_db(app: &AppHandle) -> Result<Connection> {
             FOREIGN KEY (doc_id) REFERENCES documents(id) ON DELETE CASCADE
         );
         CREATE INDEX IF NOT EXISTS idx_document_files_doc ON document_files(doc_id);
+
+        -- 11. HR Message Templates Table
+        CREATE TABLE IF NOT EXISTS hr_templates (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            category TEXT NOT NULL DEFAULT 'Outreach',
+            content TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TRIGGER IF NOT EXISTS update_hr_templates_modtime 
+            AFTER UPDATE ON hr_templates 
+            BEGIN UPDATE hr_templates SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id; END;
+
+        -- 12. Outreach Leads Table
+        CREATE TABLE IF NOT EXISTS outreach_leads (
+            id TEXT PRIMARY KEY,
+            person_name TEXT NOT NULL,
+            profile_url TEXT NOT NULL,
+            headline TEXT DEFAULT '',
+            raw_bio TEXT NOT NULL,
+            recent_posts TEXT DEFAULT '[]',
+            template_id TEXT,
+            char_limit INTEGER NOT NULL DEFAULT 250,
+            tailored_message TEXT DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'Draft',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (template_id) REFERENCES hr_templates(id) ON DELETE SET NULL
+        );
+        CREATE TRIGGER IF NOT EXISTS update_outreach_leads_modtime 
+            AFTER UPDATE ON outreach_leads 
+            BEGIN UPDATE outreach_leads SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id; END;
+
+        -- 13. Error Audit Logs Table (Time-by-time error audit trail)
+        CREATE TABLE IF NOT EXISTS error_audit_logs (
+            id TEXT PRIMARY KEY,
+            task_type TEXT NOT NULL, -- compiling, creating, fetching, ai_tailoring, ai_refining, ai_fixing, saving, deleting, s3_backup, network, general
+            error_type TEXT NOT NULL, -- TectonicCompilationError, AiError, DatabaseError, FileSystemError, NetworkError, ValidationError, SystemError
+            message TEXT NOT NULL,
+            details TEXT,
+            source TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_error_audit_task ON error_audit_logs(task_type);
+        CREATE INDEX IF NOT EXISTS idx_error_audit_error_type ON error_audit_logs(error_type);
+        CREATE INDEX IF NOT EXISTS idx_error_audit_created ON error_audit_logs(created_at DESC);
         "
     )?;
 
     // --- MIGRATIONS ---
+
+    // Migrate any existing custom HR templates from app_settings to hr_templates table
+    let hr_count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM hr_templates", [], |row| row.get(0))
+        .unwrap_or(0);
+    if hr_count == 0 {
+        if let Ok(raw_json) = conn.query_row::<String, _, _>(
+            "SELECT value FROM app_settings WHERE key = 'hr_message_templates'",
+            [],
+            |row| row.get(0),
+        ) {
+            if let Ok(templates_val) = serde_json::from_str::<Vec<serde_json::Value>>(&raw_json) {
+                for t in templates_val {
+                    if let (Some(id), Some(name), Some(category), Some(content)) = (
+                        t.get("id").and_then(|v| v.as_str()),
+                        t.get("name").and_then(|v| v.as_str()),
+                        t.get("category").and_then(|v| v.as_str()),
+                        t.get("content").and_then(|v| v.as_str()),
+                    ) {
+                        let _ = conn.execute(
+                            "INSERT OR IGNORE INTO hr_templates (id, name, category, content) VALUES (?1, ?2, ?3, ?4)",
+                            [id, name, category, content],
+                        );
+                    }
+                }
+            }
+        }
+    }
 
     // Ensure secret key for extension exists
     let has_secret: i64 = conn

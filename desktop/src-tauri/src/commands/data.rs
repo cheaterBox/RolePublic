@@ -1,8 +1,11 @@
 use crate::commands::cover_letters::CoverLetterDetail;
 use crate::commands::documents::{is_text_extension, DocumentSummary};
 use crate::commands::downloads::DownloadRecord;
+use crate::commands::error_logs::ErrorAuditLog;
+use crate::commands::hr_templates::HrTemplateItem;
 use crate::commands::inbox::InboxJob;
 use crate::commands::jobs::JobPayload;
+use crate::commands::outreach::OutreachLeadItem;
 use crate::commands::resumes::ResumeDetail;
 use crate::AppState;
 use rusqlite::{params, Connection, OptionalExtension};
@@ -140,6 +143,12 @@ pub struct AppDataExport {
     pub documents: Vec<DocumentSummary>,
     #[serde(default)]
     pub document_files: Vec<DocumentFileExport>,
+    #[serde(default)]
+    pub hr_templates: Vec<HrTemplateItem>,
+    #[serde(default)]
+    pub outreach_leads: Vec<OutreachLeadItem>,
+    #[serde(default)]
+    pub error_audit_logs: Vec<ErrorAuditLog>,
     pub exported_at: String,
 }
 
@@ -442,6 +451,82 @@ pub fn export_all_data_core(state: &AppState) -> Result<AppDataExport, String> {
         }
     }
 
+    // 11. Fetch HR Templates
+    let mut stmt = conn
+        .prepare("SELECT id, name, category, content, created_at, updated_at FROM hr_templates")
+        .map_err(|e| e.to_string())?;
+    let hr_templates = stmt
+        .query_map([], |row| {
+            Ok(HrTemplateItem {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                category: row.get(2)?,
+                content: row.get(3)?,
+                created_at: row.get(4)?,
+                updated_at: row.get(5)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    // 12. Fetch Outreach Leads
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, person_name, profile_url, headline, raw_bio, recent_posts, 
+                    template_id, char_limit, tailored_message, status, created_at, updated_at 
+             FROM outreach_leads",
+        )
+        .map_err(|e| e.to_string())?;
+    let outreach_leads = stmt
+        .query_map([], |row| {
+            let posts_raw: String = row.get::<_, Option<String>>(5)?.unwrap_or_default();
+            let recent_posts: Vec<String> = serde_json::from_str(&posts_raw).unwrap_or_default();
+
+            Ok(OutreachLeadItem {
+                id: row.get(0)?,
+                person_name: row.get(1)?,
+                profile_url: row.get(2)?,
+                headline: row.get(3)?,
+                raw_bio: row.get(4)?,
+                recent_posts,
+                template_id: row.get(6)?,
+                char_limit: row.get(7)?,
+                tailored_message: row.get(8)?,
+                status: row
+                    .get::<_, Option<String>>(9)?
+                    .unwrap_or_else(|| "Draft".to_string()),
+                created_at: row.get(10)?,
+                updated_at: row.get(11)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    // 13. Fetch Error Audit Logs
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, task_type, error_type, message, details, source, created_at 
+             FROM error_audit_logs ORDER BY created_at DESC LIMIT 500",
+        )
+        .map_err(|e| e.to_string())?;
+    let error_audit_logs = stmt
+        .query_map([], |row| {
+            Ok(ErrorAuditLog {
+                id: row.get(0)?,
+                task_type: row.get(1)?,
+                error_type: row.get(2)?,
+                message: row.get(3)?,
+                details: row.get(4)?,
+                source: row.get(5)?,
+                created_at: row.get(6)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
     Ok(AppDataExport {
         jobs,
         base_resumes,
@@ -455,6 +540,9 @@ pub fn export_all_data_core(state: &AppState) -> Result<AppDataExport, String> {
         compiler_state,
         documents,
         document_files,
+        hr_templates,
+        outreach_leads,
+        error_audit_logs,
         exported_at: chrono::Local::now().to_rfc3339(),
     })
 }
@@ -501,6 +589,12 @@ pub fn import_data_core(
         tx.execute("DELETE FROM app_settings", [])
             .map_err(|e| e.to_string())?;
         tx.execute("DELETE FROM documents", [])
+            .map_err(|e| e.to_string())?;
+        tx.execute("DELETE FROM outreach_leads", [])
+            .map_err(|e| e.to_string())?;
+        tx.execute("DELETE FROM hr_templates", [])
+            .map_err(|e| e.to_string())?;
+        tx.execute("DELETE FROM error_audit_logs", [])
             .map_err(|e| e.to_string())?;
     }
 
@@ -799,6 +893,84 @@ pub fn import_data_core(
             ],
         )
         .map_err(|e| format!("Failed to import document file {}: {}", file.rel_path, e))?;
+    }
+
+    // 11. Import HR Templates
+    for tmpl in data.hr_templates {
+        tx.execute(
+            "INSERT INTO hr_templates (id, name, category, content, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+             ON CONFLICT(id) DO UPDATE SET
+                name=excluded.name,
+                category=excluded.category,
+                content=excluded.content,
+                updated_at=excluded.updated_at",
+            (
+                &tmpl.id,
+                &tmpl.name,
+                &tmpl.category,
+                &tmpl.content,
+                &tmpl.created_at,
+                &tmpl.updated_at,
+            ),
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
+    // 12. Import Outreach Leads
+    for lead in data.outreach_leads {
+        let posts_json =
+            serde_json::to_string(&lead.recent_posts).unwrap_or_else(|_| "[]".to_string());
+        tx.execute(
+            "INSERT INTO outreach_leads (
+                id, person_name, profile_url, headline, raw_bio, recent_posts,
+                template_id, char_limit, tailored_message, status, created_at, updated_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+            ON CONFLICT(id) DO UPDATE SET
+                person_name=excluded.person_name,
+                profile_url=excluded.profile_url,
+                headline=excluded.headline,
+                raw_bio=excluded.raw_bio,
+                recent_posts=excluded.recent_posts,
+                template_id=excluded.template_id,
+                char_limit=excluded.char_limit,
+                tailored_message=excluded.tailored_message,
+                status=excluded.status,
+                updated_at=excluded.updated_at",
+            rusqlite::params![
+                &lead.id,
+                &lead.person_name,
+                &lead.profile_url,
+                &lead.headline,
+                &lead.raw_bio,
+                &posts_json,
+                &lead.template_id,
+                &lead.char_limit,
+                &lead.tailored_message,
+                &lead.status,
+                &lead.created_at,
+                &lead.updated_at,
+            ],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
+    // 13. Import Error Audit Logs
+    for log in data.error_audit_logs {
+        let _ = tx.execute(
+            "INSERT INTO error_audit_logs (id, task_type, error_type, message, details, source, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+             ON CONFLICT(id) DO NOTHING",
+            rusqlite::params![
+                &log.id,
+                &log.task_type,
+                &log.error_type,
+                &log.message,
+                &log.details,
+                &log.source,
+                &log.created_at,
+            ],
+        );
     }
 
     // Restore sensitive settings that were snapshotted before the import.

@@ -406,6 +406,18 @@ pub async fn test_ai_connection(
     model: String,
     api_key: String,
 ) -> Result<String, String> {
+    // Probe prompts owned here; `ai` is transport only.
+    let system_prompt = "You are a test agent. Respond ONLY with a valid JSON object containing a 'status' field with the value 'ok'. Do not include markdown code fences, formatting, or extra explanations.";
+    let user_prompt = "Perform connection test. Respond in JSON.";
     let custom_base_url = get_custom_base_url(&state, &provider).await;
-    crate::ai::test_ai(&provider, &model, &api_key, custom_base_url.as_deref()).await
+    crate::ai::complete(
+        &provider,
+        &model,
+        &api_key,
+        custom_base_url.as_deref(),
+        system_prompt,
+        user_prompt,
+        "",
+    )
+    .await
 }
