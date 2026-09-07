@@ -50,6 +50,53 @@ pub struct JobPayload {
     pub updated_at: Option<String>,
 }
 
+/// System + user prompts for job parsing. Owned by the jobs section —
+/// `ai` is transport only and must never hardcode prompt wording.
+fn parse_job_prompts(
+    raw_jd: &str,
+    job_url: Option<&str>,
+) -> Result<(String, String, String), String> {
+    let input_text = raw_jd.trim();
+    let url = job_url.unwrap_or("").trim();
+
+    if input_text.is_empty() && url.is_empty() {
+        return Err("Either a job description or a URL must be provided.".to_string());
+    }
+
+    // System prompt explaining the dual capability
+    let system_prompt = "You are an expert job details extractor.
+
+TASK:
+- If a RAW DESCRIPTION is provided below, extract details from that text.
+- If ONLY a URL is provided, crawl/fetch the content from that URL and extract details.
+- If BOTH are provided, PRIORITIZE the manual RAW DESCRIPTION for extraction.
+
+VALIDATION:
+- Be permissive: If the text looks like a job posting (even if short or partial), set 'is_valid_job' to true.
+- ONLY set 'is_valid_job' to false if the content is clearly NOT a job (e.g., just a login page, cookie consent, or site navigation).
+- Try your best to fullfill the requirements,responsibilities fileds even if the description is brief or incomplete.
+
+Output the results in the requested structured format."
+        .to_string();
+
+    let user_prompt = if !input_text.is_empty() {
+        format!(
+            "RAW DESCRIPTION:\n{}\n\n(Optional URL for reference: {})",
+            input_text, url
+        )
+    } else {
+        format!("PLEASE FETCH AND PARSE THIS URL: {}", url)
+    };
+
+    let raw_description = if !input_text.is_empty() {
+        input_text.to_string()
+    } else {
+        format!("Source URL: {}", url)
+    };
+
+    Ok((system_prompt, user_prompt, raw_description))
+}
+
 #[tauri::command]
 pub async fn parse_job(
     state: State<'_, AppState>,
@@ -59,16 +106,28 @@ pub async fn parse_job(
     raw_jd: String,
     job_url: Option<String>,
 ) -> Result<ai::JobParseResult, String> {
+    let (system_prompt, user_prompt, raw_description) =
+        parse_job_prompts(&raw_jd, job_url.as_deref())?;
     let custom_base_url = crate::commands::settings::get_custom_base_url(&state, &provider).await;
-    ai::parse_job_description(
+    let details: ai::JobDetails = ai::extract_job_details(
         &provider,
         &model,
         &api_key,
         custom_base_url.as_deref(),
-        &raw_jd,
-        job_url.as_deref(),
+        &system_prompt,
+        &user_prompt,
+        "Parsing",
     )
-    .await
+    .await?;
+
+    if !details.is_valid_job {
+        return Err("The content provided (or the URL) does not appear to contain a valid job description. Please ensure the link is public or paste the description manually.".to_string());
+    }
+
+    Ok(ai::JobParseResult {
+        details,
+        raw_description,
+    })
 }
 
 #[tauri::command]
@@ -524,18 +583,79 @@ pub async fn tailor_resume(
         core_responsibilities.unwrap_or_default()
     );
 
-    // 3. Call AI
+    // 3. Call AI (prompts owned here; `ai` is transport only)
+    let system_prompt = format!(
+        r#"You are an expert resume tailoring AI. Your task is to take a base LaTeX resume template and tailor it to match a specific job description.
+
+MANDATORY RULES:
+1. STRICT FACTUAL HONESTY (ZERO INVENTED SKILLS / NO HALLUCINATIONS):
+   - You MUST NEVER lie, exaggerate, fabricate, or invent any skills, tools, programming languages, technologies, work experiences, metrics, or credentials that the candidate does not have in their base resume.
+   - If the job description requires a skill or requirement that the candidate does NOT possess in the base resume, you MUST NOT insert it or claim the candidate has it.
+   - Only highlight, prioritize, and reframe the candidate's genuine existing skills and experiences that authentically overlap with the job description.
+
+2. EXACT PAGE BUDGET & LENGTH PRESERVATION:
+   - The tailored output MUST have the EXACT SAME number of pages as the base LaTeX template.
+   - If the base resume is a 1-page document, the tailored version MUST strictly fit on 1 page and NEVER spill onto a 2nd page.
+   - If the base resume is a 2-page document, the tailored version MUST fit within 2 pages.
+   - Maintain the same bullet counts, paragraph lengths, vertical spacing, and character density as the base resume to prevent any page overflow.
+
+3. PRESERVE STRUCTURE & COMPILABILITY:
+   - Only modify resume textual content, NOT the overall document structure, preamble, package imports, margins, or LaTeX commands unless strictly necessary for content.
+   - Keep all original sections, layouts, and visual formatting intact.
+   - Output ONLY valid, compilable LaTeX code with no markdown, no explanations, and no code fences.
+
+{}
+
+If custom instructions are provided, prioritize them while strictly maintaining honesty and page budget constraints."#,
+        crate::commands::pdf::TECTONIC_LATEX_CRATE_RULES
+    );
+
+    let user_prompt = format!(
+        r#"Base LaTeX Resume:
+{}
+
+Job Description:
+{}
+
+{}
+
+Please tailor the resume to match the job description.
+REMINDER:
+- Do NOT invent or add skills/experiences the candidate lacks.
+- The tailored LaTeX resume MUST fit on the exact same number of pages as the base template.
+Return only the modified LaTeX code."#,
+        base_latex,
+        job_context,
+        custom_instruction
+            .map(|ci| format!("Custom Instructions:\n{}", ci))
+            .unwrap_or_default()
+    );
+
     let custom_base_url = crate::commands::settings::get_custom_base_url(&state, &provider).await;
-    let tailored_latex = ai::tailor_latex_for_job(
+    let tailored_latex = match ai::complete(
         &provider,
         &model,
         &api_key,
         custom_base_url.as_deref(),
-        &base_latex,
-        &job_context,
-        custom_instruction.as_deref(),
+        &system_prompt,
+        &user_prompt,
+        "Tailoring",
     )
-    .await?;
+    .await
+    {
+        Ok(t) => t,
+        Err(e) => {
+            let _ = crate::commands::error_logs::record_error_log_state(
+                &state,
+                "ai_tailoring",
+                "AiError",
+                "Failed to tailor resume with AI",
+                Some(&e),
+                Some("tailor_resume"),
+            );
+            return Err(e);
+        }
+    };
 
     // 4. Save to database
     {

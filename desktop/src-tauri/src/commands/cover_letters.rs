@@ -357,18 +357,77 @@ pub async fn tailor_cover_letter(
         core_responsibilities.unwrap_or_default()
     );
 
-    // 3. Call AI
+    // 3. Call AI (prompts owned here; `ai` is transport only)
+    let system_prompt = format!(
+        r#"You are an expert cover letter tailoring AI. Your task is to take a base LaTeX cover letter template and tailor it to match a specific job description.
+
+MANDATORY RULES:
+1. STRICT FACTUAL HONESTY (ZERO INVENTED SKILLS / NO HALLUCINATIONS):
+   - You MUST NEVER lie, fabricate, or invent any skills, experiences, projects, or achievements that are not grounded in the candidate's base template or background.
+   - If the job description requires a skill or requirement that the candidate does not have, do NOT falsely claim the candidate possesses it. Emphasize only genuine transferable strengths and authentic experiences.
+
+2. EXACT PAGE BUDGET & LENGTH PRESERVATION:
+   - The tailored cover letter MUST fit on the EXACT SAME number of pages as the base template (strictly exactly 1 page unless the base is explicitly multi-page). It must NEVER overflow onto an extra page.
+   - Keep paragraphs balanced, concise, punchy, and appropriately sized to preserve the exact page layout.
+
+3. PRESERVE STRUCTURE & COMPILABILITY:
+   - Only modify cover letter textual content (e.g. recipient info, body paragraphs), NOT the structure, margins, or LaTeX commands.
+   - Maintain a professional, persuasive, and concise tone.
+   - Keep all original sections and formatting intact.
+   - Output ONLY valid, compilable LaTeX code with no markdown, no explanations, and no code fences.
+
+{}
+
+If custom instructions are provided, prioritize them while strictly maintaining honesty and page budget constraints."#,
+        crate::commands::pdf::TECTONIC_LATEX_CRATE_RULES
+    );
+
+    let user_prompt = format!(
+        r#"Base LaTeX Cover Letter:
+{}
+
+Job Description:
+{}
+
+{}
+
+Please tailor the cover letter to match the job description.
+REMINDER:
+- Do NOT invent or fabricate any skills or experiences the candidate does not have.
+- The tailored cover letter MUST strictly preserve the single-page layout (or exact base page count) without overflowing.
+Return only the modified LaTeX code."#,
+        base_latex,
+        job_context,
+        custom_instruction
+            .map(|ci| format!("Custom Instructions:\n{}", ci))
+            .unwrap_or_default()
+    );
+
     let custom_base_url = crate::commands::settings::get_custom_base_url(&state, &provider).await;
-    let tailored_latex = ai::tailor_latex_for_cover_letter(
+    let tailored_latex = match ai::complete(
         &provider,
         &model,
         &api_key,
         custom_base_url.as_deref(),
-        &base_latex,
-        &job_context,
-        custom_instruction.as_deref(),
+        &system_prompt,
+        &user_prompt,
+        "Tailoring",
     )
-    .await?;
+    .await
+    {
+        Ok(t) => t,
+        Err(e) => {
+            let _ = crate::commands::error_logs::record_error_log_state(
+                &state,
+                "ai_tailoring",
+                "AiError",
+                "Failed to tailor cover letter with AI",
+                Some(&e),
+                Some("tailor_cover_letter"),
+            );
+            return Err(e);
+        }
+    };
 
     // 4. Save to database
     {

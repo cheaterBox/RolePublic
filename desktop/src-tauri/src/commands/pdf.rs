@@ -54,6 +54,106 @@ impl StatusBackend for CapturingStatusBackend {
     }
 }
 
+pub const TECTONIC_LATEX_CRATE_RULES: &str = r#"
+CRITICAL COMPILATION ENGINE & CRATE LIMITATIONS (TECTONIC CRATE v0.17.0):
+You MUST perform a deep-level awareness of the Rust `tectonic` crate version 0.17.0 (derived from XeTeX).
+The application compiles documents using the embedded Rust `tectonic` crate (v0.17.0) with `ProcessingSessionBuilder` and the default online/cached TeXLive bundle. It is NOT a full command-line TeX Live system. It has strict functional limitations:
+
+1. ABSOLUTELY NO SHELL ESCAPE (\write18 / --shell-escape is disabled):
+   - You MUST NEVER include packages that require external executables, scripts, or interpreters.
+   - NEVER use `minted` (which strictly requires Python `pygments` CLI). If syntax highlighting or code boxes are needed, use `listings` or pure `tcolorbox`.
+   - NEVER use `pythontex`, `svg` (which requires Inkscape CLI), `gnuplottex`, `epstopdf` (with shell-escape), `pdfcomment`, or similar.
+
+2. NO EXTERNAL AUXILIARY PROCESSORS:
+   - The embedded crate does not execute external orchestrators.
+   - NEVER use `glossaries` (which requires the Perl `makeglossaries` CLI), `nomencl` (which requires `makeindex` CLI), `biber`, or `xindy`.
+   - Use standard LaTeX environments or standard `bibtex` commands for references/glossaries.
+
+3. XETEX ENGINE PRIMITIVES ONLY (NOT pdfTeX / LuaTeX):
+   - The engine is XeTeX. Never use packages or macros designed exclusively for pdfTeX or LuaTeX (e.g., `luacode`, `luatexbase`, `pdftexcmds` macros depending on pdfTeX engine).
+   - XeTeX supports native UTF-8; avoid legacy `\usepackage[utf8]{inputenc}` when using `fontspec`.
+   - `microtype` under XeTeX only supports character protrusion/margin kerning; do NOT enable font expansion.
+
+4. STRICT BUNDLE PACKAGE AVAILABILITY:
+   - Tectonic 0.17.0 fetches packages on demand from its official TeXLive bundle.
+   - DO NOT introduce obscure, obsolete, or non-standard CTAN packages that may not exist in the official Tectonic bundle.
+   - NEVER reference local external custom `.sty` or `.cls` files that are not embedded in the document.
+   - PRESERVE EXISTING PREAMBLE: DO NOT add unnecessary `\usepackage{...}` declarations. Retain the template's existing `\documentclass` and imported packages.
+   - FULLY VERIFIED & SUPPORTED STANDARD PACKAGES IN TECTONIC 0.17.0:
+     * Layout & Spacing: `geometry`, `fancyhdr`, `titlesec`, `enumitem`, `parskip`, `multicol`, `ragged2e`, `setspace`.
+     * Tables: `tabularx`, `array`, `booktabs`, `colortbl`, `multirow`.
+     * Styling & Color: `xcolor`, `hyperref`, `url`, `tcolorbox`.
+     * Fonts & Symbols: `fontawesome5`, `marvosym`, `amsmath`, `amssymb`, `fontspec`, `charter`, `helvet`.
+"#;
+
+/// Prompt builders for the refine/fix flows. Owned by this section —
+/// `ai` is transport only and must never hardcode prompt wording.
+fn refine_prompts(content: &str, instruction: &str, content_type: &str) -> (String, String) {
+    let engine_rules = if content_type.to_lowercase().contains("latex") {
+        TECTONIC_LATEX_CRATE_RULES
+    } else {
+        ""
+    };
+
+    let system_prompt = format!(
+        r#"You are an expert technical document editor specializing in {}. Your task is to apply specific refinements or formatting changes as requested by the user.
+
+Rules:
+1. Preserve all existing logic and meaning unless specifically asked to change it.
+2. Maintain valid {} syntax at all times.
+3. Output ONLY the modified code with no markdown, no explanations, no code fences.
+4. Ensure the output is ready for rendering.
+{}"#,
+        content_type, content_type, engine_rules
+    );
+
+    let user_prompt = format!(
+        r#"Current {} Content:
+{}
+
+Requested Refinement:
+{}
+
+Please apply the requested changes. Return only the updated code."#,
+        content_type, content, instruction
+    );
+
+    (system_prompt, user_prompt)
+}
+
+fn fix_prompts(broken_content: &str, error_logs: &str, content_type: &str) -> (String, String) {
+    let engine_rules = if content_type.to_lowercase().contains("latex") {
+        TECTONIC_LATEX_CRATE_RULES
+    } else {
+        ""
+    };
+
+    let system_prompt = format!(
+        r#"You are an expert technical debugger specializing in {}. Your task is to fix syntax errors or logic issues based on provided error logs.
+
+Rules:
+1. Fix the specific errors mentioned in the logs.
+2. DO NOT change the core meaning unless necessary to fix the error.
+3. Output ONLY the corrected {} code with no markdown, no explanations, no code fences.
+4. Ensure the output is valid and renderable.
+{}"#,
+        content_type, content_type, engine_rules
+    );
+
+    let user_prompt = format!(
+        r#"Broken {} Code:
+{}
+
+Error Logs:
+{}
+
+Please fix the code so it renders successfully. Return only the fixed code."#,
+        content_type, broken_content, error_logs
+    );
+
+    (system_prompt, user_prompt)
+}
+
 #[command]
 pub async fn refine_latex_with_ai(
     state: State<'_, AppState>,
@@ -64,16 +164,28 @@ pub async fn refine_latex_with_ai(
     instruction: String,
 ) -> Result<String, String> {
     let custom_base_url = crate::commands::settings::get_custom_base_url(&state, &provider).await;
-    ai::refine_technical_content(
+    let (system_prompt, user_prompt) = refine_prompts(&current_latex, &instruction, "LaTeX");
+    let res = ai::complete(
         &provider,
         &model,
         &api_key,
         custom_base_url.as_deref(),
-        &current_latex,
-        &instruction,
-        "LaTeX",
+        &system_prompt,
+        &user_prompt,
+        "Refinement",
     )
-    .await
+    .await;
+    if let Err(ref e) = res {
+        let _ = crate::commands::error_logs::record_error_log_state(
+            &state,
+            "ai_refining",
+            "AiError",
+            "Failed to refine LaTeX with AI",
+            Some(e),
+            Some("refine_latex_with_ai"),
+        );
+    }
+    res
 }
 
 #[command]
@@ -86,16 +198,28 @@ pub async fn fix_latex_with_ai(
     error_logs: String,
 ) -> Result<String, String> {
     let custom_base_url = crate::commands::settings::get_custom_base_url(&state, &provider).await;
-    ai::fix_technical_errors(
+    let (system_prompt, user_prompt) = fix_prompts(&broken_latex, &error_logs, "LaTeX");
+    let res = ai::complete(
         &provider,
         &model,
         &api_key,
         custom_base_url.as_deref(),
-        &broken_latex,
-        &error_logs,
-        "LaTeX",
+        &system_prompt,
+        &user_prompt,
+        "Fix",
     )
-    .await
+    .await;
+    if let Err(ref e) = res {
+        let _ = crate::commands::error_logs::record_error_log_state(
+            &state,
+            "ai_fixing",
+            "AiError",
+            "Failed to fix LaTeX with AI",
+            Some(e),
+            Some("fix_latex_with_ai"),
+        );
+    }
+    res
 }
 
 #[command]
@@ -109,16 +233,28 @@ pub async fn refine_diagram_with_ai(
     content_type: String,
 ) -> Result<String, String> {
     let custom_base_url = crate::commands::settings::get_custom_base_url(&state, &provider).await;
-    ai::refine_technical_content(
+    let (system_prompt, user_prompt) = refine_prompts(&current_code, &instruction, &content_type);
+    let res = ai::complete(
         &provider,
         &model,
         &api_key,
         custom_base_url.as_deref(),
-        &current_code,
-        &instruction,
-        &content_type,
+        &system_prompt,
+        &user_prompt,
+        "Refinement",
     )
-    .await
+    .await;
+    if let Err(ref e) = res {
+        let _ = crate::commands::error_logs::record_error_log_state(
+            &state,
+            "ai_refining",
+            "AiError",
+            "Failed to refine diagram with AI",
+            Some(e),
+            Some("refine_diagram_with_ai"),
+        );
+    }
+    res
 }
 
 #[command]
@@ -132,16 +268,28 @@ pub async fn fix_diagram_with_ai(
     content_type: String,
 ) -> Result<String, String> {
     let custom_base_url = crate::commands::settings::get_custom_base_url(&state, &provider).await;
-    ai::fix_technical_errors(
+    let (system_prompt, user_prompt) = fix_prompts(&broken_code, &error_logs, &content_type);
+    let res = ai::complete(
         &provider,
         &model,
         &api_key,
         custom_base_url.as_deref(),
-        &broken_code,
-        &error_logs,
-        &content_type,
+        &system_prompt,
+        &user_prompt,
+        "Fix",
     )
-    .await
+    .await;
+    if let Err(ref e) = res {
+        let _ = crate::commands::error_logs::record_error_log_state(
+            &state,
+            "ai_fixing",
+            "AiError",
+            "Failed to fix diagram with AI",
+            Some(e),
+            Some("fix_diagram_with_ai"),
+        );
+    }
+    res
 }
 
 #[command]
@@ -162,7 +310,7 @@ pub async fn compile_resume_to_pdf(
     let output_name = filename.unwrap_or_else(|| "output.pdf".to_string());
     let output_pdf_path = roletect_dir.join(output_name);
 
-    tokio::task::spawn_blocking(move || {
+    let res = tokio::task::spawn_blocking(move || {
         let thread_handle = std::thread::Builder::new()
             .name("tectonic-compiler".into())
             .stack_size(100 * 1024 * 1024)
@@ -228,7 +376,20 @@ pub async fn compile_resume_to_pdf(
             .map_err(|_| "Compiler thread panicked".to_string())?
     })
     .await
-    .map_err(|e| format!("Blocking task failed: {}", e))?
+    .map_err(|e| format!("Blocking task failed: {}", e))?;
+
+    if let Err(ref e) = res {
+        let _ = crate::commands::error_logs::record_error_log_app(
+            &app_handle,
+            "compiling",
+            "TectonicCompilationError",
+            "Resume LaTeX compilation failed",
+            Some(e),
+            Some("compile_resume_to_pdf"),
+        );
+    }
+
+    res
 }
 
 #[command]
@@ -268,7 +429,7 @@ pub(crate) async fn compile_workspace_to_pdf_inner(
         ));
     }
 
-    tokio::task::spawn_blocking(move || {
+    let res = tokio::task::spawn_blocking(move || {
         let thread_handle = std::thread::Builder::new()
             .name("tectonic-workspace-compiler".into())
             .stack_size(100 * 1024 * 1024)
@@ -350,7 +511,20 @@ pub(crate) async fn compile_workspace_to_pdf_inner(
             .map_err(|_| "The compiler thread panicked.".to_string())?
     })
     .await
-    .map_err(|e| format!("The asynchronous task failed: {}", e))?
+    .map_err(|e| format!("The asynchronous task failed: {}", e))?;
+
+    if let Err(ref e) = res {
+        let _ = crate::commands::error_logs::record_error_log_app(
+            &app_handle,
+            "compiling",
+            "TectonicCompilationError",
+            "Workspace LaTeX compilation failed",
+            Some(e),
+            Some("compile_workspace_to_pdf"),
+        );
+    }
+
+    res
 }
 
 #[cfg(test)]
