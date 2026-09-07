@@ -184,10 +184,60 @@ select option[value=""][disabled] {
     -webkit-user-select: none; /* Required for WebKit/Tauri webviews */
 }
 
-/* Allow selection only where explicitly needed (e.g., input fields) */
+/* Allow selection for inputs, errors, logs, dialogs, and code */
 input,
 textarea,
-[contenteditable="true"] {
-    user-select: text;
-    -webkit-user-select: text;
+[contenteditable="true"],
+.error-banner,
+.error-banner *,
+.error-msg,
+.error-inline,
+.error-logs,
+.error-log,
+.error-console,
+.error-box,
+.error-box *,
+.error-container,
+.error-text,
+.match-error,
+.match-error *,
+.dialog-message,
+.selectable-log,
+pre,
+code {
+    user-select: text !important;
+    -webkit-user-select: text !important;
 }
+
+/* Global Copiable Error Action Button Styles */
+.copy-err-inline-btn,
+.copy-err-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--surface-soft);
+    border: 1px solid var(--line);
+    color: var(--ink);
+    border-radius: 6px;
+    padding: 3px 6px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    user-select: none !important;
+    -webkit-user-select: none !important;
+    gap: 4px;
+}
+
+.copy-err-inline-btn:hover,
+.copy-err-btn:hover {
+    background: var(--surface);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.copy-err-inline-btn.copied,
+.copy-err-btn.copied {
+    color: var(--accent);
+    border-color: var(--accent);
+}
+

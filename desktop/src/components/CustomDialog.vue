@@ -1,13 +1,51 @@
 <script setup lang="ts">
 import { useDialogStore } from '../store/dialog';
 import { Motion, AnimatePresence } from 'motion-v';
-import { X, Info, HelpCircle, FileInput, Calendar } from '@lucide/vue';
-import { ref, onMounted, onUnmounted } from 'vue';
+import { X, Info, HelpCircle, FileInput, Calendar, AlertTriangle, Copy, Check } from '@lucide/vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { VueDatePicker } from '@vuepic/vue-datepicker';
 import '@vuepic/vue-datepicker/dist/main.css';
+import { copyToClipboard } from '../utils/clipboard';
 
 const store = useDialogStore();
 const inputRef = ref<HTMLInputElement | null>(null);
+const isCopied = ref(false);
+
+const isErrorMessage = computed(() => {
+  const title = (store.options?.title || '').toLowerCase();
+  const msg = (store.options?.message || '').toLowerCase();
+  return (
+    title.includes('error') ||
+    title.includes('failed') ||
+    title.includes('fail') ||
+    title.includes('invalid') ||
+    title.includes('exception') ||
+    title.includes('warning') ||
+    msg.includes('error:') ||
+    msg.includes('failed:')
+  );
+});
+
+const handleCopyMessage = async () => {
+  if (!store.options?.message) return;
+  const title = store.options.title;
+  const msg = store.options.message;
+  let textToCopy = msg;
+  if (
+    title &&
+    !['System Message', 'Notification', 'Alert', 'Confirm Action'].includes(title) &&
+    !msg.toLowerCase().includes(title.toLowerCase())
+  ) {
+    textToCopy = `${title}: ${msg}`;
+  }
+  const ok = await copyToClipboard(textToCopy);
+  if (ok) {
+    isCopied.value = true;
+    setTimeout(() => {
+      isCopied.value = false;
+    }, 2000);
+  }
+};
 
 const handleConfirm = () => {
   if (store.options?.type === 'prompt' || store.options?.type === 'datepicker') {
@@ -56,15 +94,28 @@ onUnmounted(() => {
       >
         <div class="dialog-header">
           <div class="header-left">
-            <Info v-if="store.options?.type === 'alert'" :size="18" class="icon alert-icon" />
+            <AlertTriangle v-if="store.options?.type === 'alert' && isErrorMessage" :size="18" class="icon error-icon" />
+            <Info v-else-if="store.options?.type === 'alert'" :size="18" class="icon alert-icon" />
             <HelpCircle v-else-if="store.options?.type === 'confirm'" :size="18" class="icon confirm-icon" />
             <FileInput v-else-if="store.options?.type === 'prompt'" :size="18" class="icon prompt-icon" />
             <Calendar v-else :size="18" class="icon datepicker-icon" />
             <span class="dialog-title">{{ store.options?.title || 'System Message' }}</span>
           </div>
-          <button class="close-btn" @click="handleCancel">
-            <X :size="16" />
-          </button>
+          <div class="header-right">
+            <button
+              v-if="store.options?.message"
+              type="button"
+              class="header-copy-btn"
+              @click="handleCopyMessage"
+              :title="isCopied ? 'Copied!' : (isErrorMessage ? 'Copy Error' : 'Copy Message')"
+            >
+              <Check v-if="isCopied" :size="14" class="copied-icon" />
+              <Copy v-else :size="14" />
+            </button>
+            <button class="close-btn" @click="handleCancel" title="Close">
+              <X :size="16" />
+            </button>
+          </div>
         </div>
 
         <div class="dialog-body">
@@ -96,16 +147,31 @@ onUnmounted(() => {
         </div>
 
         <div class="dialog-footer">
-          <button 
-            v-if="store.options?.type !== 'alert'" 
-            class="btn-cancel" 
-            @click="handleCancel"
-          >
-            {{ store.options?.cancelText || 'Cancel' }}
-          </button>
-          <button class="btn-confirm" @click="handleConfirm">
-            {{ store.options?.confirmText || (store.options?.type === 'alert' ? 'Got it' : 'Confirm') }}
-          </button>
+          <div class="footer-left">
+            <button
+              v-if="store.options?.message"
+              type="button"
+              class="btn-copy-dialog"
+              @click="handleCopyMessage"
+              :title="isCopied ? 'Copied!' : (isErrorMessage ? 'Copy Error' : 'Copy Message')"
+            >
+              <Check v-if="isCopied" :size="14" class="copied-icon" />
+              <Copy v-else :size="14" />
+              <span>{{ isCopied ? 'Copied!' : (isErrorMessage ? 'Copy Error' : 'Copy Message') }}</span>
+            </button>
+          </div>
+          <div class="footer-right">
+            <button 
+              v-if="store.options?.type !== 'alert'" 
+              class="btn-cancel" 
+              @click="handleCancel"
+            >
+              {{ store.options?.cancelText || 'Cancel' }}
+            </button>
+            <button class="btn-confirm" @click="handleConfirm">
+              {{ store.options?.confirmText || (store.options?.type === 'alert' ? 'Got it' : 'Confirm') }}
+            </button>
+          </div>
         </div>
       </Motion>
     </div>
@@ -183,9 +249,36 @@ onUnmounted(() => {
 }
 
 .alert-icon { color: var(--accent); }
+.error-icon { color: var(--warning); }
 .confirm-icon { color: #4cc9f0; }
 .prompt-icon { color: #a371f7; }
 .datepicker-icon { color: var(--accent); }
+.copied-icon { color: var(--accent); }
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.header-copy-btn {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 6px;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.header-copy-btn:hover {
+  background: var(--surface);
+  color: var(--accent);
+  border-color: var(--accent);
+}
 
 .close-btn {
   background: none;
@@ -213,6 +306,12 @@ onUnmounted(() => {
   color: var(--ink);
   margin-bottom: 16px;
   white-space: pre-wrap;
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  cursor: text;
+  max-height: 360px;
+  overflow-y: auto;
+  word-break: break-word;
 }
 
 .input-wrapper {
@@ -238,10 +337,44 @@ onUnmounted(() => {
 .dialog-footer {
   padding: 16px;
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
   gap: 12px;
   background: var(--bg-accent);
   border-top: 1px solid var(--line);
+}
+
+.footer-left {
+  display: flex;
+  align-items: center;
+}
+
+.footer-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.btn-copy-dialog {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 14px;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-copy-dialog:hover {
+  background: var(--surface);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .btn-confirm, .btn-cancel {
